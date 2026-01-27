@@ -61,14 +61,16 @@ test.describe('チャット機能', () => {
 
       const textarea = page.locator('textarea');
       await textarea.click();
-      await textarea.pressSequentially('1行目');
+      await textarea.pressSequentially('Line1');
+      await page.waitForTimeout(100);
       await textarea.press('Shift+Enter');
-      await textarea.pressSequentially('2行目');
+      await page.waitForTimeout(100);
+      await textarea.pressSequentially('Line2');
 
       // テキストエリアに改行を含むテキストがある
       const value = await textarea.inputValue();
-      expect(value).toContain('1行目');
-      expect(value).toContain('2行目');
+      expect(value).toContain('Line1');
+      expect(value).toContain('Line2');
 
       // 送信されていない（メッセージ一覧に表示されていない）
       await expect(page.locator('[class*="bg-nord-frost-2"]')).toHaveCount(0);
@@ -96,7 +98,9 @@ test.describe('チャット機能', () => {
 
       // サイドバーから会話を選択
       await page.getByText('スクロールテスト').click();
-      await expect(page.getByText('メッセージ 10')).toBeVisible({
+      await expect(
+        page.getByText('メッセージ 10', { exact: true }).first()
+      ).toBeVisible({
         timeout: 10000,
       });
 
