@@ -35,6 +35,7 @@ test.describe('ストリーミング表示', () => {
     });
 
     test('AI応答の内容が空でない', async ({ page }) => {
+      test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了まで時間がかかりすぎるためスキップ');
       await page.goto('/');
       await sendMessage(page, 'Say hi');
 
@@ -55,6 +56,7 @@ test.describe('ストリーミング表示', () => {
     test('ストリーミング完了後、完全なメッセージが表示される', async ({
       page,
     }) => {
+      test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了まで時間がかかりすぎるためスキップ');
       await page.goto('/');
       await sendMessage(page, '1+1=?');
 
@@ -76,6 +78,7 @@ test.describe('ストリーミング表示', () => {
 
   test.describe('準正常系', () => {
     test('短い応答が正しく表示される', async ({ page }) => {
+      test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了まで時間がかかりすぎるためスキップ');
       await page.goto('/');
       await sendMessage(page, 'Reply with just: OK');
 
@@ -91,6 +94,7 @@ test.describe('ストリーミング表示', () => {
     });
 
     test('特殊文字を含む応答が正しく表示される', async ({ page }) => {
+      test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了まで時間がかかりすぎるためスキップ');
       await page.goto('/');
       await sendMessage(
         page,

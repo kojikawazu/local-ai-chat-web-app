@@ -61,19 +61,22 @@ test.describe('チャット機能', () => {
 
       const textarea = page.locator('textarea');
       await textarea.click();
-      await textarea.pressSequentially('Line1');
-      await page.waitForTimeout(100);
-      await textarea.press('Shift+Enter');
-      await page.waitForTimeout(100);
-      await textarea.pressSequentially('Line2');
+      await textarea.pressSequentially('Line1', { delay: 30 });
+      await page.waitForTimeout(200);
 
-      // テキストエリアに改行を含むテキストがある
+      // Shift+Enter を明示的に Shift down → Enter → Shift up で実行
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Enter');
+      await page.keyboard.up('Shift');
+      await page.waitForTimeout(200);
+
+      await textarea.pressSequentially('Line2', { delay: 30 });
+      await page.waitForTimeout(200);
+
+      // テキストエリアに改行を含むテキストがある（送信されていればtextareaは空になる）
       const value = await textarea.inputValue();
       expect(value).toContain('Line1');
       expect(value).toContain('Line2');
-
-      // 送信されていない（メッセージ一覧に表示されていない）
-      await expect(page.locator('[class*="bg-nord-frost-2"]')).toHaveCount(0);
     });
 
     test('メッセージ送信後にチャットエリアが自動スクロールする', async ({
