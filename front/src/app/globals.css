@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-nord-0: #2e3440;
+  --color-nord-1: #3b4252;
+  --color-nord-2: #434c5e;
+  --color-nord-3: #4c566a;
+  --color-nord-4: #d8dee9;
+  --color-nord-5: #e5e9f0;
+  --color-nord-6: #eceff4;
+  --color-nord-frost-0: #8fbcbb;
+  --color-nord-frost-1: #88c0d0;
+  --color-nord-frost-2: #81a1c1;
+  --color-nord-frost-3: #5e81ac;
+  --color-nord-aurora-yellow: #ebcb8b;
+  --color-nord-aurora-green: #a3be8c;
+  --color-nord-aurora-red: #bf616a;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-nord-0);
+  color: var(--color-nord-6);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Theme: Aurora Borealis */
+[data-theme='aurora'] {
+  --color-nord-0: #1a1b26;
+  --color-nord-1: #24283b;
+  --color-nord-2: #2f3449;
+  --color-nord-3: #3b4261;
+  --color-nord-4: #a9b1d6;
+  --color-nord-5: #c0caf5;
+  --color-nord-6: #e0e6ff;
+  --color-nord-frost-0: #73daca;
+  --color-nord-frost-1: #7dcfff;
+  --color-nord-frost-2: #bb9af7;
+  --color-nord-frost-3: #7aa2f7;
+  --color-nord-aurora-yellow: #e0af68;
+  --color-nord-aurora-green: #9ece6a;
+  --color-nord-aurora-red: #f7768e;
+}
+
+/* Theme: Midnight Ocean */
+[data-theme='ocean'] {
+  --color-nord-0: #0d1117;
+  --color-nord-1: #161b22;
+  --color-nord-2: #21262d;
+  --color-nord-3: #30363d;
+  --color-nord-4: #8b949e;
+  --color-nord-5: #b1bac4;
+  --color-nord-6: #e6edf3;
+  --color-nord-frost-0: #56d4dd;
+  --color-nord-frost-1: #58a6ff;
+  --color-nord-frost-2: #388bfd;
+  --color-nord-frost-3: #1f6feb;
+  --color-nord-aurora-yellow: #d29922;
+  --color-nord-aurora-green: #3fb950;
+  --color-nord-aurora-red: #f85149;
+}

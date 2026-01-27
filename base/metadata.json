@@ -1,0 +1,7 @@
+{
+  "name": "Nordic Chat LLM",
+  "description": "A refined local LLM interface featuring the Arctic-inspired Nordic Frost design system.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
