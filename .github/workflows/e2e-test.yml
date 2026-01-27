@@ -69,6 +69,10 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chat_db
         run: pnpm prisma migrate deploy
 
+      - name: Generate Prisma client
+        working-directory: front
+        run: pnpm prisma generate
+
       - name: Build Next.js
         working-directory: front
         env:
