@@ -30,13 +30,24 @@ export async function fillTextarea(page: Page, text: string) {
     // 短いテキスト: pressSequentially で確実にReact stateを更新
     await textarea.pressSequentially(text, { delay: 10 });
   } else {
-    // 長いテキスト: クリップボードに書き込んで貼り付け
-    await page.evaluate(async (t) => {
-      await navigator.clipboard.writeText(t);
-    }, text);
-    await page.keyboard.press('ControlOrMeta+v');
+    // 長いテキスト: evaluateで直接値を設定し、inputイベントを発火
+    await textarea.focus();
+    await page.evaluate(
+      ({ selector, t }) => {
+        const el = document.querySelector(selector) as HTMLTextAreaElement;
+        if (!el) return;
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype,
+          'value'
+        )?.set;
+        nativeInputValueSetter?.call(el, t);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+      { selector: 'textarea', t: text }
+    );
     // React stateの更新を待つ
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
   }
 }
 

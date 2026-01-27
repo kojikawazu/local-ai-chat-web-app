@@ -6,7 +6,9 @@ import {
   sendMessage,
 } from './helpers/test-data';
 
+// スクリーンショットテストはOS間でレンダリング差異があるためCI環境ではスキップ
 test.describe('スクリーンショットテスト', () => {
+  test.skip(!!process.env.CI, 'スクリーンショットテストはCI環境ではスキップ');
   test.beforeAll(async ({ request }) => {
     await cleanupAllConversations(request);
   });
@@ -22,7 +24,7 @@ test.describe('スクリーンショットテスト', () => {
       await page.goto('/');
 
       // ウェルカム画面が表示されるまで待つ
-      await expect(page.getByText('Welcome to Nordic.')).toBeVisible();
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible();
 
       await expect(page).toHaveScreenshot('initial-empty.png', {
         maxDiffPixelRatio: 0.05,
@@ -119,7 +121,7 @@ test.describe('スクリーンショットテスト', () => {
       await page.goto('/');
 
       // モバイルではウェルカム画面が表示される
-      await expect(page.getByText('Welcome to Nordic.')).toBeVisible();
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible();
 
       await expect(page).toHaveScreenshot('mobile-view.png', {
         maxDiffPixelRatio: 0.05,

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 
+test.skip(!!process.env.CI, 'デバッグ用テストはCI環境ではスキップ');
 test.describe('デバッグ: 入力テスト', () => {
   test('方法1: pressSequentially', async ({ page }) => {
     await page.goto('/');

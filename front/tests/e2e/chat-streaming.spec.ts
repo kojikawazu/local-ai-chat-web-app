@@ -6,6 +6,9 @@ import {
 } from './helpers/test-data';
 
 test.describe('ストリーミング表示', () => {
+  // ストリーミングテストはLLM応答を待つため長めのタイムアウトが必要
+  test.setTimeout(180000);
+
   test.beforeAll(async ({ request }) => {
     await cleanupAllConversations(request);
   });

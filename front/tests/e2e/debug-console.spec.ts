@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 
+test.skip(!!process.env.CI, 'デバッグ用テストはCI環境ではスキップ');
 test('ブラウザコンソールエラーを確認', async ({ page }) => {
   const consoleMessages: string[] = [];
   const consoleErrors: string[] = [];
@@ -19,7 +20,7 @@ test('ブラウザコンソールエラーを確認', async ({ page }) => {
   await page.goto('/');
 
   // ページが完全にロードされるまで待つ
-  await expect(page.getByText('Welcome to Nordic.')).toBeVisible({
+  await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible({
     timeout: 10000,
   });
 

@@ -8,6 +8,9 @@ import {
 } from './helpers/test-data';
 
 test.describe('チャット機能', () => {
+  // LLM応答を待つテストがあるため長めのタイムアウト
+  test.setTimeout(180000);
+
   test.beforeAll(async ({ request }) => {
     await cleanupAllConversations(request);
   });
@@ -50,6 +53,11 @@ test.describe('チャット機能', () => {
     }) => {
       await cleanupAllConversations(request);
       await page.goto('/');
+
+      // ウェルカム画面が表示されるまで待つ（前テストの状態がクリアされたことを確認）
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible({
+        timeout: 10000,
+      });
 
       const textarea = page.locator('textarea');
       await textarea.click();
