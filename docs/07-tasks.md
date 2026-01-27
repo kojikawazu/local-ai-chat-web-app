@@ -90,3 +90,20 @@
 - [x] docs/06-testing.md 更新（新機能のテストシナリオ・ファイル構成追加）
 - [x] CLAUDE.md 更新（テーマシステム・新コンポーネント・依存パッケージ反映）
 - [x] README.md 作成（プロジェクト概要・セットアップ手順・機能一覧）
+
+## フェーズ10: CI環境構築・修正
+
+- [x] GitHub Actionsワークフロー作成（`.github/workflows/e2e-test.yml`）
+- [x] CI環境でのディスク容量確保（不要SDK削除）
+- [x] CIモデル選定（`qwen3-coder:latest` → `qwen3:0.6b` → `qwen2.5:0.5b`）
+- [x] Prismaクライアント生成ステップ追加
+- [x] E2EテストのCI対応修正（ウェルカムテキスト、Clipboard API、strict mode、タイムアウト等 計18件）
+- [x] ストリーミング完了テストのCIスキップ設定（CPU onlyでは完了しない）
+- [x] Shift+EnterテストのCI安定化（明示的キーボード操作）
+- [x] CI E2Eテスト全通過確認
+
+## フェーズ11: マニュアル・レポート
+
+- [x] macOS向けセットアップガイド作成（`manuals/setup-guide-macos.md`）
+- [x] CI E2Eテストバグレポート作成（`docs/08-ci-e2e-bug-report.md`）
+- [x] 全ドキュメント最終更新（CI・マニュアル・バグレポート反映）

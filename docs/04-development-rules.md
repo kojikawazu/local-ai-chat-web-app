@@ -27,9 +27,10 @@
 ## Git運用
 
 - **feature branch** 方式で運用する
-- ブランチ名: `feature/<機能名>` （例: `feature/chat-streaming`）
-- mainブランチに直接コミットしない
+- ブランチ名: `feature/<機能名>` または `docs/<ドキュメント名>`（例: `feature/chat-streaming`, `docs/setup-guide-macos`）
+- mainブランチに直接コミットしない（初回セットアップ時を除く）
 - **コミットメッセージは日本語**で記述する
+- PRはGitHub Actionsの自動テスト通過後にマージ
 
 ## テスト方針
 
@@ -46,10 +47,25 @@
 ```
 front/tests/
 └── e2e/
-    ├── chat.spec.ts        # チャット機能のE2Eテスト
-    ├── sidebar.spec.ts     # サイドバー操作のE2Eテスト
-    └── ...
+    ├── helpers/
+    │   └── test-data.ts           # テストデータ管理ヘルパー
+    ├── chat.spec.ts               # チャット機能テスト
+    ├── chat-streaming.spec.ts     # ストリーミング表示テスト
+    ├── sidebar.spec.ts            # サイドバー操作テスト
+    ├── conversation.spec.ts       # 会話管理テスト
+    ├── security.spec.ts           # セキュリティテスト
+    ├── responsive.spec.ts         # レスポンシブテスト
+    ├── screenshot.spec.ts         # スクリーンショットテスト
+    ├── debug-console.spec.ts      # デバッグ用テスト
+    └── debug-input.spec.ts        # 入力方式デバッグ用テスト
 ```
+
+### CI（GitHub Actions）
+
+- `push` to main / `pull_request` to main で自動実行
+- CI環境: Ubuntu + PostgreSQL (service container) + Ollama (`qwen2.5:0.5b`)
+- CIではストリーミング完了テスト・スクリーンショットテスト・デバッグテストをスキップ
+- 詳細は `docs/08-ci-e2e-bug-report.md` を参照
 
 ## コード品質
 

@@ -79,6 +79,17 @@ connect-src 'self';
 - `DATABASE_URL`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` をGitにコミットしない
 - 環境変数のデフォルト値はコード内にハードコードしない（`lib/` 内の設定ファイルで管理）
 
+## Git管理から除外するファイル
+
+| パス | 理由 |
+|------|------|
+| `.env*` | 環境変数（DB接続情報等） |
+| `.claude/` | Claude Code内部ファイル |
+| `src/generated/prisma/` | Prisma自動生成クライアント（`prisma generate`で再生成） |
+| `node_modules/` | 依存パッケージ |
+| `.next/` | Next.jsビルド出力 |
+| `test-results/` | テスト結果（スクリーンショット・トレース） |
+
 ## CORS設定
 
 - ローカル利用のためCORS制限は不要

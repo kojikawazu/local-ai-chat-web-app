@@ -22,8 +22,13 @@ Next.js Route Handlers (API層)
 
 ```
 local-ai-chat-web-app/
+├── .github/
+│   └── workflows/
+│       └── e2e-test.yml       # GitHub Actions E2Eテストワークフロー
 ├── base/                      # UIデザインリファレンス（読み取り専用・編集禁止）
 ├── docs/                      # プロジェクトドキュメント
+├── manuals/                   # セットアップガイド等のマニュアル
+│   └── setup-guide-macos.md   #   macOS向けセットアップ手順書
 ├── front/                     # Next.jsアプリケーション本体（開発はここで行う）
 │   ├── src/                   #   ソースコード
 │   ├── prisma/                #   Prismaスキーマ・マイグレーション
@@ -37,7 +42,8 @@ local-ai-chat-web-app/
 │   ├── package.json
 │   └── pnpm-lock.yaml
 ├── docker-compose.yml         # PostgreSQLコンテナ定義
-└── CLAUDE.md
+├── CLAUDE.md
+└── README.md
 ```
 
 ### front/src/ 内部構成
@@ -103,13 +109,18 @@ front/prisma/
 ```
 front/tests/
 └── e2e/
-    ├── chat.spec.ts           # チャット機能テスト
-    ├── chat-streaming.spec.ts # ストリーミング表示テスト
-    ├── sidebar.spec.ts        # サイドバー操作テスト
-    ├── conversation.spec.ts   # 会話管理テスト
-    ├── security.spec.ts       # セキュリティテスト
-    ├── responsive.spec.ts     # レスポンシブテスト
-    └── __screenshots__/       # ビジュアルリグレッション用ベースライン
+    ├── helpers/
+    │   └── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
+    ├── chat.spec.ts               # チャット機能テスト
+    ├── chat-streaming.spec.ts     # ストリーミング表示テスト
+    ├── sidebar.spec.ts            # サイドバー操作テスト
+    ├── conversation.spec.ts       # 会話管理テスト
+    ├── security.spec.ts           # セキュリティテスト
+    ├── responsive.spec.ts         # レスポンシブテスト
+    ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
+    ├── debug-console.spec.ts      # デバッグ用テスト（CIスキップ）
+    ├── debug-input.spec.ts        # 入力方式デバッグ用テスト（CIスキップ）
+    └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
 
 ### ディレクトリ方針
