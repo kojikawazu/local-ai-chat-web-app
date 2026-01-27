@@ -224,16 +224,28 @@ describe('機能名', () => {
 front/tests/
 └── e2e/
     ├── helpers/
-    │   └── test-data.ts          # テストデータ管理ヘルパー
+    │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── sidebar.spec.ts           # サイドバー操作テスト
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）
     ├── responsive.spec.ts        # レスポンシブ・レイアウトテスト
-    ├── screenshot.spec.ts        # スクリーンショットテスト
-    └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット
+    ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
+    ├── debug-console.spec.ts     # デバッグ用テスト（CIスキップ）
+    ├── debug-input.spec.ts       # 入力方式デバッグ用テスト（CIスキップ）
+    └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
+
+### テストヘルパー（test-data.ts）
+
+| 関数 | 用途 |
+|------|------|
+| `fillTextarea(page, text)` | React controlled input にテキスト設定（短文: `pressSequentially`、長文: `nativeInputValueSetter`） |
+| `sendMessage(page, text)` | テキスト入力 + Enter送信 |
+| `createConversation(request, title)` | API経由で会話作成 |
+| `createMessage(request, id, role, content)` | API経由でメッセージ作成 |
+| `cleanupAllConversations(request)` | 全会話削除 |
 
 ## CI（GitHub Actions）
 
@@ -242,18 +254,44 @@ front/tests/
 - `push` to main
 - `pull_request` to main
 
-### 実行環境の前提
+### 実行環境
 
-- Node.js + pnpm
-- Docker Compose（PostgreSQL）
-- Ollama（テスト用モデルが起動済みであること）
+| 項目 | 値 |
+|------|-----|
+| ランナー | `ubuntu-latest` |
+| Node.js | 20 |
+| PostgreSQL | 16（service container） |
+| Ollama | `qwen2.5:0.5b`（思考モードなし、CPU only対応） |
+| ブラウザ | Chromium（headless） |
 
 ### ワークフロー概要
 
-1. 依存パッケージインストール（`pnpm install`）
-2. Playwrightブラウザインストール
-3. Docker ComposeでPostgreSQL起動
-4. Prismaマイグレーション実行
-5. Next.jsビルド + 起動
-6. Playwright E2Eテスト実行
-7. テスト結果・スクリーンショット・トレースをArtifactにアップロード
+1. ディスク容量確保（不要SDK削除）
+2. 依存パッケージインストール（`pnpm install`）
+3. Playwrightブラウザインストール（Chromiumのみ）
+4. Ollama起動 + モデルダウンロード（`qwen2.5:0.5b`）
+5. PostgreSQL service containerで自動起動
+6. Prismaマイグレーション実行 + クライアント生成
+7. Next.jsビルド
+8. Playwright E2Eテスト実行
+9. テスト結果・スクリーンショット・トレースをArtifactにアップロード
+
+### CIスキップ対象テスト
+
+CPU onlyのCIランナーではLLM推論が遅いため、以下のテストをスキップ:
+
+| テストファイル | スキップ対象 | 理由 |
+|---------------|-------------|------|
+| `chat-streaming.spec.ts` | ストリーミング完了を待つ4テスト | CPU onlyで120秒以内に完了しない |
+| `screenshot.spec.ts` | 全テスト | OS間フォントレンダリング差異 |
+| `debug-console.spec.ts` | 全テスト | デバッグ専用 |
+| `debug-input.spec.ts` | 全テスト | デバッグ専用 |
+
+### CI固有の技術的考慮事項
+
+- **Clipboard API**: ヘッドレスChromiumでは使用不可。`nativeInputValueSetter` + `dispatchEvent` で代替
+- **Shift+Enter**: `keyboard.down('Shift')` → `keyboard.press('Enter')` → `keyboard.up('Shift')` で明示的に実行
+- **Prismaクライアント**: `src/generated/prisma/` はgitignoreのため、CI上で `prisma generate` が必須
+- **ディスク容量**: プリインストールSDK削除で確保（.NET, Android SDK, GHC等）
+
+詳細は `docs/08-ci-e2e-bug-report.md` を参照。

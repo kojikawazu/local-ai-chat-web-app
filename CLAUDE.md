@@ -158,9 +158,11 @@ model Message {
 
 ### プロジェクト全体
 
+- **`.github/workflows/`** — GitHub Actions CI定義（E2Eテスト自動実行）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
-- **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
 - **`docs/`** — プロジェクトドキュメント
+- **`manuals/`** — セットアップガイド等のマニュアル
+- **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
 - **`docker-compose.yml`** — PostgreSQLコンテナ定義（プロジェクトルート）
 
 ### front/src/ ソースコード構成（ハイブリッド方式）
@@ -200,6 +202,9 @@ model Message {
 - **失敗時レポート**: スクリーンショット + Playwrightトレースを保存
 - **テストデータ管理**: テストスイート（ファイル）単位でセットアップ/クリーンアップ
 - **CI**: GitHub Actions（push/PR to main）で自動実行
+  - CIモデル: `qwen2.5:0.5b`（思考モードなし、CPU only対応）
+  - ストリーミング完了テスト・スクリーンショットテスト・デバッグテストはCIスキップ
+  - 詳細は `docs/08-ci-e2e-bug-report.md` を参照
 - テストファイル配置: `front/tests/e2e/`
 - **Playwright設定**: workers: 1（順次実行）、retry: 1、webServerで`pnpm dev`を自動起動
 - 詳細は `docs/06-testing.md` を参照
@@ -233,5 +238,7 @@ CSS変数ベースの3テーマ切替（Nordic Frost / Aurora Borealis / Midnigh
 | `docs/05-security.md` | セキュリティ要件 |
 | `docs/06-testing.md` | テスト要件 |
 | `docs/07-tasks.md` | タスク一覧・進捗管理 |
+| `docs/08-ci-e2e-bug-report.md` | CI E2Eテスト バグレポート |
+| `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`08-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`09-`〜）を付与する。
