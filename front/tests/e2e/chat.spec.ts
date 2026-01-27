@@ -8,6 +8,9 @@ import {
 } from './helpers/test-data';
 
 test.describe('チャット機能', () => {
+  // LLM応答を待つテストがあるため長めのタイムアウト
+  test.setTimeout(180000);
+
   test.beforeAll(async ({ request }) => {
     await cleanupAllConversations(request);
   });
@@ -51,19 +54,29 @@ test.describe('チャット機能', () => {
       await cleanupAllConversations(request);
       await page.goto('/');
 
+      // ウェルカム画面が表示されるまで待つ（前テストの状態がクリアされたことを確認）
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible({
+        timeout: 10000,
+      });
+
       const textarea = page.locator('textarea');
       await textarea.click();
-      await textarea.pressSequentially('1行目');
-      await textarea.press('Shift+Enter');
-      await textarea.pressSequentially('2行目');
+      await textarea.pressSequentially('Line1', { delay: 30 });
+      await page.waitForTimeout(200);
 
-      // テキストエリアに改行を含むテキストがある
+      // Shift+Enter を明示的に Shift down → Enter → Shift up で実行
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Enter');
+      await page.keyboard.up('Shift');
+      await page.waitForTimeout(200);
+
+      await textarea.pressSequentially('Line2', { delay: 30 });
+      await page.waitForTimeout(200);
+
+      // テキストエリアに改行を含むテキストがある（送信されていればtextareaは空になる）
       const value = await textarea.inputValue();
-      expect(value).toContain('1行目');
-      expect(value).toContain('2行目');
-
-      // 送信されていない（メッセージ一覧に表示されていない）
-      await expect(page.locator('[class*="bg-nord-frost-2"]')).toHaveCount(0);
+      expect(value).toContain('Line1');
+      expect(value).toContain('Line2');
     });
 
     test('メッセージ送信後にチャットエリアが自動スクロールする', async ({
@@ -88,7 +101,9 @@ test.describe('チャット機能', () => {
 
       // サイドバーから会話を選択
       await page.getByText('スクロールテスト').click();
-      await expect(page.getByText('メッセージ 10')).toBeVisible({
+      await expect(
+        page.getByText('メッセージ 10', { exact: true }).first()
+      ).toBeVisible({
         timeout: 10000,
       });
 

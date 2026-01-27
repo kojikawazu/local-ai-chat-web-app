@@ -49,14 +49,22 @@ test.describe('サイドバー操作', () => {
       });
     });
 
-    test('新規会話を作成できる', async ({ page }) => {
+    test('新規会話を作成できる', async ({ page, request }) => {
+      // 既存会話がある状態にする（初期状態ではNew Conversationボタンが無効）
+      await cleanupAllConversations(request);
+      const conv = await createConversation(request, 'テスト会話');
+      await createMessage(request, conv.id, 'user', 'テスト');
+
       await page.goto('/');
+      // 既存会話を選択してNew Conversationボタンを有効化
+      await page.getByText('テスト会話').click();
+      await expect(page.getByText('テスト')).toBeVisible({ timeout: 10000 });
 
       // New Conversationボタンをクリック
       await page.getByText('New Conversation').click();
 
       // ウェルカム画面が表示される（空の会話状態）
-      await expect(page.getByText('Welcome to Nordic.')).toBeVisible();
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible();
     });
 
     test('会話を削除できる', async ({ page, request }) => {
@@ -95,7 +103,7 @@ test.describe('サイドバー操作', () => {
       await page.goto('/');
 
       // ウェルカムメッセージが表示される
-      await expect(page.getByText('Welcome to Nordic.')).toBeVisible();
+      await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible();
     });
   });
 

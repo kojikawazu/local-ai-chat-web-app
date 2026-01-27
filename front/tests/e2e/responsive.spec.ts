@@ -26,9 +26,9 @@ test.describe('レスポンシブ・画面表示', () => {
       // ヘッダーが表示される
       await expect(page.locator('header')).toBeVisible();
 
-      // チャットエリアが表示される
+      // チャットエリアが存在する
       await expect(
-        page.locator('[class*="overflow-y-auto"]').first()
+        page.locator('[class*="bg-nord-0"]').first()
       ).toBeVisible();
 
       // フッターが表示される
@@ -42,7 +42,9 @@ test.describe('レスポンシブ・画面表示', () => {
       await page.setViewportSize({ width: 1280, height: 720 });
       await page.goto('/');
 
-      await expect(page.getByText('Nordic Chat')).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Nordic Chat', exact: true })
+      ).toBeVisible();
       await expect(page.getByText('New Conversation')).toBeVisible();
       await expect(page.getByText('History')).toBeVisible({
         timeout: 5000,
