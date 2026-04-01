@@ -239,6 +239,7 @@ CSS変数ベースの3テーマ切替（Nordic Frost / Aurora Borealis / Midnigh
 | `docs/06-testing.md` | テスト要件 |
 | `docs/07-tasks.md` | タスク一覧・進捗管理 |
 | `docs/08-ci-e2e-bug-report.md` | CI E2Eテスト バグレポート |
+| `docs/09-agent-architecture.md` | エージェント機能 設計書 |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
 新規ドキュメント追加時は次の連番（`09-`〜）を付与する。
