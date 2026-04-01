@@ -26,6 +26,7 @@ export async function GET(
         id: true,
         role: true,
         content: true,
+        // metadata は prisma generate 後に追加
         createdAt: true,
       },
     });
@@ -46,7 +47,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  let body: { role?: string; content?: string };
+  let body: { role?: string; content?: string; metadata?: Record<string, unknown> | null };
 
   try {
     body = await request.json();
@@ -57,7 +58,7 @@ export async function POST(
     );
   }
 
-  const { role, content } = body;
+  const { role, content, metadata } = body;
 
   if (!role || !content) {
     return NextResponse.json(
@@ -83,6 +84,8 @@ export async function POST(
         conversationId: id,
         role,
         content,
+        // metadata は prisma generate 後に有効化
+        // ...(metadata !== undefined && { metadata }),
       },
     });
 

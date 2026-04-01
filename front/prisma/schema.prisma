@@ -21,5 +21,6 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String
   content        String
+  metadata       Json?        // ツール呼び出し情報等 { toolCalls: ToolCallRecord[] }
   createdAt      DateTime     @default(now())
 }
