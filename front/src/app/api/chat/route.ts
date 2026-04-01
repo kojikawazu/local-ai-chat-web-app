@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { streamChat, OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
+import { runAgentLoop } from '@/lib/agent';
+import { registerTool } from '@/lib/tools/index';
+import { getCurrentDatetimeTool } from '@/lib/tools/get-current-datetime';
+import { calculateTool } from '@/lib/tools/calculate';
+
+// ツールを登録（モジュール初回ロード時に1度だけ実行）
+registerTool(getCurrentDatetimeTool);
+registerTool(calculateTool);
 
 export async function POST(request: NextRequest) {
   let body: {
     message?: string;
     conversationHistory?: OllamaChatMessage[];
     model?: string;
+    enableTools?: boolean;
   };
 
   try {
@@ -17,7 +26,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { message, conversationHistory = [], model } = body;
+  const { message, conversationHistory = [], model, enableTools = false } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
@@ -34,6 +43,18 @@ export async function POST(request: NextRequest) {
     ...conversationHistory,
     { role: 'user', content: message.trim() },
   ];
+
+  // エージェントモード: NDJSON イベントストリームを返す
+  if (enableTools) {
+    const agentStream = runAgentLoop(messages, model);
+    return new Response(agentStream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  }
 
   let ollamaResponse: Response;
   try {
