@@ -116,7 +116,7 @@
 ### 12-1: 調査・設計
 
 - [ ] 音声対話の技術選定（STT: Whisper等、TTS: Web Speech API / Piper等）
-- [ ] 音声対話のアーキテクチャ設計（`docs/09-voice-dialogue.md` 作成）
+- [ ] 音声対話のアーキテクチャ設計（`docs/12-voice-dialogue.md` 作成）
 - [ ] 音声対話のデータフロー設計（録音 → STT → LLM → TTS → 再生）
 
 ### 12-2: 音声入力（STT: Speech-to-Text）
@@ -156,7 +156,7 @@
 
 ### 12-7: ドキュメント
 
-- [ ] `docs/09-voice-dialogue.md` 作成（音声対話設計書）
+- [ ] `docs/12-voice-dialogue.md` 作成（音声対話設計書）
 - [ ] 既存ドキュメント更新（requirements, architecture, API設計, CLAUDE.md等）
 
 ## フェーズ13: 画像添付機能（マルチモーダル対応）
