@@ -70,7 +70,7 @@ pnpm dev                   # 開発サーバー起動
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3-coder:latest
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chat_db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
 ```
 
 ## コマンド一覧

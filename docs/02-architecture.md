@@ -203,7 +203,7 @@ model Message {
 |--------|------|-------------|
 | `OLLAMA_BASE_URL` | Ollama APIの接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用するモデル名 | `qwen3-coder:latest` |
-| `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5432/chat_db` |
+| `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 
 ## 状態管理
 

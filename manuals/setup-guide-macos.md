@@ -223,7 +223,7 @@ docker compose ps
 
 ```
 NAME       IMAGE         STATUS         PORTS
-chat_db    postgres:16   Up ...         0.0.0.0:5432->5432/tcp
+chat_db    postgres:16   Up ...         0.0.0.0:5499->5432/tcp
 ```
 
 ---
@@ -244,7 +244,7 @@ pnpm install
 cat <<'EOF' > .env.local
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3-coder:latest
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chat_db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
 EOF
 ```
 
@@ -349,7 +349,7 @@ ollama serve
 ### PostgreSQL に接続できない
 
 ```
-Can't reach database server at `localhost:5432`
+Can't reach database server at `localhost:5499`
 ```
 
 **対処法:**
@@ -362,7 +362,7 @@ docker compose ps
 docker compose up -d
 
 # ポートが別プロセスに使用されていないか確認
-lsof -i :5432
+lsof -i :5499
 ```
 
 ### pnpm install でエラーが出る

@@ -73,7 +73,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 |--------|------|-----------|
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用モデル | `qwen3-coder:latest` |
-| `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5432/chat_db` |
+| `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 
