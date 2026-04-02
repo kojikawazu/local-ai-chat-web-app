@@ -5,12 +5,7 @@ interface ToolCallIndicatorProps {
   arguments: Record<string, unknown>;
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  get_current_datetime: '日時を取得',
-  calculate: '計算',
-  web_search: 'Web検索',
-  url_fetch: 'URLを取得',
-};
+import { TOOL_LABELS } from '../constants/toolLabels';
 
 export function ToolCallIndicator({ name, arguments: args }: ToolCallIndicatorProps) {
   const label = TOOL_LABELS[name] ?? name;

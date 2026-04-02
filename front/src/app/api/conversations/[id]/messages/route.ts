@@ -22,13 +22,6 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        // metadata は prisma generate 後に追加
-        createdAt: true,
-      },
     });
 
     return NextResponse.json({ messages });
@@ -67,6 +60,13 @@ export async function POST(
     );
   }
 
+  if (!['user', 'assistant'].includes(role)) {
+    return NextResponse.json(
+      { error: 'roleは "user" または "assistant" のみ有効です' },
+      { status: 400 }
+    );
+  }
+
   try {
     const conversation = await prisma.conversation.findUnique({
       where: { id },
@@ -84,8 +84,7 @@ export async function POST(
         conversationId: id,
         role,
         content,
-        // metadata は prisma generate 後に有効化
-        // ...(metadata !== undefined && { metadata }),
+        ...(metadata !== undefined && { metadata }),
       },
     });
 

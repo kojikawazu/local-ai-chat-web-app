@@ -49,10 +49,12 @@ export const calculateTool: Tool = {
 //   term       = factor (('*' | '/') factor)*
 //   factor     = '-' factor | '(' expression ')' | number
 
-type Parser = { input: string; pos: number };
+const MAX_RECURSION_DEPTH = 200;
+
+type Parser = { input: string; pos: number; depth: number };
 
 function parseExpression(input: string): number {
-  const p: Parser = { input, pos: 0 };
+  const p: Parser = { input, pos: 0, depth: 0 };
   const result = parseExpr(p);
   if (p.pos !== p.input.length) {
     throw new Error('計算式の形式が正しくありません');
@@ -95,10 +97,17 @@ function parseFactor(p: Parser): number {
     throw new Error('計算式が不完全です');
   }
 
+  p.depth++;
+  if (p.depth > MAX_RECURSION_DEPTH) {
+    throw new Error('計算式が複雑すぎます');
+  }
+
   // 単項マイナス
   if (p.input[p.pos] === '-') {
     p.pos++;
-    return -parseFactor(p);
+    const val = -parseFactor(p);
+    p.depth--;
+    return val;
   }
 
   // 括弧
@@ -109,11 +118,14 @@ function parseFactor(p: Parser): number {
       throw new Error('括弧が閉じられていません');
     }
     p.pos++; // ')' を消費
+    p.depth--;
     return result;
   }
 
   // 数値
-  return parseNumber(p);
+  const num = parseNumber(p);
+  p.depth--;
+  return num;
 }
 
 function parseNumber(p: Parser): number {

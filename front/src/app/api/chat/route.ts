@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { streamChat, OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
-import { registerTool } from '@/lib/tools/index';
-import { getCurrentDatetimeTool } from '@/lib/tools/get-current-datetime';
-import { calculateTool } from '@/lib/tools/calculate';
+import { initializeTools } from '@/lib/tools/registry';
 
-// ツールを登録（モジュール初回ロード時に1度だけ実行）
-registerTool(getCurrentDatetimeTool);
-registerTool(calculateTool);
+// ツールを登録（registry.ts で一元管理）
+initializeTools();
 
 export async function POST(request: NextRequest) {
   let body: {

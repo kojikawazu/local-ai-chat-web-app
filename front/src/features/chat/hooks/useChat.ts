@@ -120,6 +120,9 @@ export function useChat({
 
       let fullAiContent = '';
       const toolCallRecords: ToolCallInfo[] = [];
+      // tool_call_start で受け取った arguments を tool_call_result まで保持する
+      // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
+      const pendingToolArgs = new Map<string, Array<Record<string, unknown>>>();
 
       try {
         const response = await fetch('/api/chat', {
@@ -177,6 +180,10 @@ export function useChat({
                   );
                 } else if (event.type === 'tool_call_start') {
                   setActiveToolCall({ name: event.name, arguments: event.arguments });
+                  // arguments を pending キューに積む
+                  const queue = pendingToolArgs.get(event.name) ?? [];
+                  queue.push(event.arguments);
+                  pendingToolArgs.set(event.name, queue);
                   // ツール実行中を UI に反映
                   setMessages((prev) =>
                     prev.map((msg) =>
@@ -202,10 +209,17 @@ export function useChat({
                   );
                 } else if (event.type === 'tool_call_result') {
                   setActiveToolCall(null);
+                  // pending キューから先頭の arguments を取り出す（FIFO）
+                  const argsQueue = pendingToolArgs.get(event.name) ?? [];
+                  const resolvedArgs = argsQueue.shift() ?? {};
+                  if (argsQueue.length === 0) {
+                    pendingToolArgs.delete(event.name);
+                  } else {
+                    pendingToolArgs.set(event.name, argsQueue);
+                  }
                   const record: ToolCallInfo = {
                     name: event.name,
-                    arguments:
-                      toolCallRecords.find((r) => r.name === event.name)?.arguments ?? {},
+                    arguments: resolvedArgs,
                     result: event.result,
                     isError: event.isError,
                     durationMs: 0,

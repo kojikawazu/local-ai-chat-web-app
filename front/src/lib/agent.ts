@@ -17,66 +17,69 @@ async function runTool(
 ): Promise<{ result: string; isError: boolean; durationMs: number }> {
   const start = Date.now();
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
       () => reject(new Error(`ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`)),
       TOOL_TIMEOUT_MS
-    )
-  );
+    );
+  });
 
   try {
     const result = await Promise.race([executeTool(name, args), timeoutPromise]);
+    clearTimeout(timeoutId);
     return { result, isError: false, durationMs: Date.now() - start };
   } catch (e) {
+    clearTimeout(timeoutId);
     const msg = e instanceof Error ? e.message : String(e);
     return { result: msg, isError: true, durationMs: Date.now() - start };
   }
 }
 
-// Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する
-async function readOllamaResponse(response: Response): Promise<{
-  toolCalls: OllamaToolCall[];
-  textStream: ReadableStream<Uint8Array> | null;
-  thinkingText: string;
-}> {
+// Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
+// Ollama は tool_calls がある場合、done=true のチャンクに tool_calls を含めて返す。
+// テキスト応答の場合は各チャンクを逐次ストリームに流してリアルタイム表示を維持する。
+async function readOllamaResponse(
+  response: Response,
+  onTextChunk: (text: string) => void,
+  onThinking: (text: string) => void
+): Promise<{ toolCalls: OllamaToolCall[] }> {
   if (!response.body) {
     throw new Error('Ollama からのレスポンスが空です');
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let lineBuffer = '';
   const toolCalls: OllamaToolCall[] = [];
-  let thinkingText = '';
-
-  // ツール呼び出しか判定するために全チャンクを先読みする
-  const chunks: OllamaStreamChunk[] = [];
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+    lineBuffer += decoder.decode(value, { stream: true });
+    const lines = lineBuffer.split('\n');
+    lineBuffer = lines.pop() ?? '';
 
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
         const chunk: OllamaStreamChunk = JSON.parse(line);
-        chunks.push(chunk);
 
-        // tool_calls を収集
+        // tool_calls を収集（通常は done=true のチャンクに含まれる）
         if (chunk.message?.tool_calls) {
           toolCalls.push(...chunk.message.tool_calls);
         }
 
-        // thinking テキストを収集（<think> タグ内、または tool_calls 前のテキスト）
         if (chunk.message?.content && !chunk.message.tool_calls) {
           const content = chunk.message.content;
+          // <think> タグ内は thinking イベントとして分離
           const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
           if (thinkMatch) {
-            thinkingText += thinkMatch[1];
+            onThinking(thinkMatch[1]);
+          } else {
+            // テキストチャンクをリアルタイムに通知（バッファせず即時）
+            onTextChunk(content);
           }
         }
       } catch {
@@ -85,24 +88,7 @@ async function readOllamaResponse(response: Response): Promise<{
     }
   }
 
-  // tool_calls があった場合はテキストストリームなし
-  if (toolCalls.length > 0) {
-    return { toolCalls, textStream: null, thinkingText };
-  }
-
-  // テキスト応答の場合: 収集済みチャンクを ReadableStream に変換して返す
-  const textStream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        if (chunk.message?.content) {
-          controller.enqueue(new TextEncoder().encode(chunk.message.content));
-        }
-      }
-      controller.close();
-    },
-  });
-
-  return { toolCalls: [], textStream, thinkingText };
+  return { toolCalls };
 }
 
 // エージェントループのメイン関数
@@ -133,30 +119,23 @@ export function runAgentLoop(
             return;
           }
 
-          const { toolCalls, textStream, thinkingText } =
-            await readOllamaResponse(ollamaResponse);
-
-          // thinking テキストがあれば送信
-          if (thinkingText.trim()) {
-            controller.enqueue(
-              encodeEvent({ type: 'thinking', content: thinkingText.trim() })
-            );
-          }
-
-          // ツール呼び出しなし → テキスト応答をストリーミングして完了
-          if (toolCalls.length === 0) {
-            if (textStream) {
-              const reader = textStream.getReader();
-              const decoder = new TextDecoder();
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const text = decoder.decode(value);
-                if (text) {
-                  controller.enqueue(encodeEvent({ type: 'text_delta', content: text }));
-                }
+          const { toolCalls } = await readOllamaResponse(
+            ollamaResponse,
+            (text) => {
+              // テキストチャンクをリアルタイムに送信（バッファなし）
+              if (text) {
+                controller.enqueue(encodeEvent({ type: 'text_delta', content: text }));
+              }
+            },
+            (thinking) => {
+              if (thinking.trim()) {
+                controller.enqueue(encodeEvent({ type: 'thinking', content: thinking.trim() }));
               }
             }
+          );
+
+          // ツール呼び出しなし → テキスト応答のストリーミングは上記コールバックで完了済み
+          if (toolCalls.length === 0) {
             // 完了イベント（ツール呼び出し記録付き）
             controller.enqueue(
               encodeEvent({

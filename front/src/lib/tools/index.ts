@@ -32,6 +32,3 @@ export async function executeTool(
   return tool.execute(args);
 }
 
-export function getRegisteredToolNames(): string[] {
-  return Array.from(toolRegistry.keys());
-}

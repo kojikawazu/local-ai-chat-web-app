@@ -85,7 +85,12 @@ export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps
               }`}
             >
               {msg.role === 'assistant' && (
-                <button className="hover:text-nord-frost-1 transition-colors">
+                // TODO: クリップボードコピー機能は Phase A 外。Phase B で実装予定
+                <button
+                  className="hover:text-nord-frost-1 transition-colors"
+                  onClick={() => navigator.clipboard.writeText(msg.content)}
+                  aria-label="コピー"
+                >
                   <Copy size={14} />
                 </button>
               )}
