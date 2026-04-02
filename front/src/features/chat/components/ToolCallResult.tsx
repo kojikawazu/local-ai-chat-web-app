@@ -35,7 +35,7 @@ function WebSearchResult({ text }: { text: string }) {
         <div key={item.index} className="text-xs">
           <p className="font-medium text-[var(--color-nord-8)]">
             [{item.index}]{' '}
-            {item.url ? (
+            {item.url && item.url.startsWith('http') ? (
               <a
                 href={item.url}
                 target="_blank"

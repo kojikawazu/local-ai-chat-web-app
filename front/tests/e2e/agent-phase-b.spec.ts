@@ -104,8 +104,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       expect(res.status()).toBe(200);
     });
 
-    test('web_search に空のクエリを渡すとツールエラーになる', async ({ request }) => {
-      // enableTools なしで /api/chat の入力バリデーションをテスト
+    test('空メッセージで enableTools=true のとき API が 400 を返す', async ({ request }) => {
+      // /api/chat のメッセージバリデーション（空文字）をテスト
+      // web_search ツール内の空クエリチェックではなく API 層のバリデーション
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
           message: '',

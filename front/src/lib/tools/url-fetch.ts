@@ -2,6 +2,7 @@ import { Tool } from './types';
 import { lookup } from 'dns/promises';
 
 const MAX_CHARS = 5000;
+const MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2MB: メモリ枯渇防止
 const FETCH_TIMEOUT_MS = 15000;
 
 // SSRF 防止: プライベート・特殊 IP アドレス範囲のブロックリスト
@@ -27,7 +28,6 @@ const IPV4_BLOCKLIST = [
   '0.0.0.0/8',      // カレントネットワーク
 ];
 
-const IPV6_BLOCKLIST = ['::1', 'fc00::/7', 'fe80::/10'];
 
 function normalizeIp(raw: string): { isV4: boolean; ip: string } {
   // IPv4-mapped IPv6 形式（::ffff:192.168.1.1）を IPv4 に正規化
@@ -65,14 +65,9 @@ async function checkSsrf(hostname: string): Promise<void> {
         }
       }
     } else {
+      // isBlockedIpv6() で ::1 / fc00::/7 / fe80::/10 を全てカバーしている
       if (isBlockedIpv6(ip)) {
         throw new Error(`アクセスが禁止されているアドレス範囲です: ${ip}`);
-      }
-      // IPv6 ブロックリストの残り（::1 は上で処理済み）
-      for (const entry of IPV6_BLOCKLIST) {
-        if (entry === ip) {
-          throw new Error(`アクセスが禁止されているアドレス範囲です: ${ip}`);
-        }
       }
     }
   }
@@ -148,10 +143,12 @@ export const urlFetchTool: Tool = {
         clearTimeout(timeoutId);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes('redirect')) {
+      // redirect: 'error' 時のリダイレクト検出: TypeError かつメッセージに 'redirect' を含む
+      // undici の実装に依存するが、TypeError であることは仕様として安定している
+      if (e instanceof TypeError && String(e.message).toLowerCase().includes('redirect')) {
         return 'エラー: リダイレクトされたため取得できません（セキュリティ上の制限）';
       }
+      const msg = e instanceof Error ? e.message : String(e);
       return `エラー: URL の取得に失敗しました: ${msg}`;
     }
 
@@ -165,7 +162,19 @@ export const urlFetchTool: Tool = {
       return `エラー: 対応していないコンテンツタイプです (${contentType})。テキストまたは HTML のみ取得できます。`;
     }
 
+    // Content-Length による事前サイズチェック（ヘッダーがない場合はスキップ）
+    const contentLength = Number(res.headers.get('Content-Length') ?? 0);
+    if (contentLength > MAX_INPUT_BYTES) {
+      return `エラー: ページが大きすぎます（${Math.round(contentLength / 1024 / 1024)}MB）。2MB 以下のページのみ取得できます。`;
+    }
+
     const raw = await res.text();
+
+    // Content-Length なしの場合のサイズチェック（ストリーム展開後）
+    if (raw.length > MAX_INPUT_BYTES) {
+      return 'エラー: ページが大きすぎます（2MB 超）。';
+    }
+
     const text = contentType.includes('text/html') ? stripHtml(raw) : raw.trim();
 
     if (!text) return '（ページにテキストコンテンツが見つかりませんでした）';

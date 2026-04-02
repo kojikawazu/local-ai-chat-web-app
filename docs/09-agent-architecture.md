@@ -355,6 +355,12 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 
 **推奨**: 初期実装は **DuckDuckGo** で手軽に動作確認し、安定性が問題になった段階で **SearXNG** に移行する。SearXNG は `docker-compose.yml` に追加するだけでローカル環境に組み込める。
 
+> **⚠️ 既知の制限事項 — DuckDuckGo HTML スクレイピングの安定性**
+>
+> `html.duckduckgo.com/html/` は非公式エンドポイントであり、HTML 内の CSS クラス名（`result__a`・`result__snippet`）が変更された場合、検索結果をサイレントに取得できなくなるリスクがある。
+> 正規 JSON API（`api.duckduckgo.com/?format=json`）は安定しているが返せる情報量が限られる。
+> 安定性問題が顕在化した場合は SearXNG への移行を推奨する。
+
 **リトライ条件**:
 
 | 状況 | リトライ | 理由 |
