@@ -139,7 +139,7 @@ export default function Home() {
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
         />
-        <ChatWindow messages={messages} activeToolCall={activeToolCall} />
+        <ChatWindow messages={messages} activeToolCall={activeToolCall} isLoading={isLoading} />
         {error && (
           <div className="px-4 md:px-8 py-2 bg-nord-aurora-red/20 text-nord-aurora-red text-sm text-center">
             {error}
