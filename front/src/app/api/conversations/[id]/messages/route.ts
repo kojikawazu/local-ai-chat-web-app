@@ -22,12 +22,6 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        createdAt: true,
-      },
     });
 
     return NextResponse.json({ messages });
@@ -46,7 +40,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  let body: { role?: string; content?: string };
+  let body: { role?: string; content?: string; metadata?: Record<string, unknown> | null };
 
   try {
     body = await request.json();
@@ -57,11 +51,18 @@ export async function POST(
     );
   }
 
-  const { role, content } = body;
+  const { role, content, metadata } = body;
 
   if (!role || !content) {
     return NextResponse.json(
       { error: 'roleとcontentは必須です' },
+      { status: 400 }
+    );
+  }
+
+  if (!['user', 'assistant'].includes(role)) {
+    return NextResponse.json(
+      { error: 'roleは "user" または "assistant" のみ有効です' },
       { status: 400 }
     );
   }
@@ -83,6 +84,9 @@ export async function POST(
         conversationId: id,
         role,
         content,
+        // Record<string, unknown> → unknown → any で Prisma の InputJsonValue 型制約を回避
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(metadata != null && { metadata: metadata as unknown as any }),
       },
     });
 

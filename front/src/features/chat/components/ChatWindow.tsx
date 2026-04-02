@@ -4,12 +4,15 @@ import { useEffect, useRef } from 'react';
 import { User, Bot, Copy } from 'lucide-react';
 import { Message } from '@/types';
 import MarkdownContent from './MarkdownContent';
+import { ToolCallIndicator } from './ToolCallIndicator';
+import { ToolCallResult } from './ToolCallResult';
 
 interface ChatWindowProps {
   messages: Message[];
+  activeToolCall?: { name: string; arguments: Record<string, unknown> } | null;
 }
 
-export default function ChatWindow({ messages }: ChatWindowProps) {
+export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,7 +39,8 @@ export default function ChatWindow({ messages }: ChatWindowProps) {
           </p>
         </div>
       ) : (
-        messages.map((msg) => (
+        <>
+        {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex flex-col max-w-[85%] md:max-w-[70%] ${
@@ -67,13 +71,26 @@ export default function ChatWindow({ messages }: ChatWindowProps) {
               </div>
             </div>
 
+            {msg.role === 'assistant' && msg.metadata?.toolCalls && msg.metadata.toolCalls.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {msg.metadata.toolCalls.map((tc, i) => (
+                  <ToolCallResult key={i} toolCall={tc} />
+                ))}
+              </div>
+            )}
+
             <div
               className={`flex items-center gap-4 mt-3 px-2 text-xs text-nord-4/60 ${
                 msg.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
               {msg.role === 'assistant' && (
-                <button className="hover:text-nord-frost-1 transition-colors">
+                // TODO: クリップボードコピー機能は Phase A 外。Phase B で実装予定
+                <button
+                  className="hover:text-nord-frost-1 transition-colors"
+                  onClick={() => navigator.clipboard.writeText(msg.content)}
+                  aria-label="コピー"
+                >
                   <Copy size={14} />
                 </button>
               )}
@@ -85,7 +102,13 @@ export default function ChatWindow({ messages }: ChatWindowProps) {
               </span>
             </div>
           </div>
-        ))
+        ))}
+        {activeToolCall && (
+          <div className="mr-auto max-w-[85%] md:max-w-[70%]">
+            <ToolCallIndicator name={activeToolCall.name} arguments={activeToolCall.arguments} />
+          </div>
+        )}
+        </>
       )}
     </div>
   );

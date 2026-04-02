@@ -96,6 +96,7 @@ export default function Sidebar({
         <div className="flex gap-2 justify-center">
           <button
             onClick={onOpenSettings}
+            aria-label="設定を開く"
             className="p-2 rounded-lg text-nord-4/60 hover:bg-white/5 transition-colors"
           >
             <Settings size={20} />

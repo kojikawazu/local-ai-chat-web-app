@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Bot, Palette } from 'lucide-react';
+import { X, Bot, Palette, Wrench } from 'lucide-react';
 import { type ThemeId, THEMES } from '@/hooks/useTheme';
 
 interface SettingsModalProps {
@@ -11,6 +11,8 @@ interface SettingsModalProps {
   onModelChange: (model: string) => void;
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
+  enableTools: boolean;
+  onEnableToolsChange: (enabled: boolean) => void;
 }
 
 export default function SettingsModal({
@@ -21,6 +23,8 @@ export default function SettingsModal({
   onModelChange,
   theme,
   onThemeChange,
+  enableTools,
+  onEnableToolsChange,
 }: SettingsModalProps) {
   if (!isOpen) return null;
 
@@ -71,6 +75,39 @@ export default function SettingsModal({
             <p className="text-xs text-nord-4/60">
               Ollamaで利用可能なモデルを選択します
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">
+              <Wrench size={16} className="text-nord-frost-1" />
+              Agent Tools
+            </label>
+            <button
+              onClick={() => onEnableToolsChange(!enableTools)}
+              className={`flex items-center justify-between w-full px-4 py-3 rounded-lg border transition-all ${
+                enableTools
+                  ? 'bg-nord-frost-1/20 border-nord-frost-1'
+                  : 'bg-nord-2 border-nord-3 hover:bg-nord-3'
+              }`}
+            >
+              <div className="text-left">
+                <p className="text-sm font-semibold text-nord-6">ツール使用を有効化</p>
+                <p className="text-xs text-nord-4/60">
+                  AIが日時取得・計算などのツールを自律的に使用します
+                </p>
+              </div>
+              <div
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ml-4 ${
+                  enableTools ? 'bg-nord-frost-1' : 'bg-nord-3'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    enableTools ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </div>
+            </button>
           </div>
 
           <div className="space-y-3">
