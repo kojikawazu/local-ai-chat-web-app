@@ -10,6 +10,7 @@ import ChatBar, { type ChatBarHandle } from '@/features/chat/components/ChatBar'
 import Footer from '@/features/chat/components/Footer';
 import SettingsModal from '@/components/SettingsModal';
 import { useTheme } from '@/hooks/useTheme';
+import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent-prompts';
 
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -17,16 +18,24 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [enableTools, setEnableTools] = useState(false);
+  const [agentPromptPresetId, setAgentPromptPresetId] = useState(DEFAULT_PRESET_ID);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const stored = localStorage.getItem('agent-tools-enabled');
     if (stored === 'true') setEnableTools(true);
+    const storedPreset = localStorage.getItem('agent-prompt-preset-id');
+    if (storedPreset) setAgentPromptPresetId(storedPreset);
   }, []);
 
   const handleEnableToolsChange = useCallback((enabled: boolean) => {
     setEnableTools(enabled);
     localStorage.setItem('agent-tools-enabled', String(enabled));
+  }, []);
+
+  const handleAgentPromptPresetChange = useCallback((id: string) => {
+    setAgentPromptPresetId(id);
+    localStorage.setItem('agent-prompt-preset-id', id);
   }, []);
 
   useEffect(() => {
@@ -77,6 +86,7 @@ export default function Home() {
     conversationId: currentConversationId,
     model: selectedModel,
     enableTools,
+    systemPrompt: enableTools ? (getPresetById(agentPromptPresetId)?.prompt ?? '') : '',
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
   });
@@ -149,6 +159,8 @@ export default function Home() {
         onThemeChange={setTheme}
         enableTools={enableTools}
         onEnableToolsChange={handleEnableToolsChange}
+        agentPromptPresetId={agentPromptPresetId}
+        onAgentPromptPresetChange={handleAgentPromptPresetChange}
       />
     </div>
   );

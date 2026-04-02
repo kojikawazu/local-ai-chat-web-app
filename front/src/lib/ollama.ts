@@ -5,7 +5,7 @@ const OLLAMA_DEFAULT_MODEL =
 import type { OllamaToolDefinition, OllamaToolCall } from './tools/types';
 
 export interface OllamaChatMessage {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
   tool_calls?: OllamaToolCall[]; // assistant がツール呼び出しを要求するとき
 }

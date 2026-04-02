@@ -95,15 +95,20 @@ async function readOllamaResponse(
 // enableTools: true のときに呼び出す。NDJSON イベントストリームを返す。
 export function runAgentLoop(
   messages: OllamaChatMessage[],
-  model?: string
+  model?: string,
+  systemPrompt?: string
 ): ReadableStream<Uint8Array> {
   const tools = getAllToolDefinitions();
   const toolCallRecords: ToolCallRecord[] = [];
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      // メッセージ履歴のコピー（ループ内で更新する）
-      const history: OllamaChatMessage[] = [...messages];
+      // システムプロンプトがあれば先頭に追加
+      const systemMessages: OllamaChatMessage[] = systemPrompt?.trim()
+        ? [{ role: 'system' as const, content: systemPrompt.trim() }]
+        : [];
+      const history: OllamaChatMessage[] = [...systemMessages, ...messages];
+      const loopStartTime = Date.now();
 
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -136,11 +141,15 @@ export function runAgentLoop(
 
           // ツール呼び出しなし → テキスト応答のストリーミングは上記コールバックで完了済み
           if (toolCalls.length === 0) {
-            // 完了イベント（ツール呼び出し記録付き）
+            // 完了イベント（ツール呼び出し記録・実行統計付き）
             controller.enqueue(
               encodeEvent({
                 type: 'done',
-                metadata: toolCallRecords.length > 0 ? { toolCalls: toolCallRecords } : undefined,
+                metadata: {
+                  toolCalls: toolCallRecords,
+                  agentRounds: round + 1,
+                  agentDurationMs: Date.now() - loopStartTime,
+                },
               })
             );
             controller.close();

@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     conversationHistory?: OllamaChatMessage[];
     model?: string;
     enableTools?: boolean;
+    systemPrompt?: string;
   };
 
   try {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { message, conversationHistory = [], model, enableTools = false } = body;
+  const { message, conversationHistory = [], model, enableTools = false, systemPrompt } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   // エージェントモード: NDJSON イベントストリームを返す
   if (enableTools) {
-    const agentStream = runAgentLoop(messages, model);
+    const agentStream = runAgentLoop(messages, model, systemPrompt);
     return new Response(agentStream, {
       headers: {
         'Content-Type': 'application/x-ndjson',

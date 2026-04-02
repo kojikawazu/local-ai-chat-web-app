@@ -13,6 +13,9 @@ export interface Message {
   createdAt: Date;
   metadata?: {
     toolCalls?: ToolCallInfo[];
+    thinkingText?: string;
+    agentRounds?: number;
+    agentDurationMs?: number;
   } | null;
 }
 
