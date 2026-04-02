@@ -11,9 +11,10 @@ import { AgentThinking } from './AgentThinking';
 interface ChatWindowProps {
   messages: Message[];
   activeToolCall?: { name: string; arguments: Record<string, unknown> } | null;
+  isLoading?: boolean;
 }
 
-export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps) {
+export default function ChatWindow({ messages, activeToolCall, isLoading }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,6 +22,11 @@ export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // 最後のメッセージが assistant かつ content が空 = 最初のチャンク待ち
+  const lastMsg = messages[messages.length - 1];
+  const isWaitingFirstChunk =
+    isLoading && lastMsg?.role === 'assistant' && lastMsg.content === '';
 
   return (
     <div
@@ -41,82 +47,99 @@ export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps
         </div>
       ) : (
         <>
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex flex-col max-w-[85%] md:max-w-[70%] ${
-              msg.role === 'user' ? 'ml-auto' : 'mr-auto'
-            }`}
-          >
+        {messages.map((msg) => {
+          const isThisWaiting = isWaitingFirstChunk && msg.id === lastMsg.id;
+
+          return (
             <div
-              className={`p-5 md:p-6 ${
-                msg.role === 'user'
-                  ? 'bg-nord-frost-2 text-nord-0 rounded-xl ml-auto font-medium shadow-lg shadow-black/10'
-                  : 'bg-nord-2 text-nord-6 rounded-xl mr-auto border border-nord-3'
+              key={msg.id}
+              className={`flex flex-col max-w-[85%] md:max-w-[70%] ${
+                msg.role === 'user' ? 'ml-auto' : 'mr-auto'
               }`}
             >
-              <div className="flex items-start gap-4">
-                {msg.role === 'assistant' && (
-                  <Bot size={22} className="shrink-0 mt-1 text-nord-frost-1" />
-                )}
-                {msg.role === 'assistant' ? (
-                  <MarkdownContent content={msg.content} />
-                ) : (
-                  <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                    {msg.content}
-                  </div>
-                )}
-                {msg.role === 'user' && (
-                  <User size={22} className="shrink-0 mt-1 text-nord-0" />
-                )}
+              <div
+                className={`p-5 md:p-6 ${
+                  msg.role === 'user'
+                    ? 'bg-nord-frost-2 text-nord-0 rounded-xl ml-auto font-medium shadow-lg shadow-black/10'
+                    : 'bg-nord-2 text-nord-6 rounded-xl mr-auto border border-nord-3'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  {msg.role === 'assistant' && (
+                    <Bot
+                      size={22}
+                      className={`shrink-0 mt-1 text-nord-frost-1 ${isThisWaiting ? 'animate-pulse' : ''}`}
+                    />
+                  )}
+                  {msg.role === 'assistant' ? (
+                    isThisWaiting ? (
+                      // 最初のチャンク待ちドットアニメーション
+                      <div className="flex items-center gap-1.5 py-1" aria-label="応答を生成中">
+                        <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:0ms]" />
+                        <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:150ms]" />
+                        <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:300ms]" />
+                      </div>
+                    ) : (
+                      <MarkdownContent content={msg.content} />
+                    )
+                  ) : (
+                    <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                      {msg.content}
+                    </div>
+                  )}
+                  {msg.role === 'user' && (
+                    <User size={22} className="shrink-0 mt-1 text-nord-0" />
+                  )}
+                </div>
               </div>
-            </div>
 
-            {msg.role === 'assistant' && msg.metadata?.thinkingText && (
-              <AgentThinking content={msg.metadata.thinkingText} />
-            )}
-
-            {msg.role === 'assistant' && msg.metadata?.toolCalls && msg.metadata.toolCalls.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {msg.metadata.toolCalls.map((tc, i) => (
-                  <ToolCallResult key={i} toolCall={tc} />
-                ))}
-              </div>
-            )}
-
-            {msg.role === 'assistant' && (msg.metadata?.agentRounds ?? 0) > 0 && (
-              <div className="mt-1 flex gap-3 text-xs text-[var(--color-nord-4)] opacity-40">
-                <span>{msg.metadata!.agentRounds} ラウンド</span>
-                {msg.metadata!.agentDurationMs !== undefined && (
-                  <span>{(msg.metadata!.agentDurationMs / 1000).toFixed(1)}s</span>
-                )}
-              </div>
-            )}
-
-            <div
-              className={`flex items-center gap-4 mt-3 px-2 text-xs text-nord-4/60 ${
-                msg.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              {msg.role === 'assistant' && (
-                // TODO: クリップボードコピー機能は Phase A 外。Phase B で実装予定
-                <button
-                  className="hover:text-nord-frost-1 transition-colors"
-                  onClick={() => navigator.clipboard.writeText(msg.content)}
-                  aria-label="コピー"
-                >
-                  <Copy size={14} />
-                </button>
+              {msg.role === 'assistant' && msg.metadata?.thinkingText && (
+                <AgentThinking content={msg.metadata.thinkingText} />
               )}
-              <span className="opacity-50 font-mono">
-                {msg.createdAt.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
+
+              {msg.role === 'assistant' && msg.metadata?.toolCalls && msg.metadata.toolCalls.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {msg.metadata.toolCalls.map((tc, i) => (
+                    <ToolCallResult key={i} toolCall={tc} />
+                  ))}
+                </div>
+              )}
+
+              {msg.role === 'assistant' && (msg.metadata?.agentRounds ?? 0) > 0 && (
+                <div className="mt-1 flex gap-3 text-xs text-[var(--color-nord-4)] opacity-40">
+                  <span>{msg.metadata!.agentRounds} ラウンド</span>
+                  {msg.metadata!.agentDurationMs !== undefined && (
+                    <span>{(msg.metadata!.agentDurationMs / 1000).toFixed(1)}s</span>
+                  )}
+                </div>
+              )}
+
+              {!isThisWaiting && (
+                <div
+                  className={`flex items-center gap-4 mt-3 px-2 text-xs text-nord-4/60 ${
+                    msg.role === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
+                >
+                  {msg.role === 'assistant' && (
+                    <button
+                      className="hover:text-nord-frost-1 transition-colors"
+                      onClick={() => navigator.clipboard.writeText(msg.content)}
+                      aria-label="コピー"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  )}
+                  <span className="opacity-50 font-mono">
+                    {msg.createdAt.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {activeToolCall && (
           <div className="mr-auto max-w-[85%] md:max-w-[70%]">
             <ToolCallIndicator name={activeToolCall.name} arguments={activeToolCall.arguments} />
