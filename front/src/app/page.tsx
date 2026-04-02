@@ -16,7 +16,18 @@ export default function Home() {
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [enableTools, setEnableTools] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    const stored = localStorage.getItem('agent-tools-enabled');
+    if (stored === 'true') setEnableTools(true);
+  }, []);
+
+  const handleEnableToolsChange = useCallback((enabled: boolean) => {
+    setEnableTools(enabled);
+    localStorage.setItem('agent-tools-enabled', String(enabled));
+  }, []);
 
   useEffect(() => {
     async function fetchModels() {
@@ -58,12 +69,14 @@ export default function Home() {
     messages,
     isLoading,
     error,
+    activeToolCall,
     sendMessage,
     clearMessages,
     loadMessages,
   } = useChat({
     conversationId: currentConversationId,
     model: selectedModel,
+    enableTools,
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
   });
@@ -116,7 +129,7 @@ export default function Home() {
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
         />
-        <ChatWindow messages={messages} />
+        <ChatWindow messages={messages} activeToolCall={activeToolCall} />
         {error && (
           <div className="px-4 md:px-8 py-2 bg-nord-aurora-red/20 text-nord-aurora-red text-sm text-center">
             {error}
@@ -134,6 +147,8 @@ export default function Home() {
         onModelChange={setSelectedModel}
         theme={theme}
         onThemeChange={setTheme}
+        enableTools={enableTools}
+        onEnableToolsChange={handleEnableToolsChange}
       />
     </div>
   );
