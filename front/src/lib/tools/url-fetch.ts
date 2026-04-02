@@ -143,10 +143,16 @@ export const urlFetchTool: Tool = {
         clearTimeout(timeoutId);
       }
     } catch (e) {
-      // redirect: 'error' 時のリダイレクト検出: TypeError かつメッセージに 'redirect' を含む
-      // undici の実装に依存するが、TypeError であることは仕様として安定している
-      if (e instanceof TypeError && String(e.message).toLowerCase().includes('redirect')) {
-        return 'エラー: リダイレクトされたため取得できません（セキュリティ上の制限）';
+      // redirect: 'error' 時のリダイレクト検出: TypeError かつ message または cause に 'redirect' を含む
+      // undici は 'fetch failed' という TypeError を投げ、実際の原因を e.cause に格納する場合がある
+      if (e instanceof TypeError) {
+        const causeMsg = e.cause instanceof Error ? e.cause.message : '';
+        if (
+          e.message.toLowerCase().includes('redirect') ||
+          causeMsg.toLowerCase().includes('redirect')
+        ) {
+          return 'エラー: リダイレクトされたため取得できません（セキュリティ上の制限）';
+        }
       }
       const msg = e instanceof Error ? e.message : String(e);
       return `エラー: URL の取得に失敗しました: ${msg}`;
