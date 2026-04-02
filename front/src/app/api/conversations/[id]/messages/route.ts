@@ -84,7 +84,8 @@ export async function POST(
         conversationId: id,
         role,
         content,
-        ...(metadata !== undefined && { metadata }),
+        // null は Prisma の NullableJsonNullValueInput と非互換のため undefined に変換して省略
+        ...(metadata != null && { metadata }),
       },
     });
 
