@@ -16,6 +16,8 @@ export function AgentThinking({ content }: AgentThinkingProps) {
     <div className="rounded-md border border-[var(--color-nord-3)] bg-[var(--color-nord-0)]/50 text-sm mb-2">
       <button
         onClick={() => setIsExpanded((prev) => !prev)}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? '思考過程を折りたたむ' : '思考過程を展開する'}
         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--color-nord-1)] transition-colors rounded-md"
       >
         <Brain size={14} className="text-[var(--color-nord-9)] shrink-0" />

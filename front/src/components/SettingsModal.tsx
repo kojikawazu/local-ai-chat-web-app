@@ -56,7 +56,7 @@ export default function SettingsModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-12rem)]">
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">
               <Bot size={16} className="text-nord-frost-1" />
