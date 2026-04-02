@@ -1,14 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { cleanupAllConversations } from './helpers/test-data';
 
 const BASE_URL = 'http://localhost:3000';
 
 // 設定モーダルを開くヘルパー
-async function openSettings(page: Parameters<typeof cleanupAllConversations>[0] extends never ? never : import('@playwright/test').Page) {
+async function openSettings(page: Page) {
   await page.locator('button[aria-label="設定を開く"]').click();
   await expect(page.getByRole('dialog', { name: '設定' })).toBeVisible({ timeout: 5000 });
 }
-async function closeSettings(page: Parameters<typeof openSettings>[0]) {
+async function closeSettings(page: Page) {
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('dialog', { name: '設定' })).toBeHidden({ timeout: 3000 });
 }

@@ -251,7 +251,7 @@ export function useChat({
                           isError: event.isError,
                         };
                       }
-                      return { ...msg, metadata: { toolCalls } };
+                      return { ...msg, metadata: { ...msg.metadata, toolCalls } };
                     })
                   );
                 } else if (event.type === 'done') {
