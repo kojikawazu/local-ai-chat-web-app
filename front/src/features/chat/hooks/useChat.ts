@@ -8,6 +8,7 @@ interface UseChatOptions {
   conversationId: string | null;
   model: string;
   enableTools?: boolean;
+  systemPrompt?: string;
   onConversationCreated?: (id: string) => void;
   onTitleGenerated?: () => void;
 }
@@ -29,6 +30,7 @@ export function useChat({
   conversationId,
   model,
   enableTools = false,
+  systemPrompt = '',
   onConversationCreated,
   onTitleGenerated,
 }: UseChatOptions) {
@@ -119,6 +121,7 @@ export function useChat({
       abortControllerRef.current = new AbortController();
 
       let fullAiContent = '';
+      let thinkingText = '';
       const toolCallRecords: ToolCallInfo[] = [];
       // tool_call_start で受け取った arguments を tool_call_result まで保持する
       // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
@@ -133,6 +136,7 @@ export function useChat({
             conversationHistory,
             model,
             enableTools,
+            systemPrompt: systemPrompt || undefined,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -169,7 +173,16 @@ export function useChat({
               try {
                 const event: AgentStreamEvent = JSON.parse(line);
 
-                if (event.type === 'text_delta') {
+                if (event.type === 'thinking') {
+                  thinkingText += event.content;
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, metadata: { ...msg.metadata, thinkingText } }
+                        : msg
+                    )
+                  );
+                } else if (event.type === 'text_delta') {
                   fullAiContent += event.content;
                   setMessages((prev) =>
                     prev.map((msg) =>
@@ -238,22 +251,26 @@ export function useChat({
                           isError: event.isError,
                         };
                       }
-                      return { ...msg, metadata: { toolCalls } };
+                      return { ...msg, metadata: { ...msg.metadata, toolCalls } };
                     })
                   );
                 } else if (event.type === 'done') {
+                  // done イベントで metadata（toolCalls・統計）を最終確定
+                  setMessages((prev) =>
+                    prev.map((msg) => {
+                      if (msg.id !== aiMessageId) return msg;
+                      return {
+                        ...msg,
+                        metadata: {
+                          ...(event.metadata?.toolCalls && { toolCalls: event.metadata.toolCalls }),
+                          ...(thinkingText && { thinkingText }),
+                          ...(event.metadata?.agentRounds !== undefined && { agentRounds: event.metadata.agentRounds }),
+                          ...(event.metadata?.agentDurationMs !== undefined && { agentDurationMs: event.metadata.agentDurationMs }),
+                        },
+                      };
+                    })
+                  );
                   if (event.metadata?.toolCalls) {
-                    // durationMs を done イベントの値で更新
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === aiMessageId
-                          ? {
-                              ...msg,
-                              metadata: { toolCalls: event.metadata!.toolCalls },
-                            }
-                          : msg
-                      )
-                    );
                     toolCallRecords.length = 0;
                     toolCallRecords.push(...event.metadata.toolCalls);
                   }
@@ -315,7 +332,7 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [conversationId, model, enableTools, messages, onConversationCreated, onTitleGenerated]
+    [conversationId, model, enableTools, systemPrompt, messages, onConversationCreated, onTitleGenerated]
   );
 
   const clearMessages = useCallback(() => {

@@ -53,6 +53,10 @@ async function readOllamaResponse(
   let lineBuffer = '';
   const toolCalls: OllamaToolCall[] = [];
 
+  // <think>...</think> をストリーム全体にわたって検出するためのバッファ
+  let contentBuffer = '';
+  let inThinkBlock = false;
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -72,19 +76,58 @@ async function readOllamaResponse(
         }
 
         if (chunk.message?.content && !chunk.message.tool_calls) {
-          const content = chunk.message.content;
-          // <think> タグ内は thinking イベントとして分離
-          const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-          if (thinkMatch) {
-            onThinking(thinkMatch[1]);
-          } else {
-            // テキストチャンクをリアルタイムに通知（バッファせず即時）
-            onTextChunk(content);
+          contentBuffer += chunk.message.content;
+
+          // <think>...</think> ブロックをストリーム全体で検出する
+          // チャンクをまたいでタグが分割される場合を正しく処理する
+          while (contentBuffer.length > 0) {
+            if (inThinkBlock) {
+              const closeIdx = contentBuffer.indexOf('</think>');
+              if (closeIdx >= 0) {
+                // 閉じタグが見つかった → thinking コンテンツを通知
+                const thinkingContent = contentBuffer.slice(0, closeIdx);
+                if (thinkingContent) onThinking(thinkingContent);
+                contentBuffer = contentBuffer.slice(closeIdx + '</think>'.length);
+                inThinkBlock = false;
+              } else {
+                // まだ閉じタグが来ていない → バッファを保持
+                break;
+              }
+            } else {
+              const openIdx = contentBuffer.indexOf('<think>');
+              if (openIdx >= 0) {
+                // 開きタグより前のテキストを即時通知
+                const before = contentBuffer.slice(0, openIdx);
+                if (before) onTextChunk(before);
+                contentBuffer = contentBuffer.slice(openIdx + '<think>'.length);
+                inThinkBlock = true;
+              } else {
+                // <think> タグの途中（例: "<thi"）かもしれないので末尾を保持
+                // </think> も考慮して長い方のタグ長 - 1 を保持する
+                const possibleTagStart = Math.max('<think>'.length, '</think>'.length) - 1;
+                if (contentBuffer.length > possibleTagStart) {
+                  const safeFlush = contentBuffer.slice(0, contentBuffer.length - possibleTagStart);
+                  if (safeFlush) onTextChunk(safeFlush);
+                  contentBuffer = contentBuffer.slice(contentBuffer.length - possibleTagStart);
+                }
+                break;
+              }
+            }
           }
         }
       } catch {
         // JSONパース失敗は無視
       }
+    }
+  }
+
+  // ストリーム終了時に残ったバッファをフラッシュ
+  if (contentBuffer) {
+    // 閉じタグが来なかった場合（不正な出力）も thinking として扱う
+    if (inThinkBlock) {
+      onThinking(contentBuffer);
+    } else {
+      onTextChunk(contentBuffer);
     }
   }
 
@@ -95,15 +138,20 @@ async function readOllamaResponse(
 // enableTools: true のときに呼び出す。NDJSON イベントストリームを返す。
 export function runAgentLoop(
   messages: OllamaChatMessage[],
-  model?: string
+  model?: string,
+  systemPrompt?: string
 ): ReadableStream<Uint8Array> {
   const tools = getAllToolDefinitions();
   const toolCallRecords: ToolCallRecord[] = [];
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
-      // メッセージ履歴のコピー（ループ内で更新する）
-      const history: OllamaChatMessage[] = [...messages];
+      // システムプロンプトがあれば先頭に追加
+      const systemMessages: OllamaChatMessage[] = systemPrompt?.trim()
+        ? [{ role: 'system' as const, content: systemPrompt.trim() }]
+        : [];
+      const history: OllamaChatMessage[] = [...systemMessages, ...messages];
+      const loopStartTime = Date.now();
 
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -136,11 +184,15 @@ export function runAgentLoop(
 
           // ツール呼び出しなし → テキスト応答のストリーミングは上記コールバックで完了済み
           if (toolCalls.length === 0) {
-            // 完了イベント（ツール呼び出し記録付き）
+            // 完了イベント（ツール呼び出し記録・実行統計付き）
             controller.enqueue(
               encodeEvent({
                 type: 'done',
-                metadata: toolCallRecords.length > 0 ? { toolCalls: toolCallRecords } : undefined,
+                metadata: {
+                  toolCalls: toolCallRecords,
+                  agentRounds: round + 1,
+                  agentDurationMs: Date.now() - loopStartTime,
+                },
               })
             );
             controller.close();

@@ -6,6 +6,7 @@ import { Message } from '@/types';
 import MarkdownContent from './MarkdownContent';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';
+import { AgentThinking } from './AgentThinking';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -71,11 +72,24 @@ export default function ChatWindow({ messages, activeToolCall }: ChatWindowProps
               </div>
             </div>
 
+            {msg.role === 'assistant' && msg.metadata?.thinkingText && (
+              <AgentThinking content={msg.metadata.thinkingText} />
+            )}
+
             {msg.role === 'assistant' && msg.metadata?.toolCalls && msg.metadata.toolCalls.length > 0 && (
               <div className="mt-2 space-y-1">
                 {msg.metadata.toolCalls.map((tc, i) => (
                   <ToolCallResult key={i} toolCall={tc} />
                 ))}
+              </div>
+            )}
+
+            {msg.role === 'assistant' && (msg.metadata?.agentRounds ?? 0) > 0 && (
+              <div className="mt-1 flex gap-3 text-xs text-[var(--color-nord-4)] opacity-40">
+                <span>{msg.metadata!.agentRounds} ラウンド</span>
+                {msg.metadata!.agentDurationMs !== undefined && (
+                  <span>{(msg.metadata!.agentDurationMs / 1000).toFixed(1)}s</span>
+                )}
               </div>
             )}
 

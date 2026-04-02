@@ -1,7 +1,8 @@
 'use client';
 
-import { X, Bot, Palette, Wrench } from 'lucide-react';
+import { X, Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
 import { type ThemeId, THEMES } from '@/hooks/useTheme';
+import { AGENT_PROMPT_PRESETS } from '@/lib/agent-prompts';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ interface SettingsModalProps {
   onThemeChange: (theme: ThemeId) => void;
   enableTools: boolean;
   onEnableToolsChange: (enabled: boolean) => void;
+  agentPromptPresetId: string;
+  onAgentPromptPresetChange: (id: string) => void;
 }
 
 export default function SettingsModal({
@@ -25,6 +28,8 @@ export default function SettingsModal({
   onThemeChange,
   enableTools,
   onEnableToolsChange,
+  agentPromptPresetId,
+  onAgentPromptPresetChange,
 }: SettingsModalProps) {
   if (!isOpen) return null;
 
@@ -51,7 +56,7 @@ export default function SettingsModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-12rem)]">
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">
               <Bot size={16} className="text-nord-frost-1" />
@@ -109,6 +114,36 @@ export default function SettingsModal({
               </div>
             </button>
           </div>
+
+          {enableTools && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">
+                <BrainCircuit size={16} className="text-nord-frost-1" />
+                Agent Prompt
+              </label>
+              <div className="grid gap-2">
+                {AGENT_PROMPT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => onAgentPromptPresetChange(preset.id)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${
+                      agentPromptPresetId === preset.id
+                        ? 'bg-nord-frost-1/20 border border-nord-frost-1'
+                        : 'bg-nord-2 border border-nord-3 hover:bg-nord-3'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-nord-6">{preset.name}</p>
+                      <p className="text-xs text-nord-4/60">{preset.description}</p>
+                    </div>
+                    {agentPromptPresetId === preset.id && (
+                      <div className="w-2 h-2 rounded-full bg-nord-frost-1 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">

@@ -41,7 +41,7 @@ export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; name: string; arguments: Record<string, unknown> }
   | { type: 'tool_call_result'; name: string; result: string; isError: boolean }
-  | { type: 'done'; metadata?: { toolCalls: ToolCallRecord[] } }
+  | { type: 'done'; metadata?: { toolCalls: ToolCallRecord[]; agentRounds?: number; agentDurationMs?: number } }
   | { type: 'error'; message: string }
   | { type: 'thinking'; content: string }; // Phase C
 
