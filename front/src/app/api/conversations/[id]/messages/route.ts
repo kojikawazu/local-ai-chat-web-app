@@ -84,8 +84,9 @@ export async function POST(
         conversationId: id,
         role,
         content,
-        // null は Prisma の NullableJsonNullValueInput と非互換のため undefined に変換して省略
-        ...(metadata != null && { metadata }),
+        // Record<string, unknown> → unknown → any で Prisma の InputJsonValue 型制約を回避
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(metadata != null && { metadata: metadata as unknown as any }),
       },
     });
 
