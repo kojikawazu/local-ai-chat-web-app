@@ -7,6 +7,8 @@
 import { registerTool } from './index';
 import { getCurrentDatetimeTool } from './get-current-datetime';
 import { calculateTool } from './calculate';
+import { webSearchTool } from './web-search';
+import { urlFetchTool } from './url-fetch';
 
 let initialized = false;
 
@@ -15,4 +17,6 @@ export function initializeTools(): void {
   initialized = true;
   registerTool(getCurrentDatetimeTool);
   registerTool(calculateTool);
+  registerTool(webSearchTool);
+  registerTool(urlFetchTool);
 }
