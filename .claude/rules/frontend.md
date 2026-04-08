@@ -1,6 +1,6 @@
 ---
 description: Next.js (App Router) フロントエンド設計・コンポーネント規約
-globs: "front/src/components/**,front/src/app/**,front/src/hooks/**,front/src/lib/**,front/src/features/**"
+globs: "front/src/components/**,front/src/app/[^a]*/**,front/src/hooks/**,front/src/features/**"
 ---
 
 # フロントエンドルール（Next.js App Router）
@@ -40,7 +40,7 @@ globs: "front/src/components/**,front/src/app/**,front/src/hooks/**,front/src/li
 ## インポート
 
 - `@/*` パスエイリアスを使用する（`tsconfig.json` で `@/*` → `./src/*`）。
-- Prisma クライアントは `@/generated/prisma` からインポートする（標準の `node_modules` ではない）。
+- Prisma クライアントは `@/generated/prisma/client` からインポートする（標準の `node_modules` ではない）。
 
 ## 状態管理
 

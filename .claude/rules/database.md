@@ -43,7 +43,7 @@ model Message {
 ## Prisma クライアント
 
 - クライアント出力先: `src/generated/prisma/`（標準の `node_modules` ではない）
-- インポート: `import { PrismaClient } from '@/generated/prisma'`
+- インポート: `import { PrismaClient } from '@/generated/prisma/client'`
 - スキーマ変更後は `pnpm prisma generate` でクライアント再生成する
 
 ## マイグレーション
