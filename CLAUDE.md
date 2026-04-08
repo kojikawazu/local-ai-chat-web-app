@@ -281,3 +281,15 @@ CSS変数ベースの3テーマ切替（Nordic Frost / Aurora Borealis / Midnigh
 ### ドキュメント
 
 - **ドキュメント更新**: 作業が完了したら、ルートドキュメント（CLAUDE.md / README.md / docs/）の更新が必要かどうか確認し、必要であれば更新する。
+
+### スタック別ルール（`.claude/rules/`）
+
+| ファイル | スコープ | 内容 |
+|---------|---------|------|
+| `coding-standards.md` | 全体 | TypeScript strict / pnpm / ESLint+Prettier / シークレット禁止 |
+| `error-handling.md` | 全体 | バリデーション・HTTP ステータス・統一エラーレスポンス方針 |
+| `security.md` | 全体 | XSS 対策・SQL インジェクション禁止・CSP・シークレット管理 |
+| `testing.md` | `front/tests/**` | E2E テスト方針・3分類必須・Playwright 設定 |
+| `frontend.md` | `front/src/components/**` 等 | Next.js App Router・ドメイン別構成・React Compiler・テーマ |
+| `api.md` | `front/src/app/api/**` | Route Handlers 設計・NDJSON ストリーミング・バリデーション |
+| `database.md` | `front/prisma/**` 等 | Prisma 命名規約・スキーマ・マイグレーション・クエリルール |
