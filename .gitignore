@@ -24,6 +24,6 @@ dist-ssr
 *.sw?
 
 # Claude Code
-.claude/
+.claude/*
 !.claude/rules/
 !.claude/rules/**
