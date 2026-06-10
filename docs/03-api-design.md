@@ -1,29 +1,49 @@
 # API設計書
 
+> 最終更新: 2026-06-11
+
+## 目次
+
+- [内部API（Next.js Route Handlers）](#内部apinextjs-route-handlers)
+  - [POST /api/chat](#post-apichat)
+  - [GET /api/conversations](#get-apiconversations)
+  - [POST /api/conversations](#post-apiconversations)
+  - [DELETE /api/conversations/[id]](#delete-apiconversationsid)
+  - [GET /api/conversations/[id]/messages](#get-apiconversationsidmessages)
+  - [POST /api/conversations/[id]/messages](#post-apiconversationsidmessages)
+  - [GET /api/models](#get-apimodels)
+  - [GET /api/tools](#get-apitools)
+  - [POST /api/conversations/[id]/generate-title](#post-apiconversationsidgenerate-title)
+- [外部API（Ollama）](#外部apiollama)
+  - [POST /api/chat（Ollama側）](#post-apichatollama側)
+  - [GET /api/tags（Ollama側）](#get-apitagsollama側)
+
 ## 内部API（Next.js Route Handlers）
 
 ### POST /api/chat
 
 チャットメッセージをOllamaに送信し、ストリーミングレスポンスを返す。
+`enableTools: true` の場合はエージェントモードとなり、ツール呼び出しを含む NDJSON イベントストリームを返す。
 
 **リクエスト**
 
 ```typescript
 {
   message: string;
-  conversationId: string;
-  conversationHistory: {
-    role: 'user' | 'assistant';
+  conversationHistory?: {
+    role: 'user' | 'assistant' | 'tool' | 'system';
     content: string;
   }[];
-  model?: string;  // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
+  model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
+  enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
+  systemPrompt?: string;   // システムプロンプト（エージェントモード時に先頭挿入）
 }
 ```
 
 **レスポンス**
 
-- Content-Type: `text/event-stream`
-- ストリーミングで逐次テキストチャンクを返す
+- 通常モード（`enableTools: false`）: Content-Type `text/event-stream`。ストリーミングで逐次テキストチャンクを返す。
+- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。
 
 **エラーレスポンス**
 
@@ -34,7 +54,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 成功（ストリーミング開始） |
-| 400 | リクエスト不正（メッセージ空等） |
+| 400 | リクエスト不正（メッセージ空・10,000文字超・JSON不正等） |
 | 502 | Ollama接続エラー |
 | 500 | サーバー内部エラー |
 
@@ -183,6 +203,28 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ---
 
+### GET /api/tools
+
+エージェント機能で利用可能なツールの一覧を取得する。
+
+**レスポンス**
+
+```typescript
+{
+  tools: {
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch）
+    description: string;  // ツールの説明
+    enabled: boolean;     // 有効フラグ（現状は常に true）
+  }[];
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 成功 |
+
+---
+
 ### POST /api/conversations/[id]/generate-title
 
 最初のメッセージ内容からLLMで会話タイトルを自動生成し、DBを更新する。
@@ -224,7 +266,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ```json
 {
-  "model": "qwen3-coder:latest",
+  "model": "qwen3-coder-next:latest",
   "messages": [
     { "role": "user", "content": "..." }
   ],
@@ -235,9 +277,9 @@ Ollamaで利用可能なモデル一覧を取得する。
 **ストリーミングレスポンス（NDJSON）**
 
 ```json
-{"model":"qwen3-coder:latest","message":{"role":"assistant","content":"Hello"},"done":false}
-{"model":"qwen3-coder:latest","message":{"role":"assistant","content":"!"},"done":false}
-{"model":"qwen3-coder:latest","message":{"role":"assistant","content":""},"done":true}
+{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":"Hello"},"done":false}
+{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":"!"},"done":false}
+{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":""},"done":true}
 ```
 
 各行がJSONオブジェクト。`done: true` でストリーミング完了。
@@ -255,7 +297,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```json
 {
   "models": [
-    { "name": "qwen3-coder:latest", "modified_at": "...", "size": 12345678 }
+    { "name": "qwen3-coder-next:latest", "modified_at": "...", "size": 12345678 }
   ]
 }
 ```

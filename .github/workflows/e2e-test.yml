@@ -33,7 +33,9 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: latest
+          # pnpm 11+ は Node.js 22.13+ を要求するため、Node 20 / lockfileVersion 9.0 と
+          # 整合する pnpm 10 系に固定する（`latest` は破壊的に上がるため使用しない）
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

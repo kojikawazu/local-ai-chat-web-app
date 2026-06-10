@@ -1,5 +1,19 @@
 # 開発ルール
 
+> 最終更新: 2026-06-11
+
+## 目次
+
+- [ディレクトリルール（最重要）](#ディレクトリルール最重要)
+- [開発手法](#開発手法)
+- [ドキュメント更新ルール](#ドキュメント更新ルール)
+- [Git運用](#git運用)
+- [テスト方針](#テスト方針)
+  - [テストファイル配置](#テストファイル配置)
+  - [CI（GitHub Actions）](#cigithub-actions)
+- [コード品質](#コード品質)
+- [技術規約](#技術規約)
+
 ## ディレクトリルール（最重要）
 
 - **`base/` は読み取り専用**。ファイルの編集・追加・削除を絶対にしない。デザインリファレンスとしての参照のみ。
@@ -51,10 +65,14 @@ front/tests/
     │   └── test-data.ts           # テストデータ管理ヘルパー
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
+    ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
     ├── responsive.spec.ts         # レスポンシブテスト
+    ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
+    ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
+    ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── screenshot.spec.ts         # スクリーンショットテスト
     ├── debug-console.spec.ts      # デバッグ用テスト
     └── debug-input.spec.ts        # 入力方式デバッグ用テスト

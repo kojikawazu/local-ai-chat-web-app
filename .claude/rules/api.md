@@ -14,8 +14,9 @@ globs: "front/src/app/api/**"
 
 ```
 front/src/app/api/
-├── chat/route.ts                          # Ollama ストリーミング通信
+├── chat/route.ts                          # Ollama ストリーミング通信（通常 / エージェント）
 ├── models/route.ts                        # 利用可能モデル一覧取得
+├── tools/route.ts                         # エージェントの利用可能ツール一覧取得
 └── conversations/
     ├── route.ts                           # 会話一覧取得・新規作成
     └── [id]/

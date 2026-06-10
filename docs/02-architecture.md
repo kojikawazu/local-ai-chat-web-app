@@ -1,5 +1,29 @@
 # アーキテクチャ設計書
 
+> 最終更新: 2026-06-11
+
+## 目次
+
+- [システム構成](#システム構成)
+- [ディレクトリ構成](#ディレクトリ構成)
+  - [プロジェクト全体](#プロジェクト全体)
+  - [front/src/ 内部構成](#frontsrc-内部構成)
+  - [front/prisma/](#frontprisma)
+  - [front/tests/](#fronttests)
+  - [ディレクトリ方針](#ディレクトリ方針)
+- [データベース設計](#データベース設計)
+  - [ERD](#erd)
+  - [Prismaスキーマ](#prismaスキーマ)
+- [データフロー](#データフロー)
+  - [チャット送信フロー](#チャット送信フロー)
+  - [会話管理フロー](#会話管理フロー)
+  - [ストリーミング実装方針](#ストリーミング実装方針)
+- [環境変数](#環境変数)
+- [状態管理](#状態管理)
+- [テーマシステム](#テーマシステム)
+  - [テーマ一覧](#テーマ一覧)
+  - [注意事項](#注意事項)
+
 ## システム構成
 
 ```
@@ -7,7 +31,7 @@
     ↓ fetch (streaming)
 Next.js Route Handlers (API層)
     ├──→ Prisma ORM ──→ PostgreSQL (Docker)
-    └──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3-coder:latest
+    └──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3-coder-next:latest
 ```
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
@@ -35,8 +59,8 @@ local-ai-chat-web-app/
 │   ├── tests/                 #   テスト
 │   ├── public/                #   静的ファイル
 │   ├── .env.local             #   環境変数
-│   ├── next.config.ts         #   Next.js設定
-│   ├── tailwind.config.ts     #   TailwindCSS設定
+│   ├── next.config.ts         #   Next.js設定（reactCompiler / CSPヘッダー）
+│   ├── postcss.config.mjs     #   PostCSS設定（TailwindCSS 4。tailwind.config は不使用）
 │   ├── tsconfig.json          #   TypeScript設定
 │   ├── playwright.config.ts   #   Playwright設定
 │   ├── package.json
@@ -56,9 +80,11 @@ front/src/
 │   ├── page.tsx               #   トップページ（チャット画面・状態管理の中心）
 │   └── api/                   #   Route Handlers
 │       ├── chat/
-│       │   └── route.ts       #     Ollama通信（ストリーミング、model指定可）
+│       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可）
 │       ├── models/
 │       │   └── route.ts       #     利用可能モデル一覧取得
+│       ├── tools/
+│       │   └── route.ts       #     エージェントの利用可能ツール一覧取得
 │       └── conversations/
 │           ├── route.ts       #     会話一覧取得・新規作成
 │           └── [id]/
@@ -76,9 +102,14 @@ front/src/
 │   │   │   ├── ChatWindow.tsx #     メッセージ一覧表示
 │   │   │   ├── Footer.tsx     #     フッター
 │   │   │   ├── Header.tsx     #     ヘッダー（モデル選択ドロップダウン）
-│   │   │   └── MarkdownContent.tsx # Markdown整形表示
+│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示
+│   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think>対応）
+│   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
+│   │   │   └── ToolCallResult.tsx  #  ツール実行結果の折りたたみ表示
+│   │   ├── constants/
+│   │   │   └── toolLabels.ts  #     ツール名→表示ラベルのマッピング
 │   │   └── hooks/
-│   │       └── useChat.ts     #     チャットロジック（ストリーミング、タイトル生成）
+│   │       └── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成）
 │   └── sidebar/
 │       ├── components/
 │       │   └── Sidebar.tsx    #     サイドバー（会話一覧、設定ボタン）
@@ -89,11 +120,21 @@ front/src/
 ├── hooks/
 │   └── useTheme.ts            #   テーマ切替フック（localStorage永続化）
 ├── lib/
-│   ├── ollama.ts              #   Ollamaクライアント（streamChat, listModels）
+│   ├── ollama.ts              #   Ollamaクライアント（streamChat, listModels, tools対応）
 │   ├── prisma.ts              #   Prismaクライアントインスタンス
-│   └── validation.ts          #   バリデーションユーティリティ
+│   ├── validation.ts          #   バリデーションユーティリティ
+│   ├── agent.ts               #   エージェントループ（ツール呼び出し制御）
+│   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
+│   └── tools/                 #   ツール実装
+│       ├── types.ts           #     ツール関連型定義
+│       ├── index.ts           #     ツールレジストリ（register/get/execute）
+│       ├── registry.ts        #     ツール登録の初期化（initializeTools）
+│       ├── get-current-datetime.ts # 現在日時取得ツール
+│       ├── calculate.ts       #     数式計算ツール
+│       ├── web-search.ts      #     Web検索ツール（DuckDuckGo）
+│       └── url-fetch.ts       #     URL取得ツール（SSRF防止）
 └── types/
-    └── index.ts               #   共通型定義（Message, Conversation等）
+    └── index.ts               #   共通型定義（Message, Conversation, ToolCallInfo等）
 ```
 
 ### front/prisma/
@@ -113,10 +154,14 @@ front/tests/
     │   └── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
+    ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
     ├── responsive.spec.ts         # レスポンシブテスト
+    ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
+    ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
+    ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     ├── debug-console.spec.ts      # デバッグ用テスト（CIスキップ）
     ├── debug-input.spec.ts        # 入力方式デバッグ用テスト（CIスキップ）
@@ -164,6 +209,7 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String       // 'user' | 'assistant'
   content        String
+  metadata       Json?        // ツール呼び出し情報・思考過程等（nullable）
   createdAt      DateTime     @default(now())
 }
 ```
@@ -202,8 +248,10 @@ model Message {
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|
 | `OLLAMA_BASE_URL` | Ollama APIの接続先 | `http://localhost:11434` |
-| `OLLAMA_MODEL` | 使用するモデル名 | `qwen3-coder:latest` |
+| `OLLAMA_MODEL` | 使用するモデル名 | `qwen3-coder-next:latest` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
+| `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
+| `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 
 ## 状態管理
 
