@@ -16,6 +16,7 @@
 - [9. ストリーミング完了タイムアウト（4件）](#9-ストリーミング完了タイムアウト4件)
 - [10. Shift+Enter テストでメッセージが送信される（1件）](#10-shiftenter-テストでメッセージが送信される1件)
 - [11. `overflow-y-auto` コンテナの可視性（1件）](#11-overflow-y-auto-コンテナの可視性1件)
+- [12. pnpm 11 系が Node 20 で起動失敗（ビルド前に全失敗）](#12-pnpm-11-系が-node-20-で起動失敗ビルド前に全失敗)
 - [CI スキップ対象テスト一覧](#ci-スキップ対象テスト一覧)
 - [今後の改善案](#今後の改善案)
 
@@ -196,6 +197,23 @@ test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了
 **対応**: セレクタを `[class*="bg-nord-0"]`（背景色を持つ実際のコンテナ）に変更。
 
 **ファイル**: `front/tests/e2e/responsive.spec.ts`
+
+---
+
+## 12. pnpm 11 系が Node 20 で起動失敗（ビルド前に全失敗）
+
+**症状**: `Setup Node.js` ステップで pnpm がクラッシュし、テスト実行前に CI が失敗（約35秒で fail）。
+
+```
+warn: This version of pnpm requires at least Node.js v22.13
+Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
+```
+
+**原因**: ワークフローが `pnpm/action-setup` を `version: latest` で利用していたため pnpm 11.5.3 が入り、それが **Node.js 22.13+ を要求**（`node:sqlite` 等の新組み込みモジュールに依存）。一方ワークフローは Node 20 をセットアップしていたため不整合でクラッシュ。ローカル環境（pnpm 10 系・`lockfileVersion: '9.0'`）とも乖離していた。
+
+**対応**: `pnpm/action-setup` の `version` を `latest` → `10` に固定。ローカル（pnpm 10.33.0）・lockfileVersion 9.0・Node 20 と整合する。`latest` は破壊的にメジャーが上がるため使用しない。
+
+**ファイル**: `.github/workflows/e2e-test.yml`
 
 ---
 
