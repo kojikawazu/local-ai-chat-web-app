@@ -1,5 +1,7 @@
 # Nordic Chat セットアップガイド（macOS）
 
+> 最終更新: 2026-06-11
+
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
 ## 目次
@@ -25,8 +27,10 @@
 |------|------|
 | OS | macOS 13 (Ventura) 以降 |
 | CPU | Apple Silicon (M1/M2/M3/M4) または Intel |
-| メモリ | 8GB以上（16GB推奨。LLMモデルのサイズに依存） |
-| ディスク | 10GB以上の空き容量（モデルサイズに依存） |
+| メモリ | 使用するLLMモデルに依存。軽量モデル（数GB級）なら 8〜16GB、デフォルトの大型モデル `qwen3-coder-next:latest`（79.7B）は **32GB以上のRAM/VRAMを推奨** |
+| ディスク | 使用するモデルのサイズ分の空き容量。デフォルトモデルは **約48GB**、軽量モデルなら数GB |
+
+> **モデル選びの目安**: 初めての場合や 8〜16GB のマシンでは、まず軽量モデル（例: `gemma3:4b`）で動作確認することを強く推奨します。デフォルトの `qwen3-coder-next:latest` は高性能ですが非常に大きく、低スペック機では動作しません。モデルはアプリ内およびUIからいつでも切り替えられます。
 
 ターミナルアプリ（Terminal.app または iTerm2 等）を開いて、以降の手順を実行してください。
 
@@ -147,25 +151,34 @@ brew install ollama
 
 ### LLMモデルのダウンロード
 
-Ollama が起動中の状態で、モデルをダウンロードします。
+Ollama が起動中の状態で、モデルをダウンロードします。**使用するモデルに合わせて `front/.env.local` の `OLLAMA_MODEL` を設定してください**（手順8で設定）。
+
+**おすすめ（初回・8〜16GBマシン）— 軽量モデル:**
 
 ```bash
-# デフォルトモデル（qwen3-coder）をダウンロード
-ollama pull qwen3-coder:latest
+# 軽量モデル（約3GB）。まずはこれで動作確認するのが安全
+ollama pull gemma3:4b
 ```
 
-> **注意**: モデルのダウンロードには数分〜数十分かかります（ファイルサイズ: 約4-8GB）。
-> 回線速度やモデルサイズにより異なります。
+**アプリのデフォルトモデル（大型・高性能）:**
+
+```bash
+# qwen3-coder-next:latest（79.7B, Q4_K_M）
+ollama pull qwen3-coder-next:latest
+```
+
+> **注意**: `qwen3-coder-next:latest` は **約48GB** あり、ダウンロードに時間がかかるうえ実行に **32GB以上のRAM/VRAM** を推奨します。低スペック機では上の軽量モデルを使用してください。
+> ダウンロード時間は回線速度・モデルサイズにより数分〜数十分かかります。
 
 #### 他のモデルを使いたい場合
 
 任意のモデルをダウンロードできます。アプリ内でモデルを切り替え可能です。
 
 ```bash
-# 例: 軽量モデル
-ollama pull gemma3:4b
+# 例: さらに軽量（約815MB）
+ollama pull gemma3:1b
 
-# 例: 高性能モデル（メモリ16GB以上推奨）
+# 例: 中量級（メモリ16GB以上推奨、約4.9GB）
 ollama pull llama3.1:8b
 ```
 
@@ -177,8 +190,8 @@ ollama pull llama3.1:8b
 # モデル一覧を確認（ダウンロード済みモデルが表示される）
 ollama list
 
-# 動作テスト（応答が返ればOK。Ctrl+Dで終了）
-ollama run qwen3-coder:latest "Hello"
+# 動作テスト（ダウンロードしたモデル名を指定。応答が返ればOK。Ctrl+Dで終了）
+ollama run gemma3:4b "Hello"
 ```
 
 ---
@@ -240,16 +253,18 @@ pnpm install
 ### 環境変数の設定
 
 ```bash
-# 環境変数ファイルを作成
+# 環境変数ファイルを作成（OLLAMA_MODEL は手順5でダウンロードしたモデル名に合わせる）
 cat <<'EOF' > .env.local
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen3-coder:latest
+OLLAMA_MODEL=gemma3:4b
 DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
 EOF
 ```
 
-> **補足**: デフォルトモデルを変更したい場合は `OLLAMA_MODEL` の値を変更してください。
-> アプリ内のUIからもモデルを切り替えられます。
+> **重要**: `OLLAMA_MODEL` は **実際に `ollama pull` したモデル名と一致させてください**（一致しないと「モデルが見つからない」エラーになります）。
+> アプリのデフォルトは `qwen3-coder-next:latest` ですが、軽量モデルで動作確認する場合は上記のように使用モデルを指定します。アプリ内のUIからもモデルを切り替えられます。
+>
+> なお `front/.env.example` をコピーして作成することもできます: `cp .env.example .env.local`
 
 ### データベースのマイグレーション
 
