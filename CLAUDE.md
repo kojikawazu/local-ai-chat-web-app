@@ -216,6 +216,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | ファイル | スコープ | 内容 |
 |---------|---------|------|
 | `coding-standards.md` | 全体 | TypeScript strict / pnpm / ESLint+Prettier / シークレット禁止 |
+| `jsdoc.md` | `front/src/**` | JSDoc（TSDoc）規約・公開シンボルに必須・型ブレース禁止・キャスト/回避策に "why" |
 | `error-handling.md` | 全体 | バリデーション・HTTP ステータス・統一エラーレスポンス方針 |
 | `security.md` | 全体 | XSS 対策・SQL インジェクション禁止・CSP・シークレット管理 |
 | `testing.md` | `front/tests/**` | E2E テスト方針・3分類必須・Playwright 設定 |
