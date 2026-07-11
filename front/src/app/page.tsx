@@ -21,8 +21,14 @@ export default function Home() {
   const [agentPromptPresetId, setAgentPromptPresetId] = useState(DEFAULT_PRESET_ID);
   const { theme, setTheme } = useTheme();
 
+  // localStorage に永続化した UI 設定をマウント後に読み込む。
+  // why: 遅延初期化（useState(() => localStorage...)）は SSR 時に localStorage へ触れ、
+  // サーバー描画（デフォルト値）とクライアント描画（保存値）が食い違いハイドレーション不一致になる。
+  // ハイドレーション後に走る effect で同期するのが正しく、setState はマウント時の一度きり。
+  // そのため set-state-in-effect はこのパターンに限り無効化する。
   useEffect(() => {
     const stored = localStorage.getItem('agent-tools-enabled');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 上記 why 参照（client-only 同期）
     if (stored === 'true') setEnableTools(true);
     const storedPreset = localStorage.getItem('agent-prompt-preset-id');
     if (storedPreset) setAgentPromptPresetId(storedPreset);
