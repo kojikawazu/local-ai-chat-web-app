@@ -167,6 +167,17 @@
 - [x] CI に独立ジョブ `unit-test`（`.github/workflows/unit-test.yml`）を追加
 - [x] 方針ドキュメント更新（`.claude/rules/testing.md`・`docs/06`・`CLAUDE.md`・`README`）
 
+### インテグレーションテスト（Vitest + Testcontainers）導入
+
+- [x] `@testcontainers/postgresql` 導入・`vitest.integration.config.ts`（globalSetup で使い捨てPostgreSQL起動→`migrate deploy`、setup-env で接続URL注入）
+- [x] `pnpm test:integration` スクリプト追加
+- [x] conversations.test.ts（作成/一覧: 3分類）
+- [x] conversation-delete.test.ts（削除・cascade・UUID400・存在しないID500）
+- [x] messages.test.ts（保存/取得・metadata・updatedAt・400/404）
+- [x] route handler をブラウザ抜きで直接叩く方式（NextRequest 構築）・実DBで検証
+- [x] CI に独立ジョブ `integration-test`（`.github/workflows/integration-test.yml`。Docker のみ・Ollama不要）を追加
+- [x] 方針ドキュメント更新（3層構成へ改定）
+
 ## フェーズ6: CI
 
 - [x] GitHub Actionsワークフロー作成（push/PR to main）

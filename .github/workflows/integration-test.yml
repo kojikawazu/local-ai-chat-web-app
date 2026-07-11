@@ -1,0 +1,47 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 他ワークフローと同じく Node 20 / lockfileVersion 9.0 と整合する pnpm 10 に固定。
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # testcontainers 12 が使う undici の webidl.util.markAsUncloneable は
+          # undici 6 系（Node 22+）で追加された API。Node 20 では未定義で TypeError に
+          # なるため、この IT ジョブのみ Node 22 を使う（他ジョブは Node 20 のまま）。
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: front/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: front
+        run: pnpm install
+
+      # 生成クライアント（src/generated/prisma/）は gitignore のため CI 上で生成が必須。
+      - name: Generate Prisma client
+        working-directory: front
+        run: pnpm prisma generate
+
+      # PostgreSQL は Testcontainers が使い捨てコンテナとして起動する（サービスコンテナ不要）。
+      # Ollama / ブラウザは不要。ubuntu-latest には Docker が同梱されている。
+      - name: Run integration tests
+        working-directory: front
+        run: pnpm test:integration

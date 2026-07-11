@@ -34,11 +34,12 @@
 
 ## 基本方針
 
-- **2層構成**: ユニットテスト（UT / Vitest）+ E2Eテスト（Playwright）。
-  - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは引き続き実施しない（E2Eで担保）。
-  - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境）。
+- **3層構成**: ユニット（UT / Vitest）+ インテグレーション（IT / Vitest + Testcontainers）+ E2E（Playwright）。
+  - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは実施しない（E2Eで担保）。
+  - **IT**: route handler をブラウザ抜きで直接叩き、実PostgreSQL（Testcontainers）相手に handler↔Prisma↔DB を検証。実依存（DB）は使い、mockは真の外部3rd-party（Ollama/Web）のみ。
+  - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
 - **ブラウザ**（E2E）: Chromiumのみ。
-- **CI**: GitHub Actionsで自動実行（UT・E2Eは独立ジョブ）。
+- **CI**: GitHub Actionsで自動実行（UT・IT・E2Eは独立ジョブ）。
 
 ### ユニットテスト（Vitest）
 
@@ -51,7 +52,20 @@
 | 対象（初期） | `isValidUUID`（validation）・`calculateTool`（式評価パーサー）・`getPresetById`（プリセット探索） |
 | モック | 外部I/Oのみ。初期対象は純関数のため mock なし |
 
-UT も E2E と同様に **正常系・準正常系・異常系の3分類**で記述する。
+### インテグレーションテスト（Vitest + Testcontainers）
+
+| 項目 | 内容 |
+|------|------|
+| ランナー | Vitest（`environment: node`）+ `@testcontainers/postgresql` |
+| 配置 | `front/tests/integration/`（`*.test.ts`） |
+| 設定 | `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup: コンテナ起動＋`migrate deploy`、setup-env: 接続URL注入） |
+| 実行 | `pnpm test:integration` |
+| 対象（初期） | `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得） |
+| 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
+| モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ。初期対象は外部依存が無く mock なし |
+| 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため） |
+
+UT・IT・E2E とも **正常系・準正常系・異常系の3分類**で記述する。
 
 ## 3分類ルール（必須）
 
@@ -272,6 +286,14 @@ front/tests/
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   └── agent-prompts.test.ts     # getPresetById・プリセット不変条件
+├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
+│   ├── helpers/
+│   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
+│   │   ├── setup-env.ts          # 接続URLを DATABASE_URL に注入
+│   │   └── db.ts                 # resetDb・NextRequest/コンテキスト構築
+│   ├── conversations.test.ts     # 作成/一覧（POST/GET）
+│   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
+│   └── messages.test.ts          # メッセージ保存/取得・バリデーション
 └── e2e/
     ├── helpers/
     │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
@@ -308,14 +330,15 @@ front/tests/
 - `push` to main
 - `pull_request` to main
 
-### ワークフロー構成（2ジョブ）
+### ワークフロー構成（3ジョブ）
 
 | ワークフロー | ファイル | 内容 | 依存 |
 |---|---|---|---|
 | Unit Tests | `.github/workflows/unit-test.yml` | `pnpm test:unit`（Vitest） | Ollama / DB 不要・数十秒 |
+| Integration Tests | `.github/workflows/integration-test.yml` | `pnpm test:integration`（Vitest + Testcontainers） | Docker のみ（Testcontainers が PostgreSQL を起動）。Ollama 不要 |
 | E2E Tests | `.github/workflows/e2e-test.yml` | `pnpm test:e2e`（Playwright） | Ollama + PostgreSQL |
 
-UT ジョブは Ollama / PostgreSQL / Prisma 生成を必要とせず、E2E と独立に高速実行される。
+UT・IT ジョブは Ollama を必要とせず、E2E と独立に高速実行される。IT は PostgreSQL サービスコンテナを使わず Testcontainers が使い捨て DB を起動するため、`prisma generate` のみ前処理として実行する。
 
 ### 実行環境（E2E）
 
