@@ -34,9 +34,18 @@ globs: "front/tests/**"
 
 ## IT（Vitest + Testcontainers）方針
 
-- **対象**: DB 依存の route handler（`/api/conversations` 系の CRUD・messages・cascade 削除・バリデーション/404/400）。
+- **対象**: route handler 全般。
+  - DB 依存（`/api/conversations` 系の CRUD・messages・cascade 削除・404/400）→ 実 DB で検証。
+  - 外部依存（`/api/chat`・`/api/models`）→ Ollama を fetch スタブして**エラー契約**（接続失敗→502、バリデーション→400）と正常応答の中継を検証。
 - **実依存**: PostgreSQL を **Testcontainers で使い捨てコンテナとして起動**し、`prisma migrate deploy` でスキーマ適用。開発 DB には一切触れない。
-- **mock 方針**: 真の外部 3rd-party（Ollama / DuckDuckGo / 任意 Web）**のみ**手製 fetch スタブで差し替える。DB はモックしない（配線検証が目的）。初期対象（conversations 系）は外部依存が無いためスタブ不要。
+- **mock 方針**: 真の外部 3rd-party（Ollama / DuckDuckGo / 任意 Web）**のみ**手製 fetch スタブ（`helpers/ollama-stub.ts` の `stubFetch`）で差し替える。DB はモックしない（配線検証が目的）。
+
+## エラーハンドリングの層分担
+
+エラー系は「契約」と「見た目」で層を分ける（E2E で自前ロジックを mock しないため）。
+
+- **API のエラー契約**（Ollama ダウン→502、DB/バリデーション→4xx/5xx）→ **IT**（fetch スタブで決定的に検証）。
+- **エラー時の UI 描画・耐性**（エラーメッセージ表示・クラッシュしない・エラー状態のスクショ）→ **E2E**。ブラウザ必須かつ実バックエンドを安定的に壊せないため、**境界の障害注入（`page.route`）を唯一の許容例外**とする。
 - **呼び出し**: handler を関数として import し、`NextRequest` を組んで直接実行（ブラウザ・Next サーバー起動なし）。
 - **隔離**: 各テスト `beforeEach` で会話を全削除（Message は cascade）。`fileParallelism: false` で DB 競合を回避。
 - **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker のみ必要、Ollama 不要）。
