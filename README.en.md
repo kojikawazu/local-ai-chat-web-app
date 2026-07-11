@@ -1,8 +1,9 @@
 # Nordic Chat — Local AI Chat Web App
 
+[![Unit Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/unit-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/unit-test.yml)
 [![E2E Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml)
 
-[日本語](README.md) ・ Last updated: 2026-06-11
+[日本語](README.md) ・ Last updated: 2026-07-11
 
 A chat web app for talking to a local LLM (Ollama), built on the Nordic Frost design system as a private AI workspace.
 
@@ -44,7 +45,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |
 | ORM | Prisma 7 |
-| Testing | Playwright (E2E) |
+| Testing | Vitest (unit) + Playwright (E2E) |
 
 ## Quick Start
 
@@ -87,7 +88,8 @@ pnpm dev             # start dev server
 pnpm build           # production build
 pnpm lint            # ESLint
 pnpm format          # Prettier
-pnpm test:e2e        # run E2E tests
+pnpm test:unit       # run unit tests (Vitest)
+pnpm test:e2e        # run E2E tests (Playwright)
 pnpm prisma studio   # open DB browser
 ```
 
@@ -110,9 +112,10 @@ See the [docs index](docs/README.md). Project conventions live in [`CLAUDE.md`](
 
 ## CI
 
-GitHub Actions runs E2E tests automatically (push / PR to main).
+GitHub Actions runs automatically (push / PR to main). Unit and E2E are separate jobs.
 
-- **Environment**: Ubuntu + PostgreSQL + Ollama (`qwen2.5:0.5b`) + Chromium
+- **Unit Tests** (`unit-test.yml`): Vitest. No Ollama/DB required, finishes in tens of seconds.
+- **E2E Tests** (`e2e-test.yml`): Ubuntu + PostgreSQL + Ollama (`qwen2.5:0.5b`) + Chromium.
 - **Results**: playwright-report uploaded as an artifact
 - **Note**: CPU-only runner, so streaming-completion tests etc. are skipped ([details](docs/08-ci-e2e-bug-report.md))
 

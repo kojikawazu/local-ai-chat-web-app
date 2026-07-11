@@ -1,0 +1,39 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # E2E ワークフローと同じく Node 20 / lockfileVersion 9.0 と整合する pnpm 10 に固定。
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: front/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: front
+        run: pnpm install
+
+      # UT は純ロジック対象で Ollama / PostgreSQL / Prisma 生成を必要としないため、
+      # E2E ジョブと独立に数十秒で完了する。
+      - name: Run unit tests
+        working-directory: front
+        run: pnpm test:unit
