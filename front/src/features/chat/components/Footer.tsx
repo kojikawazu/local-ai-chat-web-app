@@ -1,5 +1,10 @@
 import { Database, Terminal, GitBranch } from 'lucide-react';
 
+/**
+ * アプリ下部のステータスフッター。
+ *
+ * 接続コンポーネント（PostgreSQL / Ollama）とアプリバージョンを静的に表示する。
+ */
 export default function Footer() {
   return (
     <footer className="h-10 px-6 flex items-center justify-between text-[10px] uppercase tracking-widest bg-nord-1 border-t border-nord-3">

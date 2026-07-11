@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { listModels, getDefaultModel } from '@/lib/ollama';
 
+/**
+ * Ollama で利用可能なモデル一覧と既定モデル名を取得する。
+ *
+ * @returns 成功時はモデル名配列と既定モデルを含む JSON（`{ models, defaultModel }`）。Ollama への接続失敗は 502 の JSON エラーレスポンス
+ */
 export async function GET() {
   try {
     const models = await listModels();

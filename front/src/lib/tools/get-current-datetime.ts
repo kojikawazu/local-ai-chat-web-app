@@ -1,5 +1,13 @@
 import { Tool } from './types';
 
+/**
+ * 現在の日付と時刻を取得するエージェントツール。
+ *
+ * 引数 `timezone`（例: `Asia/Tokyo`, `UTC`。省略時は `Asia/Tokyo`）で指定した
+ * タイムゾーンの現在時刻を、UTC オフセット付きの ISO 8601 形式
+ * （`YYYY-MM-DDThh:mm:ss±hh:mm`）文字列で返す。不正なタイムゾーン指定時は
+ * 例外を投げず UTC の ISO 文字列にフォールバックする。
+ */
 export const getCurrentDatetimeTool: Tool = {
   definition: {
     name: 'get_current_datetime',

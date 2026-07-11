@@ -8,12 +8,25 @@ import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 
+/** {@link ChatWindow} の props。 */
 interface ChatWindowProps {
+  /** 表示する会話メッセージ一覧（時系列順）。空なら空状態のウェルカム画面を表示する。 */
   messages: Message[];
+  /** 現在実行中のツール呼び出し。ある場合はスピナー付きインジケーターを表示する。 */
   activeToolCall?: { name: string; arguments: Record<string, unknown> } | null;
+  /** 応答生成中か。末尾の空 assistant メッセージと組み合わせて「最初のチャンク待ち」演出を出す。 */
   isLoading?: boolean;
 }
 
+/**
+ * チャットのメッセージ一覧を描画するスクロール領域。
+ *
+ * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
+ * 描画し、思考過程・ツール呼び出し結果・ラウンド統計を付随表示する。最初のチャンク
+ * 待ち中はドットアニメーションを表示する。
+ *
+ * @param props - メッセージ一覧・実行中ツール・ローディング状態を持つ props
+ */
 export default function ChatWindow({ messages, activeToolCall, isLoading }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 

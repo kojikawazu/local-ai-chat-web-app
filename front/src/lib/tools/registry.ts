@@ -12,6 +12,12 @@ import { urlFetchTool } from './url-fetch';
 
 let initialized = false;
 
+/**
+ * 全ツールをレジストリへ一度だけ登録する。
+ *
+ * 2 回目以降の呼び出しは何もしない（`initialized` フラグで冪等性を保証）。
+ * `/api/chat` と `/api/tools` の両方から呼ばれても登録は 1 回だけ行われる。
+ */
 export function initializeTools(): void {
   if (initialized) return;
   initialized = true;

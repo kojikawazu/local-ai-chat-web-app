@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+/**
+ * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。
+ *
+ * @param _request - リクエスト（本エンドポイントでは本文を参照しないため未使用）
+ * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
+ * @returns 成功時はメッセージ配列を含む JSON（`{ messages }`）。会話が存在しなければ 404、取得失敗は 500 の JSON エラーレスポンス
+ */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,6 +41,16 @@ export async function GET(
   }
 }
 
+/**
+ * 指定した会話に新規メッセージを保存し、会話の更新日時を現在時刻に更新する。
+ *
+ * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
+ * 思考過程等）は任意で、指定時のみ保存する。
+ *
+ * @param request - `role`（必須・user|assistant）・`content`（必須）・任意の `metadata` を含む JSON ボディを持つリクエスト
+ * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
+ * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。role/content 欠落・role 不正は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

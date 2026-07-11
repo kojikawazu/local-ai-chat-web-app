@@ -4,7 +4,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 
+/** {@link MarkdownContent} の props。 */
 interface MarkdownContentProps {
+  /** 描画対象の Markdown テキスト。 */
   content: string;
 }
 
@@ -95,6 +97,15 @@ const components: Components = {
   },
 };
 
+/**
+ * Markdown テキストを Nord テーマ準拠のスタイルで描画する。
+ *
+ * `remark-gfm` で GFM（表・打ち消し線等）に対応し、各要素をテーマ色付きの
+ * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
+ * 委ねるため、XSS 耐性を保つ。
+ *
+ * @param props - 描画する Markdown テキストを持つ props
+ */
 export default function MarkdownContent({ content }: MarkdownContentProps) {
   return (
     <div className="leading-relaxed text-sm md:text-base prose-nord">

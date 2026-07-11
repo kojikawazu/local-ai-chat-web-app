@@ -6,6 +6,16 @@ import { initializeTools } from '@/lib/tools/registry';
 // ツールを登録（registry.ts で一元管理）
 initializeTools();
 
+/**
+ * Ollama にチャットメッセージを送信し、応答をストリーミングで中継する。
+ *
+ * 通常モードでは Ollama の生成テキストをそのまま `text/event-stream` で逐次返す。
+ * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
+ * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
+ *
+ * @param request - `message`（必須・最大10,000文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
+ * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。バリデーション失敗時は 400、Ollama 接続・空応答時は 502 の JSON エラーレスポンス
+ */
 export async function POST(request: NextRequest) {
   let body: {
     message?: string;

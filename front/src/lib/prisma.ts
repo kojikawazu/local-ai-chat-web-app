@@ -12,6 +12,10 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
+/**
+ * アプリ全体で共有する Prisma クライアントのシングルトン。
+ * 開発時のホットリロードで接続が増殖しないよう `globalThis` にキャッシュして再利用する。
+ */
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {

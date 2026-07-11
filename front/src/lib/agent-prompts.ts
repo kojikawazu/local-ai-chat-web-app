@@ -3,13 +3,24 @@
  * Phase C: 調査→判断→再調査→まとめ の自律ループを促す。
  */
 
+/**
+ * エージェント用システムプロンプトのプリセット 1 件。
+ */
 export interface AgentPromptPreset {
+  /** プリセットを一意に識別する ID（API のリクエスト・選択状態の保持に使う） */
   id: string;
+  /** UI に表示するプリセット名 */
   name: string;
+  /** プリセットの用途を説明する短文（UI の補足表示用） */
   description: string;
+  /** システムプロンプト本文。`none` プリセットのみ空文字（プロンプト無し） */
   prompt: string;
 }
 
+/**
+ * 選択可能なエージェントプリセットの一覧。
+ * `researcher` / `analyst` / `reviewer` に加え、プロンプト無しの `none` を含む。
+ */
 export const AGENT_PROMPT_PRESETS: AgentPromptPreset[] = [
   {
     id: 'researcher',
@@ -74,8 +85,15 @@ export const AGENT_PROMPT_PRESETS: AgentPromptPreset[] = [
   },
 ];
 
+/** 初期選択されるプリセットの ID（リサーチャー）。 */
 export const DEFAULT_PRESET_ID = 'researcher';
 
+/**
+ * ID に一致するプリセットを取得する。
+ *
+ * @param id - 探索するプリセットの ID
+ * @returns 一致するプリセット。存在しない場合は `undefined`
+ */
 export function getPresetById(id: string): AgentPromptPreset | undefined {
   return AGENT_PROMPT_PRESETS.find((p) => p.id === id);
 }

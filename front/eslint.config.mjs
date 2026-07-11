@@ -24,7 +24,9 @@ const eslintConfig = defineConfig([
       "jsdoc/require-param": ["error", { checkDestructured: false, checkDestructuredRoots: false }],
       "jsdoc/require-param-description": "error",
       // @param 名と実引数名を突き合わせる（名前ズレ・順序・過不足を検出）。
-      "jsdoc/check-param-names": "error",
+      // 分割代入 props / options は型（XxxProps 等）が真実なので、ルート単位の
+      // @param のみ要求し props.x 単位には展開しない（require-param と方針を揃える）。
+      "jsdoc/check-param-names": ["error", { checkDestructured: false }],
       // 返り値がある関数は @returns に意味を書く（.tsx コンポーネントは後続ブロックで除外）。
       "jsdoc/require-returns": "error",
       "jsdoc/require-returns-description": "error",

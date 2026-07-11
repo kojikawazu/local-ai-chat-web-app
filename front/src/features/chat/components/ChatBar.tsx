@@ -5,15 +5,30 @@ import { Send } from 'lucide-react';
 
 const MAX_MESSAGE_LENGTH = 10000;
 
+/** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {
+  /** 入力欄（textarea）にフォーカスを移す。 */
   focus: () => void;
 }
 
+/** {@link ChatBar} の props。 */
 interface ChatBarProps {
+  /** メッセージ送信時のコールバック。トリム済みの本文を受け取る。 */
   onSendMessage: (content: string) => void;
+  /** 送信を無効化するか（応答生成中など）。省略時は有効。 */
   disabled?: boolean;
 }
 
+/**
+ * メッセージ入力バー。textarea への入力・自動高さ調整・送信を担う。
+ *
+ * Enter で送信、Shift+Enter で改行。IME 変換確定中の Enter は送信しない。
+ * 入力が最大文字数（10,000 文字）を超えると送信不可となり警告を表示する。
+ * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
+ *
+ * @param props - 送信コールバックと無効化フラグを持つ props
+ * @param ref - 入力欄フォーカス操作を公開する forwardRef
+ */
 const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
   { onSendMessage, disabled },
   ref

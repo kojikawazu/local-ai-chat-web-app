@@ -12,6 +12,13 @@ import SettingsModal from '@/components/SettingsModal';
 import { useTheme } from '@/hooks/useTheme';
 import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent-prompts';
 
+/**
+ * チャット画面のトップページ。サイドバー・チャット領域・設定モーダルを統合する。
+ *
+ * 会話の選択/作成/削除、メッセージ送受信、モデル・ツール・テーマ・エージェント
+ * プロンプトの UI 設定を束ね、各機能フックと子コンポーネントへ受け渡す。
+ * ツール使用の有効状態とプロンプトプリセットは localStorage に永続化する。
+ */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
   const [models, setModels] = useState<string[]>([]);

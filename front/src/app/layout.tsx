@@ -12,11 +12,20 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+/**
+ * アプリ全体のメタデータ（ページタイトル・説明）。Next.js が `<head>` に反映する。
+ */
 export const metadata: Metadata = {
   title: 'Nordic Chat',
   description: 'ローカルLLMと対話するチャットアプリケーション',
 };
 
+/**
+ * 全ページ共通のルートレイアウト。`<html>` / `<body>` とフォント変数を定義する。
+ *
+ * @param props - レイアウトの props
+ * @param props.children - 各ページの内容としてレンダリングされる子要素
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -3,6 +3,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Conversation } from '@/types';
 
+/**
+ * 会話一覧と選択中の会話 ID を管理し、会話の取得・作成・削除・選択を提供するフック。
+ *
+ * マウント時に会話一覧を API から取得する。各操作は API 失敗時にローカル状態を
+ * 変更せず、エラーをコンソールに記録するに留める（例外は投げない）。
+ *
+ * @returns 会話一覧と操作関数。`conversations` は会話一覧、
+ *   `currentConversationId` は選択中の会話 ID（未選択時は `null`）、
+ *   `createConversation` は新規会話を作成し作成した ID を返す（失敗時 `null`）、
+ *   `deleteConversation` は会話を削除する、`selectConversation` は選択中の会話を
+ *   切り替える、`refreshConversations` は会話一覧を再取得する
+ */
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<
