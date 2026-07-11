@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { cleanupAllConversations } from './helpers/test-data';
+import { cleanupAllConversations, postChatWithRetry } from './helpers/test-data';
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -158,13 +158,12 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
     });
 
     test('systemPrompt 付きで /api/chat POST しても 200 が返る', async ({ request }) => {
-      const res = await request.post(`${BASE_URL}/api/chat`, {
-        data: {
-          message: 'こんにちは',
-          conversationHistory: [],
-          enableTools: false,
-          systemPrompt: 'あなたは親切なアシスタントです。',
-        },
+      // Ollama の一時的な segfault（CI/CPU）を吸収するためリトライ付きで送信する
+      const res = await postChatWithRetry(request, {
+        message: 'こんにちは',
+        conversationHistory: [],
+        enableTools: false,
+        systemPrompt: 'あなたは親切なアシスタントです。',
       });
       expect(res.status()).toBe(200);
     });
@@ -172,13 +171,12 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
 
   test.describe('異常系', () => {
     test('systemPrompt が極端に長くても API が正常に処理する', async ({ request }) => {
-      const res = await request.post(`${BASE_URL}/api/chat`, {
-        data: {
-          message: 'こんにちは',
-          conversationHistory: [],
-          enableTools: false,
-          systemPrompt: 'あ'.repeat(5000),
-        },
+      // Ollama の一時的な segfault（CI/CPU）を吸収するためリトライ付きで送信する
+      const res = await postChatWithRetry(request, {
+        message: 'こんにちは',
+        conversationHistory: [],
+        enableTools: false,
+        systemPrompt: 'あ'.repeat(5000),
       });
       // メッセージは valid なので 200 が返ること
       expect(res.status()).toBe(200);

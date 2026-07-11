@@ -1,4 +1,4 @@
-import { APIRequestContext, Page } from '@playwright/test';
+import { APIRequestContext, APIResponse, Page } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -108,6 +108,38 @@ export async function fetchMessages(
   );
   const data = await res.json();
   return data.messages;
+}
+
+/**
+ * `/api/chat` に POST し、Ollama バックエンドの一時的な障害をリトライで吸収するヘルパー。
+ *
+ * CI ランナー（CPU only）では llama-server が segfault して Route Handler が 5xx を
+ * 返すことがある。この障害は再起動で回復し得るため、5xx のときのみ間隔を空けて再試行する。
+ * バリデーション由来の 4xx はテストの検証対象そのものなので即座に返す（リトライしない）。
+ * 全試行が 5xx なら最後のレスポンスを返すため、Ollama が本当に死んでいればテストは
+ * 正しく失敗する（バックエンド障害を握り潰さない）。
+ *
+ * @param request - Playwright の APIRequestContext
+ * @param data - `/api/chat` へ送るリクエストボディ
+ * @param maxAttempts - 最大試行回数（デフォルト 3）
+ * @returns 最後に受け取った APIResponse（4xx なら初回のもの）
+ */
+export async function postChatWithRetry(
+  request: APIRequestContext,
+  data: Record<string, unknown>,
+  maxAttempts = 3
+): Promise<APIResponse> {
+  let res!: APIResponse;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    res = await request.post(`${BASE_URL}/api/chat`, { data });
+    // 5xx（Ollama バックエンド障害）以外は確定結果として即返す
+    if (res.status() < 500) return res;
+    if (attempt < maxAttempts) {
+      // llama-server の再起動を待ってから再試行
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+  return res;
 }
 
 export async function cleanupAllConversations(
