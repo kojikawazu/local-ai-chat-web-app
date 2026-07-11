@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-11
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -156,6 +156,16 @@
 - [x] セキュリティテスト（security.spec.ts: 正常系/準正常系/異常系 — 通常テキスト、HTMLエスケープ、XSS、SQLi、文字数超過）
 - [x] レスポンシブテスト（responsive.spec.ts: 正常系/準正常系/異常系 — デスクトップ/モバイル、リサイズ追従、極小ビューポート）
 - [x] スクリーンショットテスト（初期表示、チャット中、サイドバー展開、エラー表示、モバイル）
+
+### ユニットテスト（Vitest）導入
+
+- [x] Vitest 導入・`vitest.config.ts` 作成（`tests/unit/**` 対象・`@/*` エイリアス解決・node 環境）
+- [x] `pnpm test:unit` / `test:unit:watch` スクリプト追加
+- [x] validation.test.ts（isValidUUID・入力上限定数: 正常系/準正常系/異常系）
+- [x] calculate.test.ts（式評価パーサー: 優先順位/括弧/単項マイナス/ゼロ除算/不正式 等）
+- [x] agent-prompts.test.ts（getPresetById・プリセット不変条件）
+- [x] CI に独立ジョブ `unit-test`（`.github/workflows/unit-test.yml`）を追加
+- [x] 方針ドキュメント更新（`.claude/rules/testing.md`・`docs/06`・`CLAUDE.md`・`README`）
 
 ## フェーズ6: CI
 

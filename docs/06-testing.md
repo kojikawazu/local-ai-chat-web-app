@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-11
 
 ## 目次
 
@@ -34,10 +34,24 @@
 
 ## 基本方針
 
-- **E2Eテストのみ**（Playwright）。コンポーネント単位のユニットテストは実施しない。
-- **実環境で実行**: 実際のOllama + PostgreSQLに接続してテストする。
-- **ブラウザ**: Chromiumのみ。
-- **CI**: GitHub Actionsで自動実行。
+- **2層構成**: ユニットテスト（UT / Vitest）+ E2Eテスト（Playwright）。
+  - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは引き続き実施しない（E2Eで担保）。
+  - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境）。
+- **ブラウザ**（E2E）: Chromiumのみ。
+- **CI**: GitHub Actionsで自動実行（UT・E2Eは独立ジョブ）。
+
+### ユニットテスト（Vitest）
+
+| 項目 | 内容 |
+|------|------|
+| ランナー | Vitest（`environment: node`） |
+| 配置 | `front/tests/unit/`（`*.test.ts`） |
+| 設定 | `front/vitest.config.ts`（`tests/unit/**` のみ対象・`@/*` エイリアス解決） |
+| 実行 | `pnpm test:unit`（監視: `pnpm test:unit:watch`） |
+| 対象（初期） | `isValidUUID`（validation）・`calculateTool`（式評価パーサー）・`getPresetById`（プリセット探索） |
+| モック | 外部I/Oのみ。初期対象は純関数のため mock なし |
+
+UT も E2E と同様に **正常系・準正常系・異常系の3分類**で記述する。
 
 ## 3分類ルール（必須）
 
@@ -254,6 +268,10 @@ describe('機能名', () => {
 
 ```
 front/tests/
+├── unit/                         # ユニットテスト（Vitest）
+│   ├── validation.test.ts        # isValidUUID・入力上限定数
+│   ├── calculate.test.ts         # calculateTool 式評価パーサー
+│   └── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 └── e2e/
     ├── helpers/
     │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
@@ -290,7 +308,16 @@ front/tests/
 - `push` to main
 - `pull_request` to main
 
-### 実行環境
+### ワークフロー構成（2ジョブ）
+
+| ワークフロー | ファイル | 内容 | 依存 |
+|---|---|---|---|
+| Unit Tests | `.github/workflows/unit-test.yml` | `pnpm test:unit`（Vitest） | Ollama / DB 不要・数十秒 |
+| E2E Tests | `.github/workflows/e2e-test.yml` | `pnpm test:e2e`（Playwright） | Ollama + PostgreSQL |
+
+UT ジョブは Ollama / PostgreSQL / Prisma 生成を必要とせず、E2E と独立に高速実行される。
+
+### 実行環境（E2E）
 
 | 項目 | 値 |
 |------|-----|
