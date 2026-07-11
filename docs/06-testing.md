@@ -63,7 +63,7 @@
 | 対象（初期） | `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得） |
 | 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
 | モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ。初期対象は外部依存が無く mock なし |
-| 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要 |
+| 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため） |
 
 UT・IT・E2E とも **正常系・準正常系・異常系の3分類**で記述する。
 

@@ -24,7 +24,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # testcontainers 12 が使う undici の webidl.util.markAsUncloneable は
+          # undici 6 系（Node 22+）で追加された API。Node 20 では未定義で TypeError に
+          # なるため、この IT ジョブのみ Node 22 を使う（他ジョブは Node 20 のまま）。
+          node-version: 22
           cache: 'pnpm'
           cache-dependency-path: front/pnpm-lock.yaml
 
