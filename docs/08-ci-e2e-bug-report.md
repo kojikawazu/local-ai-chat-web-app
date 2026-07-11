@@ -1,6 +1,6 @@
 # CI E2Eテスト バグレポート
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-11
 
 ## 目次
 
@@ -17,6 +17,7 @@
 - [10. Shift+Enter テストでメッセージが送信される（1件）](#10-shiftenter-テストでメッセージが送信される1件)
 - [11. `overflow-y-auto` コンテナの可視性（1件）](#11-overflow-y-auto-コンテナの可視性1件)
 - [12. pnpm 11 系が Node 20 で起動失敗（ビルド前に全失敗）](#12-pnpm-11-系が-node-20-で起動失敗ビルド前に全失敗)
+- [13. Ollama 最新版が CPU 推論で segfault（2件）](#13-ollama-最新版が-cpu-推論で-segfault2件)
 - [CI スキップ対象テスト一覧](#ci-スキップ対象テスト一覧)
 - [今後の改善案](#今後の改善案)
 
@@ -214,6 +215,28 @@ Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
 **対応**: `pnpm/action-setup` の `version` を `latest` → `10` に固定。ローカル（pnpm 10.33.0）・lockfileVersion 9.0・Node 20 と整合する。`latest` は破壊的にメジャーが上がるため使用しない。
 
 **ファイル**: `.github/workflows/e2e-test.yml`
+
+---
+
+## 13. Ollama 最新版が CPU 推論で segfault（2件）
+
+**症状**: `agent-phase-c.spec.ts` の2テスト（`systemPrompt 付きで /api/chat POST しても 200 が返る` / `systemPrompt が極端に長くても API が正常に処理する`）が失敗。`/api/chat` が 200 ではなく 5xx を返す。WebServer ログに以下が多発:
+
+```
+[WebServer] Ollama connection error: Ollama API error (500):
+{"error":"llama-server process has terminated: signal: segmentation fault (core dumped)"}
+```
+
+**原因**: `Setup Ollama` ステップが `curl -fsSL https://ollama.com/install.sh | sh` で**常に最新の Ollama** を導入していた。最後に CI が通った 2026-06-10（当時の最新 = 0.30.7）以降にリリースされた新しい Ollama が、CI ランナー（CPU only）で `qwen2.5:0.5b` を実行すると `llama-server` プロセスが segfault するようになった。バリデーション系（400 期待）テストは Ollama に到達しないため影響を受けず、実際に生成を要する2テストのみ失敗した。
+
+**対応**:
+- **Ollama バージョン固定**: install.sh に `OLLAMA_VERSION=0.30.7` を渡し、最後に CI が通ったバージョンに固定（`latest` は破壊的に上がるため使わない）。
+  ```yaml
+  curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.30.7 sh
+  ```
+- **リトライ耐性**: LLM 依存テストを `postChatWithRetry` ヘルパー経由に変更。5xx（Ollama バックエンド障害）のときのみ間隔を空けて再試行し、4xx（バリデーション）は即返す。断続的な segfault を吸収しつつ、恒久障害は正しく fail させる（握り潰さない）。
+
+**ファイル**: `.github/workflows/e2e-test.yml`, `front/tests/e2e/helpers/test-data.ts`, `front/tests/e2e/agent-phase-c.spec.ts`
 
 ---
 

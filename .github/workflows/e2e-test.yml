@@ -60,7 +60,11 @@ jobs:
 
       - name: Setup Ollama
         run: |
-          curl -fsSL https://ollama.com/install.sh | sh
+          # install.sh は常に最新版を入れるが、新しい Ollama は CPU 推論で
+          # qwen2.5:0.5b が segfault（llama-server core dumped）し /api/chat が 5xx を返す。
+          # 最後に CI が通った 2026-06-10 時点の最新である 0.30.7 に固定する。
+          # 経緯は docs/08-ci-e2e-bug-report.md #13 参照。`latest` は破壊的に上がるため使わない。
+          curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.30.7 sh
           ollama serve &
           sleep 5
           ollama pull qwen2.5:0.5b
