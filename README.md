@@ -96,6 +96,19 @@ pnpm test:e2e        # E2Eテスト実行（Playwright）
 pnpm prisma studio   # DBブラウザ起動
 ```
 
+### Makefile ショートカット（任意）
+
+ルート直下の `Makefile` から、上記の pnpm / docker compose コマンドを短縮実行できます（薄いラッパーのため、従来の pnpm 直叩きもそのまま利用可能）。`make` 単体でターゲット一覧を表示します。
+
+```bash
+make setup           # 初期セットアップ（DB起動→install→Prisma生成→migrate）
+make dev             # 開発サーバー起動
+make test            # UT + IT（Ollama不要）
+make test-e2e        # E2Eテスト（Ollama + PostgreSQL必須）
+make db-up           # PostgreSQL 起動
+make db-migrate      # マイグレーション実行
+```
+
 ## アーキテクチャ
 
 ```
