@@ -134,8 +134,18 @@ async function readOllamaResponse(
   return { toolCalls };
 }
 
-// エージェントループのメイン関数
-// enableTools: true のときに呼び出す。NDJSON イベントストリームを返す。
+/**
+ * エージェントループを実行し、進捗を NDJSON イベントとして流す ReadableStream を返す。
+ *
+ * ツール呼び出しが無くなるまで最大 `MAX_TOOL_ROUNDS` 回、Ollama への問い合わせと
+ * ツール実行を繰り返す。テキストは逐次 `text_delta` で中継し、`<think>` ブロックは
+ * `thinking` イベントとして分離する。エージェントモード（enableTools=true）時に呼ぶ。
+ *
+ * @param messages - 会話履歴（user / assistant / tool を時系列で並べる）
+ * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
+ * @param systemPrompt - 先頭に付与するシステムプロンプト。空・未指定なら付与しない
+ * @returns NDJSON イベント（text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
+ */
 export function runAgentLoop(
   messages: OllamaChatMessage[],
   model?: string,

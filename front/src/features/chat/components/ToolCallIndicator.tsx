@@ -1,12 +1,22 @@
 'use client';
 
+/** {@link ToolCallIndicator} の props。 */
 interface ToolCallIndicatorProps {
+  /** 実行中のツール名。{@link TOOL_LABELS} で日本語ラベルに変換して表示する。 */
   name: string;
+  /** ツールに渡された引数。要約（各値を先頭 40 文字に切り詰め）して表示する。 */
   arguments: Record<string, unknown>;
 }
 
 import { TOOL_LABELS } from '../constants/toolLabels';
 
+/**
+ * 実行中のツール呼び出しを示すインジケーター（スピナー付き）。
+ *
+ * ツール名を日本語ラベルに変換し、引数の要約を併記して「実行中...」を表示する。
+ *
+ * @param props - 実行中ツールの名前と引数を持つ props
+ */
 export function ToolCallIndicator({ name, arguments: args }: ToolCallIndicatorProps) {
   const label = TOOL_LABELS[name] ?? name;
   const argsSummary = Object.entries(args)

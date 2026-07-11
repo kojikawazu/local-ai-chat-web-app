@@ -5,6 +5,16 @@ import { isValidUUID } from '@/lib/validation';
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3-coder:latest';
 
+/**
+ * メッセージ内容から LLM で会話タイトルを自動生成し、対象会話に保存する。
+ *
+ * Ollama に対して「20文字以内の日本語タイトルのみ出力」を指示し、生成結果を
+ * 100文字に切り詰めて Conversation.title に更新する。
+ *
+ * @param request - タイトル生成の元となる `message`（必須）と任意の `model` を含む JSON ボディを持つリクエスト
+ * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
+ * @returns 成功時は生成タイトルを含む JSON（`{ title }`）。ID 不正・メッセージ空は 400、生成失敗・DB 更新失敗は 500 の JSON エラーレスポンス
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

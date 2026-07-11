@@ -2,12 +2,23 @@
 
 import { Cpu, Activity, ChevronDown } from 'lucide-react';
 
+/** {@link Header} の props。 */
 interface HeaderProps {
+  /** 選択肢として表示する利用可能モデル名の一覧。空の場合は選択中モデルのみ表示する。 */
   models: string[];
+  /** 現在選択中のモデル名。 */
   selectedModel: string;
+  /** モデル選択が変更されたときのコールバック。新しいモデル名を受け取る。 */
   onModelChange: (model: string) => void;
 }
 
+/**
+ * アプリ上部のヘッダー。接続状態の表示とモデル選択セレクトボックスを提供する。
+ *
+ * モデル名の `:latest` サフィックスは表示上省略する。
+ *
+ * @param props - モデル一覧・選択中モデル・変更コールバックを持つ props
+ */
 export default function Header({
   models,
   selectedModel,

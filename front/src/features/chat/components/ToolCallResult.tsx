@@ -4,11 +4,21 @@ import { useState } from 'react';
 import { ToolCallInfo } from '@/types';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
+/** {@link ToolCallResult} の props。 */
 interface ToolCallResultProps {
+  /** 表示するツール呼び出し情報（名前・引数・結果・エラー有無・所要時間）。 */
   toolCall: ToolCallInfo;
 }
 
-// web_search 結果をリンク付きで表示するサブコンポーネント
+/**
+ * web_search ツールの結果テキストをリンク付きの検索結果一覧に整形して表示する。
+ *
+ * `[N] タイトル\n    URL: https://...\n    スニペット` という素朴なテキスト形式を
+ * 正規表現でブロック分割してパースする。パースできない（1 件も抽出できない）場合は
+ * 元テキストをそのまま表示するフォールバックにする。
+ *
+ * @param props - web_search の生結果テキストを持つ props
+ */
 function WebSearchResult({ text }: { text: string }) {
   // "[N] タイトル\n    URL: https://...\n    スニペット" 形式をパース
   const blocks = text.split(/\[(\d+)\] /).slice(1);
@@ -57,6 +67,15 @@ function WebSearchResult({ text }: { text: string }) {
   );
 }
 
+/**
+ * 完了したツール呼び出しの結果を折りたたみ可能なパネルで表示する。
+ *
+ * 初期状態は折りたたみ。ヘッダーに成功/失敗アイコン・日本語ラベル・所要時間を表示し、
+ * 展開すると引数（JSON）と結果を表示する。web_search かつ成功時は
+ * {@link WebSearchResult} でリンク付き表示に切り替える。
+ *
+ * @param props - 表示するツール呼び出し情報を持つ props
+ */
 export function ToolCallResult({ toolCall }: ToolCallResultProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const label = TOOL_LABELS[toolCall.name] ?? toolCall.name;

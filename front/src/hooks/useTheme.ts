@@ -2,14 +2,26 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
+/**
+ * 選択可能なテーマの識別子。CSS 変数の切り替えキーとして使う。
+ */
 export type ThemeId = 'nordic' | 'aurora' | 'ocean';
 
+/**
+ * 設定 UI に表示する 1 テーマの定義。
+ */
 export interface ThemeOption {
+  /** テーマ識別子 */
   id: ThemeId;
+  /** 表示名 */
   name: string;
+  /** テーマの説明文 */
   description: string;
 }
 
+/**
+ * 選択可能な全テーマの定義一覧。設定モーダルの選択肢として使う。
+ */
 export const THEMES: ThemeOption[] = [
   { id: 'nordic', name: 'Nordic Frost', description: '北欧ブルーのデフォルトテーマ' },
   { id: 'aurora', name: 'Aurora Borealis', description: '紫とシアンのオーロラテーマ' },
@@ -35,6 +47,14 @@ function applyThemeToDOM(themeId: ThemeId) {
   }
 }
 
+/**
+ * 現在のテーマを管理し、変更を DOM と localStorage に反映するフック。
+ *
+ * 初期値は localStorage の保存値（無効・未保存なら `nordic`）から復元する。
+ *
+ * @returns テーマ状態と操作関数。`theme` は現在のテーマ ID、`setTheme` は
+ *   テーマを切り替えて localStorage に永続化する関数
+ */
 export function useTheme() {
   const [theme, setThemeState] = useState<ThemeId>(readStoredTheme);
 

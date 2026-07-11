@@ -10,16 +10,33 @@ import {
 } from 'lucide-react';
 import { Conversation } from '@/types';
 
+/**
+ * Sidebar コンポーネントの props。
+ */
 interface SidebarProps {
+  /** 履歴として表示する会話一覧 */
   conversations: Conversation[];
+  /** 選択中の会話 ID（未選択時は `null`） */
   currentConversationId: string | null;
+  /** 新規会話モード中かどうか（true の間は新規作成ボタンを無効化する） */
   isNewConversationMode: boolean;
+  /** 会話を選択したときに呼ばれる。引数は選択された会話 ID */
   onSelectConversation: (id: string) => void;
+  /** 新規会話ボタン押下時に呼ばれる */
   onNewConversation: () => void;
+  /** 会話削除ボタン押下時に呼ばれる。引数は削除対象の会話 ID */
   onDeleteConversation: (id: string) => void;
+  /** 設定ボタン押下時に呼ばれる */
   onOpenSettings: () => void;
 }
 
+/**
+ * 会話履歴・新規会話ボタン・設定ボタンを表示する左サイドバー。
+ *
+ * デスクトップ幅（md 以上）でのみ表示される。
+ *
+ * @param props - サイドバーの表示データとイベントハンドラー
+ */
 export default function Sidebar({
   conversations,
   currentConversationId,

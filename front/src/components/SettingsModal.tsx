@@ -4,20 +4,42 @@ import { X, Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
 import { type ThemeId, THEMES } from '@/hooks/useTheme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent-prompts';
 
+/**
+ * SettingsModal コンポーネントの props。
+ */
 interface SettingsModalProps {
+  /** モーダルを表示するかどうか（false のとき何も描画しない） */
   isOpen: boolean;
+  /** モーダルを閉じるときに呼ばれる */
   onClose: () => void;
+  /** 選択肢として表示する利用可能モデル名の一覧 */
   models: string[];
+  /** 現在選択中のモデル名 */
   selectedModel: string;
+  /** モデル選択が変わったときに呼ばれる。引数は選択されたモデル名 */
   onModelChange: (model: string) => void;
+  /** 現在選択中のテーマ ID */
   theme: ThemeId;
+  /** テーマ選択が変わったときに呼ばれる。引数は選択されたテーマ ID */
   onThemeChange: (theme: ThemeId) => void;
+  /** エージェントツール使用が有効かどうか */
   enableTools: boolean;
+  /** ツール使用の有効/無効が切り替わったときに呼ばれる */
   onEnableToolsChange: (enabled: boolean) => void;
+  /** 現在選択中のエージェントプロンプトプリセット ID */
   agentPromptPresetId: string;
+  /** プロンプトプリセット選択が変わったときに呼ばれる。引数はプリセット ID */
   onAgentPromptPresetChange: (id: string) => void;
 }
 
+/**
+ * モデル・ツール使用・エージェントプロンプト・テーマを設定するモーダル。
+ *
+ * `isOpen` が false の間は何も描画しない。ツール使用が有効なときのみ
+ * エージェントプロンプトの選択欄を表示する。
+ *
+ * @param props - 設定値の現在状態と各設定の変更ハンドラー
+ */
 export default function SettingsModal({
   isOpen,
   onClose,

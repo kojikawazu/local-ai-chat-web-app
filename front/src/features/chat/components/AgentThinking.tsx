@@ -3,10 +3,20 @@
 import { useState } from 'react';
 import { Brain } from 'lucide-react';
 
+/** {@link AgentThinking} の props。 */
 interface AgentThinkingProps {
+  /** エージェントの思考過程テキスト。空文字・空白のみの場合は何も描画しない。 */
   content: string;
 }
 
+/**
+ * エージェントの思考過程を折りたたみ可能なパネルで表示する。
+ *
+ * 初期状態は展開。ヘッダーのボタンで開閉できる。`content` が空白のみなら
+ * 何も描画しない（`null` を返す）。
+ *
+ * @param props - 表示する思考過程を持つ props
+ */
 export function AgentThinking({ content }: AgentThinkingProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 

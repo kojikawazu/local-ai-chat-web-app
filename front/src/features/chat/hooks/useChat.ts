@@ -4,15 +4,32 @@ import { useState, useCallback, useRef } from 'react';
 import { Message, ToolCallInfo } from '@/types';
 import type { AgentStreamEvent } from '@/lib/tools/types';
 
+/** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
+  /** 送信対象の会話 ID。`null` の場合は送信時に新規会話を作成する。 */
   conversationId: string | null;
+  /** 使用する Ollama モデル名。 */
   model: string;
+  /** エージェント（ツール実行）モードを有効にするか。省略時は無効。 */
   enableTools?: boolean;
+  /** システムプロンプト。空文字の場合は API へ送信しない。省略時は空。 */
   systemPrompt?: string;
+  /** 新規会話が作成されたときのコールバック。作成された会話 ID を受け取る。 */
   onConversationCreated?: (id: string) => void;
+  /** 初回応答後にタイトル自動生成が完了したときのコールバック。 */
   onTitleGenerated?: () => void;
 }
 
+/**
+ * メッセージを会話に永続化する（API 経由で保存）。
+ *
+ * 応答成否は呼び出し側でハンドリングする想定（本関数は結果を返さない）。
+ *
+ * @param conversationId - 保存先の会話 ID
+ * @param role - メッセージの役割（`'user'` | `'assistant'`）
+ * @param content - メッセージ本文
+ * @param metadata - ツール呼び出し情報等の付随メタデータ（無ければ省略・`null`）
+ */
 async function saveMessage(
   conversationId: string,
   role: string,
@@ -26,6 +43,23 @@ async function saveMessage(
   });
 }
 
+/**
+ * チャットのメッセージ状態と送受信ロジックを管理するフック。
+ *
+ * メッセージ送信時に `/api/chat` へストリーミング要求を行い、NDJSON（エージェント
+ * モード）とプレーンテキスト（通常モード）の両方式を扱う。会話 ID が未指定なら
+ * 新規会話を作成し、初回応答後はタイトル自動生成を要求する。ユーザー・アシスタント
+ * 両メッセージは API へ永続化する。中断は内部の `AbortController` で扱う。
+ *
+ * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
+ *   エージェント有効化・システムプロンプトと、会話作成／タイトル生成完了時の
+ *   コールバックを含む。各フィールドの意味は {@link UseChatOptions} を参照。
+ * @returns チャット状態と操作関数。`messages` は現在のメッセージ一覧、`isLoading` は
+ *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
+ *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`sendMessage` は
+ *   本文を送信して応答をストリーム受信する関数、`clearMessages` はメッセージ・エラー・
+ *   実行中ツールを初期化する関数、`loadMessages` は指定会話のメッセージを読み込む関数
+ */
 export function useChat({
   conversationId,
   model,

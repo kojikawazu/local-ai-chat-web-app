@@ -123,6 +123,15 @@ async function fetchWithRetry(query: string): Promise<string> {
   throw new Error('Web検索に失敗しました');
 }
 
+/**
+ * Web を検索して関連ページのタイトル・URL・概要を返すエージェントツール。
+ *
+ * 引数 `query`（自然言語または検索キーワード）を受け取り、API キー不要の
+ * DuckDuckGo HTML エンドポイントへ問い合わせる。ネットワークエラー・レート
+ * リミット（429）・サーバーエラー（5xx）はリトライ（バックオフ）し、上位
+ * 最大 5 件を整形して返す。結果は最大 3,000 文字で、超過分は省略する。
+ * エラーはすべて `"エラー: ..."` 形式の文字列で返し、例外は投げない。
+ */
 export const webSearchTool: Tool = {
   definition: {
     name: 'web_search',

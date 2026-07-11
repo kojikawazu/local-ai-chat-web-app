@@ -90,6 +90,16 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/**
+ * 指定 URL のページ内容を取得してテキストで返すエージェントツール。
+ *
+ * 引数 `url`（http:// または https:// のみ）を受け取り、SSRF 対策として
+ * 名前解決後の IP がプライベート・特殊アドレス範囲でないことを検証したうえで
+ * fetch する。リダイレクトは禁止、タイムアウトあり、`text/html` または
+ * `text/plain` のみ対応、最大 2MB。HTML はタグを除去したプレーンテキスト化し、
+ * 5,000 文字を超える場合は末尾を省略する。エラーはすべて `"エラー: ..."`
+ * 形式の文字列で返し、例外は投げない。
+ */
 export const urlFetchTool: Tool = {
   definition: {
     name: 'url_fetch',
