@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-11
 
 ## 目次
 
@@ -88,6 +88,7 @@ front/tests/
 ## コード品質
 
 - **ESLint** + **Prettier** を導入する
+- **JSDoc（TSDoc）規約を `eslint-plugin-jsdoc` で機械強制**する（`front/eslint.config.mjs`）。型ブレース禁止・`@param`/`@returns` の整合を `pnpm lint` で検出。規約は `.claude/rules/jsdoc.md` を参照
 - 保存時の自動フォーマットを推奨
 - リント・フォーマットコマンド:
   - `pnpm lint` — ESLintチェック

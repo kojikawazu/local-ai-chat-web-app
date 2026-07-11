@@ -54,6 +54,13 @@ export async function resolveDisplayName(
 }
 ```
 
-## Lint による強制（推奨）
+## Lint による強制（導入済み）
 
-`eslint-plugin-jsdoc` を導入し、公開シンボルへの JSDoc 欠落・`@param` / `@returns` 漏れを CI で検出する。TypeScript プロジェクトでは型ブレース系ルールを無効化する（`jsdoc/require-param-type` / `jsdoc/require-returns-type` を off）。
+`eslint-plugin-jsdoc`（`mode: "typescript"`）を `front/eslint.config.mjs` に導入済み。**有効ルールの唯一の真実は同ファイル**（このドキュメントは方針、設定は実体）。`pnpm lint` で検出する。
+
+- **対象**: `src/**/*.{ts,tsx}`。
+- **方針**: `require-jsdoc` は未採用。JSDoc ブロックを**持つ**関数の品質のみを検査する（未文書化の関数を一斉にエラーにはせず、段階導入を可能にする）。ブロックの有無・要否はレビューで担保する。
+- **型ブレース禁止**: `jsdoc/no-types` を error（型は TS シグネチャが唯一の真実。`require-param-type` / `require-returns-type` 相当は付与しない）。
+- **`@param`**: `require-param` / `require-param-description` / `check-param-names` を error（分割代入 props は `checkDestructured: false` で props.x 単位に展開しない）。
+- **`@returns`**: `require-returns` / `require-returns-description` を error。ただし JSX を返す `.tsx` コンポーネントでは off（「〜の要素を返す」はノイズのため。`.ts` のフック / lib / API では必須のまま）。
+- **体裁**: `check-alignment` / `no-multi-asterisks` を warn。
