@@ -177,6 +177,7 @@
 - [x] route handler をブラウザ抜きで直接叩く方式（NextRequest 構築）・実DBで検証
 - [x] CI に独立ジョブ `integration-test`（`.github/workflows/integration-test.yml`。Docker のみ・Ollama不要）を追加
 - [x] 方針ドキュメント更新（3層構成へ改定）
+- [x] IT 補強＋エラー契約の移譲: `/api/chat`・`/api/models` を Ollama fetch スタブで検証（`helpers/ollama-stub.ts`）。Ollamaダウン→502・空/超過/不正JSON→400 を IT 化（E2E の障害注入から移譲）。層分担（契約=IT / UI描画=E2E）を testing.md・docs/06 に明文化
 
 ## フェーズ6: CI
 

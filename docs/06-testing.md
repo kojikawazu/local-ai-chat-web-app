@@ -38,6 +38,7 @@
   - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは実施しない（E2Eで担保）。
   - **IT**: route handler をブラウザ抜きで直接叩き、実PostgreSQL（Testcontainers）相手に handler↔Prisma↔DB を検証。実依存（DB）は使い、mockは真の外部3rd-party（Ollama/Web）のみ。
   - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
+- **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入（`page.route`）を唯一の許容mock例外とする。
 - **ブラウザ**（E2E）: Chromiumのみ。
 - **CI**: GitHub Actionsで自動実行（UT・IT・E2Eは独立ジョブ）。
 
@@ -60,9 +61,10 @@
 | 配置 | `front/tests/integration/`（`*.test.ts`） |
 | 設定 | `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup: コンテナ起動＋`migrate deploy`、setup-env: 接続URL注入） |
 | 実行 | `pnpm test:integration` |
-| 対象（初期） | `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得） |
+| 対象 | DB系: `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得）。外部系: `/api/chat`・`/api/models`（Ollamaをfetchスタブ） |
 | 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
-| モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ。初期対象は外部依存が無く mock なし |
+| モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ（`helpers/ollama-stub.ts`）。DB系はスタブ無し |
+| エラー契約 | Ollamaダウン→502・バリデーション→400 等を IT で決定的に検証（E2E の障害注入から移譲） |
 | 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため） |
 
 UT・IT・E2E とも **正常系・準正常系・異常系の3分類**で記述する。
@@ -293,7 +295,9 @@ front/tests/
 │   │   └── db.ts                 # resetDb・NextRequest/コンテキスト構築
 │   ├── conversations.test.ts     # 作成/一覧（POST/GET）
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
-│   └── messages.test.ts          # メッセージ保存/取得・バリデーション
+│   ├── messages.test.ts          # メッセージ保存/取得・バリデーション
+│   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
+│   └── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
 └── e2e/
     ├── helpers/
     │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
