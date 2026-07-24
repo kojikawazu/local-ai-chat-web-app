@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamChat, OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
 import { initializeTools } from '@/lib/tools/registry';
+import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();
@@ -13,7 +14,7 @@ initializeTools();
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
  * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
  *
- * @param request - `message`（必須・最大10,000文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
+ * @param request - `message`（必須・最大 {@link MAX_MESSAGE_LENGTH} 文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
  * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。バリデーション失敗時は 400、Ollama 接続・空応答時は 502 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
@@ -40,9 +41,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
   }
 
-  if (message.trim().length > 10000) {
+  if (message.trim().length > MAX_MESSAGE_LENGTH) {
     return NextResponse.json(
-      { error: 'メッセージは10,000文字以内で入力してください' },
+      {
+        // ロケール既定に依存すると桁区切りが環境で変わるため 'ja-JP' を明示する
+        error: `メッセージは${MAX_MESSAGE_LENGTH.toLocaleString('ja-JP')}文字以内で入力してください`,
+      },
       { status: 400 }
     );
   }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '@/app/api/conversations/[id]/messages/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
+import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 /**
  * `/api/conversations/[id]/messages`（取得・保存）の IT。
@@ -72,6 +73,18 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       );
       expect(res.status).toBe(201);
     });
+
+    it('content がちょうど上限文字数なら保存できる（境界値）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'user',
+          content: 'あ'.repeat(MAX_MESSAGE_LENGTH),
+        }),
+        routeContext(id),
+      );
+      expect(res.status).toBe(201);
+    });
   });
 
   describe('異常系', () => {
@@ -102,6 +115,20 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
         routeContext(NONEXISTENT),
       );
       expect(res.status).toBe(404);
+    });
+
+    it('content が上限文字数を超えると 400（DB には保存されない）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'user',
+          content: 'あ'.repeat(MAX_MESSAGE_LENGTH + 1),
+        }),
+        routeContext(id),
+      );
+      expect(res.status).toBe(400);
+      // 長さ検証は会話存在チェックより前に走るため、DB は一切変更されない
+      expect(await prisma.message.count()).toBe(0);
     });
   });
 });

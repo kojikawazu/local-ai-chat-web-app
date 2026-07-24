@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Send } from 'lucide-react';
-
-const MAX_MESSAGE_LENGTH = 10000;
+import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {
@@ -23,7 +22,7 @@ interface ChatBarProps {
  * メッセージ入力バー。textarea への入力・自動高さ調整・送信を担う。
  *
  * Enter で送信、Shift+Enter で改行。IME 変換確定中の Enter は送信しない。
- * 入力が最大文字数（10,000 文字）を超えると送信不可となり警告を表示する。
+ * 入力が {@link MAX_MESSAGE_LENGTH} を超えると送信不可となり警告を表示する。
  * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
  *
  * @param props - 送信コールバックと無効化フラグを持つ props

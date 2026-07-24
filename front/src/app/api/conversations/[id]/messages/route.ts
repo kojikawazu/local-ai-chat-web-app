@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 /**
  * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。
@@ -47,9 +48,9 @@ export async function GET(
  * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
  * 思考過程等）は任意で、指定時のみ保存する。
  *
- * @param request - `role`（必須・user|assistant）・`content`（必須）・任意の `metadata` を含む JSON ボディを持つリクエスト
+ * @param request - `role`（必須・user|assistant）・`content`（必須・最大 {@link MAX_MESSAGE_LENGTH} 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。role/content 欠落・role 不正は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。role/content 欠落・role 不正・content 長さ超過は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(
   request: NextRequest,
@@ -80,6 +81,16 @@ export async function POST(
   if (!['user', 'assistant'].includes(role)) {
     return NextResponse.json(
       { error: 'roleは "user" または "assistant" のみ有効です' },
+      { status: 400 }
+    );
+  }
+
+  if (content.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json(
+      {
+        // ロケール既定に依存すると桁区切りが環境で変わるため 'ja-JP' を明示する
+        error: `メッセージは${MAX_MESSAGE_LENGTH.toLocaleString('ja-JP')}文字以内で入力してください`,
+      },
       { status: 400 }
     );
   }

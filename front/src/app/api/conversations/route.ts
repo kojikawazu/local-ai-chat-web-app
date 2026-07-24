@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { MAX_TITLE_LENGTH } from '@/lib/validation';
 
 /**
  * 会話一覧を更新日時の降順（最新順）で取得する。
@@ -35,8 +36,8 @@ export async function GET() {
  *
  * `title` は任意で、未指定・空文字・ボディ不正の場合は既定値「新しい会話」を用いる。
  *
- * @param request - 任意の `title` を含む JSON ボディを持つリクエスト（本文が不正でも既定タイトルで作成する）
- * @returns 成功時は作成された会話の JSON（ステータス 201）。作成失敗は 500 の JSON エラーレスポンス
+ * @param request - 任意の `title`（最大 {@link MAX_TITLE_LENGTH} 文字）を含む JSON ボディを持つリクエスト（本文が不正でも既定タイトルで作成する）
+ * @returns 成功時は作成された会話の JSON（ステータス 201）。title 長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
   let body: { title?: string };
@@ -48,6 +49,13 @@ export async function POST(request: NextRequest) {
   }
 
   const title = body.title?.trim() || '新しい会話';
+
+  if (title.length > MAX_TITLE_LENGTH) {
+    return NextResponse.json(
+      { error: `タイトルは${MAX_TITLE_LENGTH}文字以内で入力してください` },
+      { status: 400 }
+    );
+  }
 
   try {
     const conversation = await prisma.conversation.create({

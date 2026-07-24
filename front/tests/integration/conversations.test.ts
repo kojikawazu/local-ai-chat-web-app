@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '@/app/api/conversations/route';
 import { prisma, resetDb, jsonRequest } from './helpers/db';
+import { MAX_TITLE_LENGTH } from '@/lib/validation';
 
 /**
  * `/api/conversations`（一覧取得・新規作成）の IT。
@@ -52,6 +53,23 @@ describe('POST /api/conversations（作成）', () => {
       const res = await POST(jsonRequest(URL, 'POST', 'not-json'));
       expect(res.status).toBe(201);
       expect((await res.json()).title).toBe('新しい会話');
+    });
+
+    it('title がちょうど上限文字数なら作成できる（境界値）', async () => {
+      const title = 'あ'.repeat(MAX_TITLE_LENGTH);
+      const res = await POST(jsonRequest(URL, 'POST', { title }));
+      expect(res.status).toBe(201);
+      expect((await res.json()).title).toBe(title);
+    });
+  });
+
+  describe('異常系', () => {
+    it('title が上限文字数を超えると 400（DB には保存されない）', async () => {
+      const res = await POST(
+        jsonRequest(URL, 'POST', { title: 'あ'.repeat(MAX_TITLE_LENGTH + 1) }),
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.conversation.count()).toBe(0);
     });
   });
 });
