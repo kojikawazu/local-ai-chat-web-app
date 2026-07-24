@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isValidUUID } from '@/lib/validation';
+import { isValidUUID, MAX_TITLE_LENGTH } from '@/lib/validation';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3-coder:latest';
@@ -9,7 +9,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3-coder:latest';
  * メッセージ内容から LLM で会話タイトルを自動生成し、対象会話に保存する。
  *
  * Ollama に対して「20文字以内の日本語タイトルのみ出力」を指示し、生成結果を
- * 100文字に切り詰めて Conversation.title に更新する。
+ * {@link MAX_TITLE_LENGTH} 文字に切り詰めて Conversation.title に更新する。
  *
  * @param request - タイトル生成の元となる `message`（必須）と任意の `model` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
@@ -67,7 +67,9 @@ export async function POST(
     }
 
     const data = await response.json();
-    const generatedTitle = data.message?.content?.trim().slice(0, 100);
+    const generatedTitle = data.message?.content
+      ?.trim()
+      .slice(0, MAX_TITLE_LENGTH);
 
     if (!generatedTitle) {
       return NextResponse.json(

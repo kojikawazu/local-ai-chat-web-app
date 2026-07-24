@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-25
 
 ## 目次
 
@@ -92,7 +92,7 @@
 
 ```typescript
 {
-  title?: string;  // 省略時は自動生成
+  title?: string;  // 省略・空文字時は既定タイトル「新しい会話」。最大100文字
 }
 ```
 
@@ -110,7 +110,10 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 作成成功 |
+| 400 | リクエスト不正（title が100文字超） |
 | 500 | サーバー内部エラー |
+
+上限値は `front/src/lib/validation.ts` の `MAX_TITLE_LENGTH` が正準。
 
 ---
 
@@ -160,7 +163,8 @@
 ```typescript
 {
   role: 'user' | 'assistant';
-  content: string;
+  content: string;                          // 最大10,000文字
+  metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意）
 }
 ```
 
@@ -178,8 +182,11 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
+| 400 | リクエスト不正（role/content 欠落・role 不正・content が10,000文字超・JSON不正） |
 | 404 | 会話が見つからない |
 | 500 | サーバー内部エラー |
+
+上限値は `front/src/lib/validation.ts` の `MAX_MESSAGE_LENGTH` が正準（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）。
 
 ---
 

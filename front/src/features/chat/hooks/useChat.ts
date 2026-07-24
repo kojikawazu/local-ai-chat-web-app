@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Message, ToolCallInfo } from '@/types';
 import type { AgentStreamEvent } from '@/lib/tools/types';
+import { MAX_TITLE_LENGTH } from '@/lib/validation';
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
@@ -115,7 +116,9 @@ export function useChat({
           const res = await fetch('/api/conversations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: content.slice(0, 100) }),
+            // API 側の上限（MAX_TITLE_LENGTH）と同じ値で切り詰める。
+            // ここがずれると会話作成が 400 になるため定数を共有する。
+            body: JSON.stringify({ title: content.slice(0, MAX_TITLE_LENGTH) }),
           });
           if (!res.ok) throw new Error('会話の作成に失敗しました');
           const conv = await res.json();
