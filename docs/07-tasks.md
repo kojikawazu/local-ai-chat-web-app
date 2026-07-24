@@ -667,3 +667,26 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 ### 22-3: ドキュメント同期
 
 - [x] `docs/04-development-rules.md` に新規ルールへの参照を追記
+
+## フェーズ23: コードと `.claude/rules/` の乖離解消
+
+親 issue: #70（`.claude/rules/` 11 ルールに対する照合で検出した乖離 15 件）
+
+### 23-1: 挙動の不整合（バグ相当）
+
+- [ ] `MAX_MESSAGE_LENGTH` の 3 重定義を単一化し、メッセージ保存 API の長さ検証漏れを修正 — #71
+- [ ] `/api/conversations/[id]/messages` に UUID 検証を追加し 400 契約を統一 — #72
+
+### 23-2: 規約への追従（機械強制の追加を含む）
+
+- [ ] 型のみの import を `import type` に統一し ESLint で機械強制 — #73
+- [ ] `any` キャストを `Prisma.InputJsonValue` で解消し、残るキャストに根拠コメントを付与 — #74
+- [ ] `ThemeId` / `THEMES` を `types/theme.ts` へ昇格し `as const` + 型導出に揃える — #75
+
+### 23-3: テスト
+
+- [ ] 3分類必須の欠落を解消（conversations IT の異常系・debug spec の扱い） — #76
+
+### 23-4: ルール記述の修正
+
+- [ ] 実装と食い違っているルール記述を修正（error-handling / frontend / typescript / CLAUDE.md） — #77
