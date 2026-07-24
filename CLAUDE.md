@@ -234,6 +234,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | ファイル | スコープ | 内容 |
 |---------|---------|------|
 | `coding-standards.md` | 全体 | TypeScript strict / pnpm / ESLint+Prettier / シークレット禁止 |
+| `typescript.md` | `front/src/**` | TypeScript 固有規約・type/interface の使い分け・型/定数の配置・any 禁止・enum 回避・`import type` |
 | `jsdoc.md` | `front/src/**` | JSDoc（TSDoc）規約・公開シンボルに必須・型ブレース禁止・キャスト/回避策に "why" |
 | `error-handling.md` | 全体 | バリデーション・HTTP ステータス・統一エラーレスポンス方針 |
 | `security.md` | 全体 | XSS 対策・SQL インジェクション禁止・CSP・シークレット管理 |
@@ -242,3 +243,4 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `api.md` | `front/src/app/api/**` | Route Handlers 設計・NDJSON ストリーミング・バリデーション |
 | `database.md` | `front/prisma/**` 等 | Prisma 命名規約・スキーマ・マイグレーション・クエリルール |
 | `documentation.md` | 全体 | ドキュメント乖離防止・影響マップ（変更種別→更新必須ドキュメント）・opt-out 完了条件 |
+| `github-issue.md` | 全体 | GitHub issue 運用・ブランチと対で起票・`Closes #N` で自動クローズ・サブ issue |

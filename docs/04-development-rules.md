@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-07-11
+> 最終更新: 2026-07-25
 
 ## 目次
 
@@ -45,6 +45,7 @@
 - mainブランチに直接コミットしない（初回セットアップ時を除く）
 - **コミットメッセージは日本語**で記述する
 - PRはGitHub Actionsの自動テスト通過後にマージ
+- **GitHub issue 運用**: 作業ブランチを切るのと対で issue を起票し、open/close で進捗を管理する。PR 本文に `Closes #<issue番号>` を記載して自動クローズする。詳細は `.claude/rules/github-issue.md` を参照
 
 ## テスト方針
 
@@ -89,6 +90,7 @@ front/tests/
 
 - **ESLint** + **Prettier** を導入する
 - **JSDoc（TSDoc）規約を `eslint-plugin-jsdoc` で機械強制**する（`front/eslint.config.mjs`）。型ブレース禁止・`@param`/`@returns` の整合を `pnpm lint` で検出。規約は `.claude/rules/jsdoc.md` を参照
+- **TypeScript 固有規約**（type/interface の使い分け・型/定数の配置・`any` 禁止・`enum` 回避・`import type`・`as`/`!` 抑制）は `.claude/rules/typescript.md` を参照
 - 保存時の自動フォーマットを推奨
 - リント・フォーマットコマンド:
   - `pnpm lint` — ESLintチェック
