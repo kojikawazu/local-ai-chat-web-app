@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-07-11
+> 最終更新: 2026-07-25
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -651,3 +651,19 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 - [x] `docs/09-agent-architecture.md` 最終更新（実装結果の反映）
 - [x] 既存ドキュメント更新（requirements, architecture, API設計, testing, CLAUDE.md）
+
+## フェーズ22: 開発ルールの拡充（`.claude/rules/`）
+
+### 22-1: TypeScript 固有規約の明文化
+
+- [x] `.claude/rules/typescript.md` 追加（type/interface の使い分け・型/定数の配置・any 禁止・enum 回避・`import type`・as/! 抑制）
+- [x] CLAUDE.md ルールテーブルへ `typescript.md` 行を追加
+
+### 22-2: GitHub issue 運用ルールの明文化
+
+- [x] `.claude/rules/github-issue.md` 追加（ブランチと対で起票・`Closes #N` 自動クローズ・サブ issue・`docs/07-tasks.md` との関係）
+- [x] CLAUDE.md ルールテーブルへ `github-issue.md` 行を追加
+
+### 22-3: ドキュメント同期
+
+- [x] `docs/04-development-rules.md` に新規ルールへの参照を追記
