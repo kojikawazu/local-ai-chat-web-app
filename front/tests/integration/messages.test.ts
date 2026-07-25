@@ -10,6 +10,8 @@ import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
  */
 const URL = 'http://localhost/api/conversations/x/messages';
 const NONEXISTENT = '00000000-0000-0000-0000-000000000000';
+/** UUID 形式でない ID。`id` 列は TEXT なので Prisma は例外を投げず、検証が無いと 404 に化ける。 */
+const NOT_UUID = 'not-a-uuid';
 
 /** テスト用の会話を1件作成して ID を返す。 */
 async function createConversation(title = 'メッセージ用会話'): Promise<string> {
@@ -117,6 +119,15 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(res.status).toBe(404);
     });
 
+    it('UUID 形式でない ID は 400（DB には保存されない）', async () => {
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'user', content: 'x' }),
+        routeContext(NOT_UUID),
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.message.count()).toBe(0);
+    });
+
     it('content が上限文字数を超えると 400（DB には保存されない）', async () => {
       const id = await createConversation();
       const res = await POST(
@@ -160,6 +171,11 @@ describe('GET /api/conversations/[id]/messages（取得）', () => {
     it('存在しない会話は 404', async () => {
       const res = await GET(jsonRequest(URL, 'GET'), routeContext(NONEXISTENT));
       expect(res.status).toBe(404);
+    });
+
+    it('UUID 形式でない ID は 400（存在しない会話の 404 と区別する）', async () => {
+      const res = await GET(jsonRequest(URL, 'GET'), routeContext(NOT_UUID));
+      expect(res.status).toBe(400);
     });
   });
 });

@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
+import { isValidUUID, MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 /**
  * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。
  *
  * @param _request - リクエスト（本エンドポイントでは本文を参照しないため未使用）
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時はメッセージ配列を含む JSON（`{ messages }`）。会話が存在しなければ 404、取得失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時はメッセージ配列を含む JSON（`{ messages }`）。ID が UUID 形式でなければ 400、会話が存在しなければ 404、取得失敗は 500 の JSON エラーレスポンス
  */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
+  }
 
   try {
     const conversation = await prisma.conversation.findUnique({
@@ -50,13 +54,17 @@ export async function GET(
  *
  * @param request - `role`（必須・user|assistant）・`content`（必須・最大 {@link MAX_MESSAGE_LENGTH} 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。role/content 欠落・role 不正・content 長さ超過は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・role/content 欠落・role 不正・content 長さ超過は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
+  }
 
   let body: { role?: string; content?: string; metadata?: Record<string, unknown> | null };
 
