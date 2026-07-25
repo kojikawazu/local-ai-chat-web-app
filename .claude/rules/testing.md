@@ -19,6 +19,27 @@ globs: "front/tests/**"
 - **テストデータ管理**: テストスイート（ファイル）単位でセットアップ/クリーンアップ。
 - **CI スキップ**: ストリーミング完了テスト・スクリーンショットテストは CI スキップ。
 
+## CI の発火条件（paths-ignore）
+
+**ドキュメントのみの変更では CI（`unit-test` / `integration-test` / `e2e-test` の 3 ジョブすべて）を発火させない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すのは無駄なため。
+
+`.github/workflows/*.yml` の `paths-ignore` が唯一の真実。除外対象:
+
+| パターン | 対象 |
+|---|---|
+| `docs/**` | プロジェクトドキュメント |
+| `manuals/**` | セットアップガイド等 |
+| `**.md` | 全階層の Markdown（`README.md`・`CLAUDE.md` 含む） |
+| `.claude/**` | Claude 向けルール・スキル（Markdown のみでコード実行に無関係） |
+| `LICENSE` | ライセンス |
+
+**発火させる（除外しない）もの**: `front/**`・`prisma/**`・`docker-compose.yml`・`Makefile`・`package.json` 等の実行に関わるファイル、および **`.github/workflows/**` 自体**（ワークフローの変更は動作確認が必要なため）。
+
+### 挙動の注意
+
+- `paths-ignore` は「**変更ファイルが全て該当した場合のみスキップ**」。コードとドキュメントが混在する PR では通常どおり実行される。
+- **main に branch protection を設定し、これらを required status check に指定する場合は要注意**。スキップされたジョブは "skipped" ではなく「**報告なし**」になるため、チェックが永久に完了せず PR がマージ不能になる。その場合は `paths-ignore` を外すか、同名 job を success させる別ワークフローを用意する。現状 main は branch protection 未設定のため問題ない。
+
 ## テストツール
 
 | テスト種別 | ツール | 配置 |
