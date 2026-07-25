@@ -81,6 +81,7 @@ front/tests/
 ### CI（GitHub Actions）
 
 - `push` to main / `pull_request` to main で自動実行
+- **ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 3 ジョブとも発火しない**（`paths-ignore`）。コードとドキュメントが混在する変更では通常どおり実行される。詳細は `.claude/rules/testing.md`「CI の発火条件」を参照
 - CI環境: Ubuntu + PostgreSQL (service container) + Ollama (`qwen2.5:0.5b`)
 - CIではストリーミング完了テスト・スクリーンショットテストをスキップ
 - 詳細は `docs/08-ci-e2e-bug-report.md` を参照

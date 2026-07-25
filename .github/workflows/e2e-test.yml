@@ -1,10 +1,29 @@
 name: E2E Tests
 
+# ドキュメントのみの変更では発火しない（.claude/rules/testing.md「CI の発火条件」参照）。
+# paths-ignore は「変更ファイルが全て該当した場合のみスキップ」なので、コードと
+# ドキュメントが混在する PR では通常どおり実行される。
+#
+# 注意: main に branch protection を設定して本ワークフローを required status check
+# に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。
+# その際は paths-ignore を外すか、同名 job を success させる別ワークフローを用意する。
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'manuals/**'
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'manuals/**'
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
 
 jobs:
   e2e-test:

@@ -333,6 +333,24 @@ front/tests/
 - `push` to main
 - `pull_request` to main
 
+#### 発火除外（paths-ignore）
+
+**ドキュメントのみの変更では 3 ジョブとも発火しない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すコストを避けるため。
+
+| 除外パターン | 対象 |
+|---|---|
+| `docs/**` | プロジェクトドキュメント |
+| `manuals/**` | セットアップガイド等 |
+| `**.md` | 全階層の Markdown（`README.md`・`CLAUDE.md` 含む） |
+| `.claude/**` | Claude 向けルール・スキル |
+| `LICENSE` | ライセンス |
+
+`front/**`・`prisma/**`・`docker-compose.yml`・`Makefile`・`.github/workflows/**` は除外しない（**ワークフロー自体の変更は動作確認が必要**なため意図的に含めている）。
+
+`paths-ignore` は「変更ファイルが**全て**該当した場合のみスキップ」する。コードとドキュメントが混在する PR では通常どおり実行される。
+
+> **注意**: main に branch protection を設定してこれらを required status check に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。詳細は `.claude/rules/testing.md`「CI の発火条件」を参照。
+
 ### ワークフロー構成（3ジョブ）
 
 | ワークフロー | ファイル | 内容 | 依存 |

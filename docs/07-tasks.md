@@ -697,3 +697,9 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 ### 23-4: ルール記述の修正
 
 - [ ] 実装と食い違っているルール記述を修正（error-handling / frontend / typescript / CLAUDE.md） — #77
+
+## フェーズ24: CI 発火条件の最適化
+
+- [x] `paths-ignore` を 3 ワークフローに追加し、ドキュメントのみの変更で CI を発火させないようにした
+- [x] `.claude/rules/testing.md` に「CI の発火条件」節を追加（branch protection との相互作用の注意も記載）
+- [x] `CLAUDE.md`・`docs/04`・`docs/06` に発火除外を明記
