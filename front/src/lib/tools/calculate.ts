@@ -1,4 +1,4 @@
-import { Tool } from './types';
+import type { Tool } from './types';
 
 /**
  * 数式を計算して結果を返すエージェントツール。

@@ -35,6 +35,20 @@ const eslintConfig = defineConfig([
       "jsdoc/no-multi-asterisks": "warn",
     },
   },
+  // 型のみの import を `import type` に強制する（.claude/rules/typescript.md「import type 強制」）。
+  // src だけでなく tests も対象にする（テストでも型と値を混ぜない方針を揃える）。
+  {
+    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+    rules: {
+      // fixStyle は separate-type-imports。typescript.md が「値と型を混ぜない」と
+      // 定めているため、混在 import は inline（`import { type X, y }`）ではなく
+      // `import type { X }` + `import { y }` の 2 文に分離する。
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "separate-type-imports" },
+      ],
+    },
+  },
   {
     // React コンポーネント（JSX を返す .tsx）は @returns を要求しない（「@returns …の要素」はノイズ）。
     // .ts のフック / lib / API では @returns 必須のまま。

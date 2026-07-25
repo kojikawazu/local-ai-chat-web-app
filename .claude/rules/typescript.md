@@ -151,7 +151,16 @@ type MessageRole = (typeof MESSAGE_ROLES)[number];
 ## import type 強制
 
 - 型だけを import する場合は **`import type`** を使う（値と型を混ぜない）。
-- 理由: バンドラ／トランスパイラが型を確実に消せる、副作用のない循環参照を避けられる。`verbatimModuleSyntax` 有効化を推奨。
+- 理由: バンドラ／トランスパイラが型を確実に消せる、副作用のない循環参照を避けられる。
+- **機械強制済み**: `@typescript-eslint/consistent-type-imports`（`fixStyle: separate-type-imports`）を `eslint.config.mjs` に導入。`pnpm lint` で検出、`--fix` で自動修正できる。
+- **`verbatimModuleSyntax: true`** を `tsconfig.json` で有効化済み（型 import が実行時に残らないことを型レベルでも保証する）。
+- 値と型が同じモジュールから必要な場合は、**inline（`import { type X, y }`）ではなく 2 文に分離**する。
+
+```ts
+// 値と型が混在する場合は分離する
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+```
 
 ```ts
 import type { ChatMessage } from '@/types/chat';

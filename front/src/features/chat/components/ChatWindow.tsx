@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { User, Bot, Copy } from 'lucide-react';
-import { Message } from '@/types';
+import type { Message } from '@/types';
 import MarkdownContent from './MarkdownContent';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';

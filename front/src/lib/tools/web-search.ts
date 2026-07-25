@@ -1,4 +1,4 @@
-import { Tool } from './types';
+import type { Tool } from './types';
 
 const MAX_RESULTS = 5;
 const MAX_CHARS = 3000;

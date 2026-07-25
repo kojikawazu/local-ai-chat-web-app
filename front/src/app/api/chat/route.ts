@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { streamChat, OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
+import { streamChat } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
 import { initializeTools } from '@/lib/tools/registry';
 import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
