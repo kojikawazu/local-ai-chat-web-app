@@ -104,5 +104,22 @@ describe('GET /api/conversations（一覧）', () => {
       expect(res.status).toBe(200);
       expect((await res.json()).conversations).toEqual([]);
     });
+
+    it('title が空文字の会話でも一覧に含めて返す', async () => {
+      // DB に直接入れた異常データ（API 経由では既定タイトルになる）でも
+      // 一覧取得が落ちないことを確認する
+      await prisma.conversation.create({ data: { title: '' } });
+      const res = await GET();
+      expect(res.status).toBe(200);
+      const { conversations } = await res.json();
+      expect(conversations).toHaveLength(1);
+      expect(conversations[0].title).toBe('');
+    });
   });
+
+  // 異常系: このエンドポイントは引数を取らないため、入力起因の失敗経路が存在しない。
+  // 残る失敗経路は DB 接続断（→ 500）のみだが、それを検証するには Prisma を
+  // モックする必要があり、IT の方針（実 DB を使い、mock は真の外部のみ）に反する。
+  // そのため GET 単体の異常系ケースは置かない（POST 側で異常系を担保しており、
+  // testing.md の 3 分類要件はファイル単位で満たしている）。
 });

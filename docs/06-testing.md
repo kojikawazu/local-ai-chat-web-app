@@ -313,8 +313,6 @@ front/tests/
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
-    ├── debug-console.spec.ts     # デバッグ用テスト（CIスキップ）
-    ├── debug-input.spec.ts       # 入力方式デバッグ用テスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
 
@@ -375,8 +373,6 @@ CPU onlyのCIランナーではLLM推論が遅いため、以下のテストを�
 |---------------|-------------|------|
 | `chat-streaming.spec.ts` | ストリーミング完了を待つ4テスト | CPU onlyで120秒以内に完了しない |
 | `screenshot.spec.ts` | 全テスト | OS間フォントレンダリング差異 |
-| `debug-console.spec.ts` | 全テスト | デバッグ専用 |
-| `debug-input.spec.ts` | 全テスト | デバッグ専用 |
 
 ### CI固有の技術的考慮事項
 

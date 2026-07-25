@@ -690,7 +690,9 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 ### 23-3: テスト
 
-- [ ] 3分類必須の欠落を解消（conversations IT の異常系・debug spec の扱い） — #76
+- [x] 3分類必須の欠落を解消（conversations IT の異常系・debug spec の扱い） — #76
+  - [x] デバッグ用スクラッチ 2 件（`debug-console` / `debug-input`）を削除 → `tsc` エラーが 0 件になった
+  - [x] `theme.spec.ts` の lint エラー（#85 で見落とし）を修正
 
 ### 23-4: ルール記述の修正
 
