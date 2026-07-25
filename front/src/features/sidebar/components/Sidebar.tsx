@@ -8,7 +8,7 @@ import {
   History,
   Trash2,
 } from 'lucide-react';
-import { Conversation } from '@/types';
+import type { Conversation } from '@/types';
 
 /**
  * Sidebar コンポーネントの props。

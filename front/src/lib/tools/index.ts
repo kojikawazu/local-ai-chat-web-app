@@ -1,4 +1,4 @@
-import { Tool, OllamaToolDefinition } from './types';
+import type { Tool, OllamaToolDefinition } from './types';
 
 const toolRegistry = new Map<string, Tool>();
 

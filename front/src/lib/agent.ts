@@ -1,4 +1,5 @@
-import { streamChat, OllamaChatMessage, OllamaStreamChunk } from './ollama';
+import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
+import { streamChat } from './ollama';
 import { getAllToolDefinitions, executeTool } from './tools/index';
 import type { AgentStreamEvent, ToolCallRecord, OllamaToolCall } from './tools/types';
 

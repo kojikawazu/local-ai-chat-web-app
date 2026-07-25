@@ -1,4 +1,4 @@
-import { Tool } from './types';
+import type { Tool } from './types';
 
 /**
  * 現在の日付と時刻を取得するエージェントツール。

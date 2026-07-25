@@ -91,6 +91,7 @@ front/tests/
 - **ESLint** + **Prettier** を導入する
 - **JSDoc（TSDoc）規約を `eslint-plugin-jsdoc` で機械強制**する（`front/eslint.config.mjs`）。型ブレース禁止・`@param`/`@returns` の整合を `pnpm lint` で検出。規約は `.claude/rules/jsdoc.md` を参照
 - **TypeScript 固有規約**（type/interface の使い分け・型/定数の配置・`any` 禁止・`enum` 回避・`import type`・`as`/`!` 抑制）は `.claude/rules/typescript.md` を参照
+- **`import type` を `@typescript-eslint/consistent-type-imports` で機械強制**する（`fixStyle: separate-type-imports`）。`tsconfig.json` の `verbatimModuleSyntax: true` と併せて、型 import が実行時に残らないことを保証する
 - 保存時の自動フォーマットを推奨
 - リント・フォーマットコマンド:
   - `pnpm lint` — ESLintチェック

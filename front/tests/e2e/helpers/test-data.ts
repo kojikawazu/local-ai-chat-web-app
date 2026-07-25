@@ -1,4 +1,4 @@
-import { APIRequestContext, APIResponse, Page } from '@playwright/test';
+import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3000';
 

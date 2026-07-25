@@ -32,7 +32,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | ユニットテスト | Vitest（純ロジック対象） |
 | インテグレーションテスト | Vitest + Testcontainers（実PostgreSQL） |
 | E2Eテスト | Playwright |
-| リンター | ESLint 9 + eslint-config-prettier + eslint-plugin-jsdoc（JSDoc規約の機械強制） |
+| リンター | ESLint 9 + eslint-config-prettier + eslint-plugin-jsdoc（JSDoc規約の機械強制）+ `consistent-type-imports`（`import type` の機械強制） |
 | フォーマッター | Prettier |
 
 ## コマンド
