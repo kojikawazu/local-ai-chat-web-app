@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-07-25
 
 ## 目次
 
@@ -134,7 +134,8 @@ front/src/
 │       ├── web-search.ts      #     Web検索ツール（DuckDuckGo）
 │       └── url-fetch.ts       #     URL取得ツール（SSRF防止）
 └── types/
-    └── index.ts               #   共通型定義（Message, Conversation, ToolCallInfo等）
+    ├── index.ts               #   共通型定義（Message, Conversation, ToolCallInfo等）
+    └── theme.ts               #   テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
 ```
 
 ### front/prisma/
@@ -175,6 +176,7 @@ front/tests/
 - **`lib/`**: 外部サービス連携やユーティリティ関数を配置
 - **`types/`**: 複数機能で共有される型定義を配置
 - 機能固有のコンポーネント・フック・型は `features/<機能名>/` 内に閉じる
+- **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、機能内の 2 箇所以上なら `features/<機能名>/`、機能をまたぐなら `types/`・`constants/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）
 
 ## データベース設計
 

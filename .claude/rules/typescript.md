@@ -40,11 +40,12 @@ type OnSend = (content: string) => void;
 
 ### 既存コードへの適用
 
-`front/src/types/index.ts` の既存型（`Message` / `ToolCallInfo` 等）は `interface` で定義されている。**一括置換はしない**（差分が大きく、レビューの費用対効果が悪い）。
+**既存の `interface` は 15 ファイル・約 24 箇所に分布している**（`types/index.ts` のドメイン型、各コンポーネントの props 型、`lib/tools/types.ts` のツール定義型など）。いずれも class 契約・宣言マージには該当せず、本来 `type` で書くべきものだが、**一括置換はしない**（差分が大きく、レビューの費用対効果が悪い）。
 
 - **新規に追加する型は `type`** で書く。
 - 既存 `interface` は、**その型を触る変更のついでに** `type` へ寄せる。
-- 変換だけを目的とした PR は作らない。
+- **変換だけを目的とした PR は作らない。** 機械的な置換は `git blame` を汚すだけで、動作もレビュー価値も変わらない。
+- したがって `interface` の残存は**規約違反として扱わない**（新規追加のみ違反）。レビューでは「新しく足された型が `type` か」を見る。
 
 ## 型定義の配置（コロケーション / `types/` 集約）
 
@@ -95,11 +96,16 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 | 参照範囲 | 置き場所 |
 |---|---|
 | **1 ファイルに閉じる** | その定義ファイルの先頭で `const` 宣言（`export` しない） |
-| **2 ファイル以上** / レイヤ・機能をまたぐ | `src/constants/` に集約して `export` |
+| **機能内の 2 ファイル以上** | `features/<機能>/constants/`（例: `features/chat/constants/toolLabels.ts`） |
+| **機能をまたぐ 2 ファイル以上** | `src/constants/` に集約して `export` |
+
+**現状 `src/constants/` は存在しない**（機能をまたぐ定数がまだ無いため）。上表は「機能横断の定数が 2 箇所目の参照を得た時点で作る」という前向きの指針であり、先回りして空のディレクトリを作る必要はない。
+
+なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
 
 ### 運用ルール
 
-- **`lib/` に定数を混ぜない。** 「関数の置き場」と「値の置き場」を分けると、変更時に探す範囲が狭まる。
+- **`lib/` に定数を混ぜない。** 「関数の置き場」と「値の置き場」を分けると、変更時に探す範囲が狭まる（上記 `validation.ts` は検証の関心事に属する例外）。
 - 昇格の運用は型と同じ: まず使う場所に書き、**2 箇所目の参照が発生した時点で `constants/` へ移す**。移動時は元ファイルに残さない（re-export も含む）。
 - `constants/` はドメイン単位でファイルを分ける（`constants/chat.ts` / `constants/api.ts`）。**barrel（`constants/index.ts`）は作らない**（理由は型と同じ）。
 - **`as const` を付ける。** 付けないとリテラル型が `string` / `number` に広がり、union の導出や補完が効かなくなる。

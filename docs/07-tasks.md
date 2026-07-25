@@ -696,7 +696,12 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 ### 23-4: ルール記述の修正
 
-- [ ] 実装と食い違っているルール記述を修正（error-handling / frontend / typescript / CLAUDE.md） — #77
+- [x] 実装と食い違っているルール記述を修正（error-handling / frontend / typescript / CLAUDE.md） — #77
+  - [x] C-1: `error-handling.md` の統一エラーレスポンス節を実態（`{ error: string }` を各 route で直接組む）に修正
+  - [x] C-2/C-3: `frontend.md` のサーバー/クライアント分離・ロジック分離を実態に修正
+  - [x] C-4: `typescript.md` の `src/constants/` を前向き指針として明示
+  - [x] C-5: `CLAUDE.md` の features 構成に constants/・types/ を反映
+  - [x] A-7: `typescript.md` の漸進適用条項の対象を既存 `interface` 全体に拡大
 
 ## フェーズ24: CI 発火条件の最適化
 
