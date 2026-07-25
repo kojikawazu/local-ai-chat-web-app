@@ -2,15 +2,19 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isValidUUID, MAX_TITLE_LENGTH } from '@/lib/validation';
+import { chatOnce } from '@/lib/ollama';
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3-coder:latest';
+/** タイトル生成時に LLM へ渡すメッセージの最大文字数。全文は不要なため先頭のみ使う。 */
+const TITLE_SOURCE_MAX_CHARS = 500;
 
 /**
  * メッセージ内容から LLM で会話タイトルを自動生成し、対象会話に保存する。
  *
  * Ollama に対して「20文字以内の日本語タイトルのみ出力」を指示し、生成結果を
  * {@link MAX_TITLE_LENGTH} 文字に切り詰めて Conversation.title に更新する。
+ *
+ * モデルの解決（`model` 未指定時のデフォルト）と Ollama への接続は
+ * {@link chatOnce} に委譲する。本 route で独自のデフォルト値を持たない。
  *
  * @param request - タイトル生成の元となる `message`（必須）と任意の `model` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
@@ -48,29 +52,17 @@ export async function POST(
   }
 
   try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model || OLLAMA_MODEL,
-        messages: [
-          {
-            role: 'user',
-            content: `以下のメッセージに対して、会話のタイトルを日本語で簡潔に生成してください。タイトルのみを出力し、それ以外は何も出力しないでください。20文字以内でお願いします。\n\nメッセージ: ${message.slice(0, 500)}`,
-          },
-        ],
-        stream: false,
-      }),
-    });
+    const content = await chatOnce(
+      [
+        {
+          role: 'user',
+          content: `以下のメッセージに対して、会話のタイトルを日本語で簡潔に生成してください。タイトルのみを出力し、それ以外は何も出力しないでください。20文字以内でお願いします。\n\nメッセージ: ${message.slice(0, TITLE_SOURCE_MAX_CHARS)}`,
+        },
+      ],
+      model
+    );
 
-    if (!response.ok) {
-      throw new Error(`Ollama API error (${response.status})`);
-    }
-
-    const data = await response.json();
-    const generatedTitle = data.message?.content
-      ?.trim()
-      .slice(0, MAX_TITLE_LENGTH);
+    const generatedTitle = content.trim().slice(0, MAX_TITLE_LENGTH);
 
     if (!generatedTitle) {
       return NextResponse.json(

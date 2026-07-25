@@ -120,7 +120,7 @@ front/src/
 ├── hooks/
 │   └── useTheme.ts            #   テーマ切替フック（localStorage永続化）
 ├── lib/
-│   ├── ollama.ts              #   Ollamaクライアント（streamChat, listModels, tools対応）
+│   ├── ollama.ts              #   Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   ├── prisma.ts              #   Prismaクライアントインスタンス
 │   ├── validation.ts          #   バリデーションユーティリティ
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御）

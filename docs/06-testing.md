@@ -297,7 +297,8 @@ front/tests/
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
-│   └── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
+│   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
+│   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/
     ├── helpers/
     │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
