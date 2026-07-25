@@ -76,6 +76,19 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(res.status).toBe(201);
     });
 
+    it('metadata が null なら metadata 無しで保存される', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: null }),
+        routeContext(id),
+      );
+      expect(res.status).toBe(201);
+      const stored = await prisma.message.findUnique({
+        where: { id: (await res.json()).id },
+      });
+      expect(stored?.metadata).toBeNull();
+    });
+
     it('content がちょうど上限文字数なら保存できる（境界値）', async () => {
       const id = await createConversation();
       const res = await POST(
@@ -123,6 +136,26 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'user', content: 'x' }),
         routeContext(NOT_UUID),
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.message.count()).toBe(0);
+    });
+
+    it('metadata が配列なら 400（黙って捨てずに弾く）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: [1, 2] }),
+        routeContext(id),
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.message.count()).toBe(0);
+    });
+
+    it('metadata が文字列なら 400', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: 'oops' }),
+        routeContext(id),
       );
       expect(res.status).toBe(400);
       expect(await prisma.message.count()).toBe(0);
