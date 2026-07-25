@@ -17,7 +17,10 @@ import { TOOL_LABELS } from '../constants/toolLabels';
  *
  * @param props - 実行中ツールの名前と引数を持つ props
  */
-export function ToolCallIndicator({ name, arguments: args }: ToolCallIndicatorProps) {
+export function ToolCallIndicator({
+  name,
+  arguments: args,
+}: ToolCallIndicatorProps) {
   const label = TOOL_LABELS[name] ?? name;
   const argsSummary = Object.entries(args)
     .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)

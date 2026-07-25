@@ -22,16 +22,27 @@ interface ToolCallResultProps {
 function WebSearchResult({ text }: { text: string }) {
   // "[N] タイトル\n    URL: https://...\n    スニペット" 形式をパース
   const blocks = text.split(/\[(\d+)\] /).slice(1);
-  const items: { index: string; title: string; url: string; snippet: string }[] = [];
+  const items: {
+    index: string;
+    title: string;
+    url: string;
+    snippet: string;
+  }[] = [];
 
   for (let i = 0; i < blocks.length; i += 2) {
     const index = blocks[i];
     const body = blocks[i + 1] ?? '';
-    const lines = body.split('\n').map((l) => l.trim()).filter(Boolean);
+    const lines = body
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     const title = lines[0] ?? '';
     const urlLine = lines.find((l) => l.startsWith('URL:'));
     const url = urlLine ? urlLine.replace('URL:', '').trim() : '';
-    const snippet = lines.filter((l) => !l.startsWith('URL:')).slice(1).join(' ');
+    const snippet = lines
+      .filter((l) => !l.startsWith('URL:'))
+      .slice(1)
+      .join(' ');
     items.push({ index, title, url, snippet });
   }
 
@@ -59,7 +70,9 @@ function WebSearchResult({ text }: { text: string }) {
             )}
           </p>
           {item.snippet && (
-            <p className="text-[var(--color-nord-4)] opacity-80 mt-0.5">{item.snippet}</p>
+            <p className="text-[var(--color-nord-4)] opacity-80 mt-0.5">
+              {item.snippet}
+            </p>
           )}
         </div>
       ))}
@@ -79,7 +92,8 @@ function WebSearchResult({ text }: { text: string }) {
 export function ToolCallResult({ toolCall }: ToolCallResultProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const label = TOOL_LABELS[toolCall.name] ?? toolCall.name;
-  const durationText = toolCall.durationMs > 0 ? `${toolCall.durationMs}ms` : null;
+  const durationText =
+    toolCall.durationMs > 0 ? `${toolCall.durationMs}ms` : null;
 
   return (
     <div className="rounded-md border border-[var(--color-nord-3)] bg-[var(--color-nord-1)] text-sm">
@@ -92,9 +106,13 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
         ) : (
           <span className="text-green-400">✅</span>
         )}
-        <span className="font-medium text-[var(--color-nord-8)]">🔧 {label}</span>
+        <span className="font-medium text-[var(--color-nord-8)]">
+          🔧 {label}
+        </span>
         {durationText && (
-          <span className="text-[var(--color-nord-4)] opacity-50 text-xs">({durationText})</span>
+          <span className="text-[var(--color-nord-4)] opacity-50 text-xs">
+            ({durationText})
+          </span>
         )}
         <span className="ml-auto text-[var(--color-nord-4)] opacity-50 text-xs">
           {isExpanded ? '▲' : '▼'}
@@ -105,20 +123,26 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
         <div className="border-t border-[var(--color-nord-3)] px-3 py-2 space-y-2">
           {Object.keys(toolCall.arguments).length > 0 && (
             <div>
-              <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">引数</p>
+              <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">
+                引数
+              </p>
               <pre className="text-xs text-[var(--color-nord-4)] whitespace-pre-wrap break-all">
                 {JSON.stringify(toolCall.arguments, null, 2)}
               </pre>
             </div>
           )}
           <div>
-            <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">結果</p>
+            <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">
+              結果
+            </p>
             {toolCall.name === 'web_search' && !toolCall.isError ? (
               <WebSearchResult text={toolCall.result} />
             ) : (
               <pre
                 className={`text-xs whitespace-pre-wrap break-all ${
-                  toolCall.isError ? 'text-red-400' : 'text-[var(--color-nord-4)]'
+                  toolCall.isError
+                    ? 'text-red-400'
+                    : 'text-[var(--color-nord-4)]'
                 }`}
               >
                 {toolCall.result || '(空の結果)'}

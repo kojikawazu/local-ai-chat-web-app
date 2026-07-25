@@ -63,10 +63,7 @@ export default function SettingsModal({
       aria-modal="true"
       aria-label="設定"
     >
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       <div className="relative w-full max-w-lg mx-4 rounded-2xl bg-nord-1 border border-nord-3 shadow-2xl shadow-black/40">
         <div className="flex items-center justify-between p-6 border-b border-nord-3">
@@ -119,7 +116,9 @@ export default function SettingsModal({
               }`}
             >
               <div className="text-left">
-                <p className="text-sm font-semibold text-nord-6">ツール使用を有効化</p>
+                <p className="text-sm font-semibold text-nord-6">
+                  ツール使用を有効化
+                </p>
                 <p className="text-xs text-nord-4/60">
                   AIが日時取得・計算などのツールを自律的に使用します
                 </p>
@@ -156,8 +155,12 @@ export default function SettingsModal({
                     }`}
                   >
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-nord-6">{preset.name}</p>
-                      <p className="text-xs text-nord-4/60">{preset.description}</p>
+                      <p className="text-sm font-semibold text-nord-6">
+                        {preset.name}
+                      </p>
+                      <p className="text-xs text-nord-4/60">
+                        {preset.description}
+                      </p>
                     </div>
                     {agentPromptPresetId === preset.id && (
                       <div className="w-2 h-2 rounded-full bg-nord-frost-1 shrink-0" />

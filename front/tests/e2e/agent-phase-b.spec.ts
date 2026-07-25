@@ -15,7 +15,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
   });
 
   test.describe('正常系', () => {
-    test('GET /api/tools に web_search と url_fetch が含まれる', async ({ request }) => {
+    test('GET /api/tools に web_search と url_fetch が含まれる', async ({
+      request,
+    }) => {
       const res = await request.get(`${BASE_URL}/api/tools`);
       expect(res.status()).toBe(200);
 
@@ -28,7 +30,10 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
     test('web_search ツールを API から直接呼び出せる（enableTools モード）', async ({
       request,
     }) => {
-      test.skip(!!process.env.CI, 'CI 環境では外部ネットワークアクセスが制限されるためスキップ');
+      test.skip(
+        !!process.env.CI,
+        'CI 環境では外部ネットワークアクセスが制限されるためスキップ'
+      );
 
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
@@ -43,8 +48,13 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       expect(res.headers()['content-type']).toContain('application/x-ndjson');
     });
 
-    test('url_fetch ツールがパブリック URL を取得できる', async ({ request }) => {
-      test.skip(!!process.env.CI, 'CI 環境では外部ネットワークアクセスが制限されるためスキップ');
+    test('url_fetch ツールがパブリック URL を取得できる', async ({
+      request,
+    }) => {
+      test.skip(
+        !!process.env.CI,
+        'CI 環境では外部ネットワークアクセスが制限されるためスキップ'
+      );
 
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
@@ -60,7 +70,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
   });
 
   test.describe('準正常系', () => {
-    test('url_fetch にプライベート IP を渡すとエラーが返る', async ({ request }) => {
+    test('url_fetch にプライベート IP を渡すとエラーが返る', async ({
+      request,
+    }) => {
       // /api/chat 経由でなく、ツール実行ロジックを直接テストする場合は
       // エージェントモードでプライベート IP を含む URL を渡す
       const res = await request.post(`${BASE_URL}/api/chat`, {
@@ -76,7 +88,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       expect(res.status()).toBe(200);
     });
 
-    test('url_fetch にローカルホストを渡すとエラーが返る', async ({ request }) => {
+    test('url_fetch にローカルホストを渡すとエラーが返る', async ({
+      request,
+    }) => {
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
           message: 'http://localhost:3000 の内容を取得してください',
@@ -104,7 +118,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       expect(res.status()).toBe(200);
     });
 
-    test('空メッセージで enableTools=true のとき API が 400 を返す', async ({ request }) => {
+    test('空メッセージで enableTools=true のとき API が 400 を返す', async ({
+      request,
+    }) => {
       // /api/chat のメッセージバリデーション（空文字）をテスト
       // web_search ツール内の空クエリチェックではなく API 層のバリデーション
       const res = await request.post(`${BASE_URL}/api/chat`, {
@@ -137,7 +153,9 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       expect(res.status()).toBe(200);
     });
 
-    test('enableTools=true かつ 10001 文字メッセージで 400 を返す', async ({ request }) => {
+    test('enableTools=true かつ 10001 文字メッセージで 400 を返す', async ({
+      request,
+    }) => {
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
           message: 'あ'.repeat(10001),

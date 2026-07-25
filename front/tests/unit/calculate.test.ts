@@ -56,7 +56,9 @@ describe('calculateTool.execute', () => {
     });
 
     it('ゼロ除算は不正結果エラーを返す', async () => {
-      expect(await calc('1 / 0')).toBe('エラー: 計算結果が不正です（ゼロ除算等）');
+      expect(await calc('1 / 0')).toBe(
+        'エラー: 計算結果が不正です（ゼロ除算等）'
+      );
     });
 
     it('演算子で終わる不完全な式はエラーを返す', async () => {

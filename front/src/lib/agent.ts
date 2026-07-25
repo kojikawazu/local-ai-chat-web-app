@@ -1,10 +1,17 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
 import { streamChat } from './ollama';
 import { getAllToolDefinitions, executeTool } from './tools/index';
-import type { AgentStreamEvent, ToolCallRecord, OllamaToolCall } from './tools/types';
+import type {
+  AgentStreamEvent,
+  ToolCallRecord,
+  OllamaToolCall,
+} from './tools/types';
 
 const MAX_TOOL_ROUNDS = parseInt(process.env.AGENT_MAX_TOOL_ROUNDS ?? '10', 10);
-const TOOL_TIMEOUT_MS = parseInt(process.env.AGENT_TOOL_TIMEOUT_MS ?? '30000', 10);
+const TOOL_TIMEOUT_MS = parseInt(
+  process.env.AGENT_TOOL_TIMEOUT_MS ?? '30000',
+  10
+);
 
 // NDJSON イベントを ReadableStream に書き込むヘルパー
 function encodeEvent(event: AgentStreamEvent): Uint8Array {
@@ -21,13 +28,21 @@ async function runTool(
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(
-      () => reject(new Error(`ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`)),
+      () =>
+        reject(
+          new Error(
+            `ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`
+          )
+        ),
       TOOL_TIMEOUT_MS
     );
   });
 
   try {
-    const result = await Promise.race([executeTool(name, args), timeoutPromise]);
+    const result = await Promise.race([
+      executeTool(name, args),
+      timeoutPromise,
+    ]);
     clearTimeout(timeoutId);
     return { result, isError: false, durationMs: Date.now() - start };
   } catch (e) {
@@ -88,7 +103,9 @@ async function readOllamaResponse(
                 // 閉じタグが見つかった → thinking コンテンツを通知
                 const thinkingContent = contentBuffer.slice(0, closeIdx);
                 if (thinkingContent) onThinking(thinkingContent);
-                contentBuffer = contentBuffer.slice(closeIdx + '</think>'.length);
+                contentBuffer = contentBuffer.slice(
+                  closeIdx + '</think>'.length
+                );
                 inThinkBlock = false;
               } else {
                 // まだ閉じタグが来ていない → バッファを保持
@@ -105,11 +122,17 @@ async function readOllamaResponse(
               } else {
                 // <think> タグの途中（例: "<thi"）かもしれないので末尾を保持
                 // </think> も考慮して長い方のタグ長 - 1 を保持する
-                const possibleTagStart = Math.max('<think>'.length, '</think>'.length) - 1;
+                const possibleTagStart =
+                  Math.max('<think>'.length, '</think>'.length) - 1;
                 if (contentBuffer.length > possibleTagStart) {
-                  const safeFlush = contentBuffer.slice(0, contentBuffer.length - possibleTagStart);
+                  const safeFlush = contentBuffer.slice(
+                    0,
+                    contentBuffer.length - possibleTagStart
+                  );
                   if (safeFlush) onTextChunk(safeFlush);
-                  contentBuffer = contentBuffer.slice(contentBuffer.length - possibleTagStart);
+                  contentBuffer = contentBuffer.slice(
+                    contentBuffer.length - possibleTagStart
+                  );
                 }
                 break;
               }
@@ -172,7 +195,10 @@ export function runAgentLoop(
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             controller.enqueue(
-              encodeEvent({ type: 'error', message: `Ollamaへの接続に失敗しました: ${msg}` })
+              encodeEvent({
+                type: 'error',
+                message: `Ollamaへの接続に失敗しました: ${msg}`,
+              })
             );
             controller.close();
             return;
@@ -183,12 +209,16 @@ export function runAgentLoop(
             (text) => {
               // テキストチャンクをリアルタイムに送信（バッファなし）
               if (text) {
-                controller.enqueue(encodeEvent({ type: 'text_delta', content: text }));
+                controller.enqueue(
+                  encodeEvent({ type: 'text_delta', content: text })
+                );
               }
             },
             (thinking) => {
               if (thinking.trim()) {
-                controller.enqueue(encodeEvent({ type: 'thinking', content: thinking.trim() }));
+                controller.enqueue(
+                  encodeEvent({ type: 'thinking', content: thinking.trim() })
+                );
               }
             }
           );
@@ -235,7 +265,13 @@ export function runAgentLoop(
                 encodeEvent({ type: 'tool_call_result', name, result, isError })
               );
 
-              toolCallRecords.push({ name, arguments: args, result, isError, durationMs });
+              toolCallRecords.push({
+                name,
+                arguments: args,
+                result,
+                isError,
+                durationMs,
+              });
 
               return { name, result };
             })

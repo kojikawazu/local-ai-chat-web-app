@@ -27,10 +27,7 @@ export async function POST(
   const { id } = await params;
 
   if (!isValidUUID(id)) {
-    return NextResponse.json(
-      { error: '無効な会話IDです' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
   }
 
   let body: { message?: string; model?: string };
@@ -45,10 +42,7 @@ export async function POST(
 
   const { message, model } = body;
   if (!message || typeof message !== 'string' || !message.trim()) {
-    return NextResponse.json(
-      { error: 'メッセージが空です' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
   }
 
   try {

@@ -17,9 +17,17 @@ import { vi } from 'vitest';
 export function ollamaStreamResponse(contents: string[]): Response {
   const lines = [
     ...contents.map((content) =>
-      JSON.stringify({ model: 'test', message: { role: 'assistant', content }, done: false }),
+      JSON.stringify({
+        model: 'test',
+        message: { role: 'assistant', content },
+        done: false,
+      })
     ),
-    JSON.stringify({ model: 'test', message: { role: 'assistant', content: '' }, done: true }),
+    JSON.stringify({
+      model: 'test',
+      message: { role: 'assistant', content: '' },
+      done: true,
+    }),
   ]
     .map((l) => l + '\n')
     .join('');
@@ -43,10 +51,10 @@ export function ollamaStreamResponse(contents: string[]): Response {
  * @returns スタブした fetch のモック関数
  */
 export function stubFetch(
-  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>
 ) {
   const mock = vi.fn((input: string | URL | Request, init?: RequestInit) =>
-    Promise.resolve(handler(String(input), init)),
+    Promise.resolve(handler(String(input), init))
   );
   vi.stubGlobal('fetch', mock);
   return mock;

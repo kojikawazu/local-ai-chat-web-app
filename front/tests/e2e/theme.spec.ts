@@ -70,14 +70,22 @@ test.describe('テーマ切替', () => {
 
       await page.getByRole('button', { name: /Nordic Frost/ }).click();
       // 既定テーマは「属性を外す」ことで表現する
-      await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.*/);
+      await expect(page.locator('html')).not.toHaveAttribute(
+        'data-theme',
+        /.*/
+      );
       expect(
         await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
       ).toBe('nordic');
     });
 
-    test('テーマ未保存の初回訪問では data-theme 属性が無い', async ({ page }) => {
-      await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.*/);
+    test('テーマ未保存の初回訪問では data-theme 属性が無い', async ({
+      page,
+    }) => {
+      await expect(page.locator('html')).not.toHaveAttribute(
+        'data-theme',
+        /.*/
+      );
     });
   });
 
@@ -92,7 +100,10 @@ test.describe('テーマ切替', () => {
       );
       await page.reload();
 
-      await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.*/);
+      await expect(page.locator('html')).not.toHaveAttribute(
+        'data-theme',
+        /.*/
+      );
     });
   });
 });

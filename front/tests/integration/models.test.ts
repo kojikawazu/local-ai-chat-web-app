@@ -17,9 +17,11 @@ describe('GET /api/models', () => {
       stubFetch(
         () =>
           new Response(
-            JSON.stringify({ models: [{ name: 'qwen2.5:0.5b' }, { name: 'llama3' }] }),
-            { status: 200, headers: { 'content-type': 'application/json' } },
-          ),
+            JSON.stringify({
+              models: [{ name: 'qwen2.5:0.5b' }, { name: 'llama3' }],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
       );
 
       const res = await GET();
@@ -33,7 +35,7 @@ describe('GET /api/models', () => {
   describe('準正常系', () => {
     it('モデルが 0 件でも 200 と空配列を返す', async () => {
       stubFetch(
-        () => new Response(JSON.stringify({ models: [] }), { status: 200 }),
+        () => new Response(JSON.stringify({ models: [] }), { status: 200 })
       );
 
       const res = await GET();

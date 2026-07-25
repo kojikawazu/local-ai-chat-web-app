@@ -35,7 +35,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
 
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'user', content: 'こんにちは' }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(201);
       const body = await res.json();
@@ -44,10 +44,14 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(body.conversationId).toBe(id);
 
       // DB に永続化 + 会話の updatedAt が進む（>= 元の値）
-      const stored = await prisma.message.findUnique({ where: { id: body.id } });
+      const stored = await prisma.message.findUnique({
+        where: { id: body.id },
+      });
       expect(stored?.content).toBe('こんにちは');
       const after = await prisma.conversation.findUnique({ where: { id } });
-      expect(after!.updatedAt.getTime()).toBeGreaterThanOrEqual(before!.updatedAt.getTime());
+      expect(after!.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        before!.updatedAt.getTime()
+      );
     });
 
     it('metadata 付きメッセージを保存できる', async () => {
@@ -58,11 +62,15 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
           content: '結果',
           metadata: { toolCalls: [{ name: 'calculate', result: '4' }] },
         }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(201);
-      const stored = await prisma.message.findUnique({ where: { id: (await res.json()).id } });
-      expect(stored?.metadata).toEqual({ toolCalls: [{ name: 'calculate', result: '4' }] });
+      const stored = await prisma.message.findUnique({
+        where: { id: (await res.json()).id },
+      });
+      expect(stored?.metadata).toEqual({
+        toolCalls: [{ name: 'calculate', result: '4' }],
+      });
     });
   });
 
@@ -71,7 +79,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       const id = await createConversation();
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'assistant', content: '応答' }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(201);
     });
@@ -79,8 +87,12 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
     it('metadata が null なら metadata 無しで保存される', async () => {
       const id = await createConversation();
       const res = await POST(
-        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: null }),
-        routeContext(id),
+        jsonRequest(URL, 'POST', {
+          role: 'user',
+          content: 'x',
+          metadata: null,
+        }),
+        routeContext(id)
       );
       expect(res.status).toBe(201);
       const stored = await prisma.message.findUnique({
@@ -96,7 +108,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
           role: 'user',
           content: 'あ'.repeat(MAX_MESSAGE_LENGTH),
         }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(201);
     });
@@ -105,13 +117,19 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
   describe('異常系', () => {
     it('不正な JSON ボディは 400', async () => {
       const id = await createConversation();
-      const res = await POST(jsonRequest(URL, 'POST', 'not-json'), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', 'not-json'),
+        routeContext(id)
+      );
       expect(res.status).toBe(400);
     });
 
     it('content 欠落は 400', async () => {
       const id = await createConversation();
-      const res = await POST(jsonRequest(URL, 'POST', { role: 'user' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'user' }),
+        routeContext(id)
+      );
       expect(res.status).toBe(400);
     });
 
@@ -119,7 +137,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       const id = await createConversation();
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'system', content: 'x' }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(400);
     });
@@ -127,7 +145,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
     it('存在しない会話への保存は 404', async () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'user', content: 'x' }),
-        routeContext(NONEXISTENT),
+        routeContext(NONEXISTENT)
       );
       expect(res.status).toBe(404);
     });
@@ -135,7 +153,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
     it('UUID 形式でない ID は 400（DB には保存されない）', async () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { role: 'user', content: 'x' }),
-        routeContext(NOT_UUID),
+        routeContext(NOT_UUID)
       );
       expect(res.status).toBe(400);
       expect(await prisma.message.count()).toBe(0);
@@ -144,8 +162,12 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
     it('metadata が配列なら 400（黙って捨てずに弾く）', async () => {
       const id = await createConversation();
       const res = await POST(
-        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: [1, 2] }),
-        routeContext(id),
+        jsonRequest(URL, 'POST', {
+          role: 'user',
+          content: 'x',
+          metadata: [1, 2],
+        }),
+        routeContext(id)
       );
       expect(res.status).toBe(400);
       expect(await prisma.message.count()).toBe(0);
@@ -154,8 +176,12 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
     it('metadata が文字列なら 400', async () => {
       const id = await createConversation();
       const res = await POST(
-        jsonRequest(URL, 'POST', { role: 'user', content: 'x', metadata: 'oops' }),
-        routeContext(id),
+        jsonRequest(URL, 'POST', {
+          role: 'user',
+          content: 'x',
+          metadata: 'oops',
+        }),
+        routeContext(id)
       );
       expect(res.status).toBe(400);
       expect(await prisma.message.count()).toBe(0);
@@ -168,7 +194,7 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
           role: 'user',
           content: 'あ'.repeat(MAX_MESSAGE_LENGTH + 1),
         }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(400);
       // 長さ検証は会話存在チェックより前に走るため、DB は一切変更されない
@@ -181,13 +207,20 @@ describe('GET /api/conversations/[id]/messages（取得）', () => {
   describe('正常系', () => {
     it('メッセージを作成日時の昇順で返す', async () => {
       const id = await createConversation();
-      await prisma.message.create({ data: { conversationId: id, role: 'user', content: '1番目' } });
-      await prisma.message.create({ data: { conversationId: id, role: 'assistant', content: '2番目' } });
+      await prisma.message.create({
+        data: { conversationId: id, role: 'user', content: '1番目' },
+      });
+      await prisma.message.create({
+        data: { conversationId: id, role: 'assistant', content: '2番目' },
+      });
 
       const res = await GET(jsonRequest(URL, 'GET'), routeContext(id));
       expect(res.status).toBe(200);
       const { messages } = await res.json();
-      expect(messages.map((m: { content: string }) => m.content)).toEqual(['1番目', '2番目']);
+      expect(messages.map((m: { content: string }) => m.content)).toEqual([
+        '1番目',
+        '2番目',
+      ]);
     });
   });
 

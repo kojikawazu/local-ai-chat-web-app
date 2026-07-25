@@ -163,9 +163,7 @@ test.describe('会話管理', () => {
       const convId = conv.id;
 
       // 削除
-      await request.delete(
-        `http://localhost:3000/api/conversations/${convId}`
-      );
+      await request.delete(`http://localhost:3000/api/conversations/${convId}`);
 
       // メッセージ取得を試みる
       const res = await request.get(

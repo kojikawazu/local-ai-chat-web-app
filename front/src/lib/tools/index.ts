@@ -55,4 +55,3 @@ export async function executeTool(
   }
   return tool.execute(args);
 }
-

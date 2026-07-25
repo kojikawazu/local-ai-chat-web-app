@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from 'vitest';
 import { POST } from '@/app/api/conversations/[id]/generate-title/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
 import { stubFetch } from './helpers/ollama-stub';
@@ -19,10 +27,13 @@ const NOT_UUID = 'not-a-uuid';
 
 /** Ollama `/api/chat` の非ストリーミング成功レスポンスを組み立てる。 */
 function ollamaChatResponse(content: string): Response {
-  return new Response(JSON.stringify({ message: { role: 'assistant', content } }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify({ message: { role: 'assistant', content } }),
+    {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }
+  );
 }
 
 /** テスト用の会話を1件作成して ID を返す。 */
@@ -56,7 +67,7 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       const res = await POST(
         jsonRequest(URL, 'POST', { message: '週末どこに行こうか' }),
-        routeContext(id),
+        routeContext(id)
       );
       expect(res.status).toBe(200);
       expect((await res.json()).title).toBe('週末の予定');
@@ -70,7 +81,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       const mock = stubFetch(() => ollamaChatResponse('タイトル'));
 
-      await POST(jsonRequest(URL, 'POST', { message: 'やあ' }), routeContext(id));
+      await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
 
       // route が独自のデフォルト値を持たず ollama.ts の正準に委譲していることの検証
       expect(sentBody(mock).model).toBe(getDefaultModel());
@@ -83,7 +97,7 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       await POST(
         jsonRequest(URL, 'POST', { message: 'やあ', model: 'gemma3:4b' }),
-        routeContext(id),
+        routeContext(id)
       );
 
       expect(sentBody(mock).model).toBe('gemma3:4b');
@@ -95,7 +109,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       stubFetch(() => ollamaChatResponse('あ'.repeat(MAX_TITLE_LENGTH + 50)));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
       expect(res.status).toBe(200);
       expect((await res.json()).title).toHaveLength(MAX_TITLE_LENGTH);
     });
@@ -104,7 +121,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       stubFetch(() => ollamaChatResponse('  余白つき  '));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
       expect((await res.json()).title).toBe('余白つき');
     });
 
@@ -114,7 +134,7 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       await POST(
         jsonRequest(URL, 'POST', { message: 'あ'.repeat(1000) }),
-        routeContext(id),
+        routeContext(id)
       );
 
       const messages = sentBody(mock).messages as { content: string }[];
@@ -128,7 +148,7 @@ describe('POST /api/conversations/[id]/generate-title', () => {
     it('UUID 形式でない ID は 400', async () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { message: 'やあ' }),
-        routeContext(NOT_UUID),
+        routeContext(NOT_UUID)
       );
       expect(res.status).toBe(400);
     });
@@ -137,7 +157,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       const mock = stubFetch(() => ollamaChatResponse('タイトル'));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: '   ' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: '   ' }),
+        routeContext(id)
+      );
       expect(res.status).toBe(400);
       expect(mock).not.toHaveBeenCalled();
     });
@@ -146,7 +169,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       stubFetch(() => new Response('model not found', { status: 404 }));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
       expect(res.status).toBe(500);
       // タイトルは更新されない
       const stored = await prisma.conversation.findUnique({ where: { id } });
@@ -157,7 +183,10 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       const id = await createConversation();
       stubFetch(() => ollamaChatResponse('   '));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ' }), routeContext(id));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
       expect(res.status).toBe(500);
     });
 
@@ -166,7 +195,7 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       const res = await POST(
         jsonRequest(URL, 'POST', { message: 'やあ' }),
-        routeContext(NONEXISTENT),
+        routeContext(NONEXISTENT)
       );
       expect(res.status).toBe(500);
     });

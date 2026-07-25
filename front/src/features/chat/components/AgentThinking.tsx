@@ -31,7 +31,9 @@ export function AgentThinking({ content }: AgentThinkingProps) {
         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--color-nord-1)] transition-colors rounded-md"
       >
         <Brain size={14} className="text-[var(--color-nord-9)] shrink-0" />
-        <span className="text-xs font-medium text-[var(--color-nord-9)]">思考過程</span>
+        <span className="text-xs font-medium text-[var(--color-nord-9)]">
+          思考過程
+        </span>
         <span className="ml-auto text-[var(--color-nord-4)] opacity-50 text-xs">
           {isExpanded ? '▲' : '▼'}
         </span>

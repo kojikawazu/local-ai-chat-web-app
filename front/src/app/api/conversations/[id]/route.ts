@@ -17,10 +17,7 @@ export async function DELETE(
   const { id } = await params;
 
   if (!isValidUUID(id)) {
-    return NextResponse.json(
-      { error: '無効な会話IDです' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
   }
 
   try {

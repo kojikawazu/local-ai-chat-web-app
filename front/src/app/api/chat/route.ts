@@ -37,7 +37,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { message, conversationHistory = [], model, enableTools = false, systemPrompt } = body;
+  const {
+    message,
+    conversationHistory = [],
+    model,
+    enableTools = false,
+    systemPrompt,
+  } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });

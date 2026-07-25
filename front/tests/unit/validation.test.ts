@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { isValidUUID, MAX_MESSAGE_LENGTH, MAX_TITLE_LENGTH } from '@/lib/validation';
+import {
+  isValidUUID,
+  MAX_MESSAGE_LENGTH,
+  MAX_TITLE_LENGTH,
+} from '@/lib/validation';
 
 /**
  * `lib/validation` の UT。外部 I/O を持たない純関数のため mock は使わない。

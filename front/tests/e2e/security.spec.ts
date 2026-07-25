@@ -40,9 +40,9 @@ test.describe('セキュリティ', () => {
       await page.goto('/');
       await page.getByText('通常テキスト').click();
 
-      await expect(
-        page.getByText('これは通常のテキストです。')
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('これは通常のテキストです。')).toBeVisible({
+        timeout: 10000,
+      });
       await expect(
         page.getByText('はい、通常のテキストですね。')
       ).toBeVisible();
@@ -68,14 +68,12 @@ test.describe('セキュリティ', () => {
       await page.getByText('HTMLテスト').click();
 
       // HTMLタグがそのまま文字列として表示される（レンダリングされない）
-      await expect(
-        page.getByText('<b>bold</b> and <i>italic</i>')
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('<b>bold</b> and <i>italic</i>')).toBeVisible(
+        { timeout: 10000 }
+      );
 
       // 太字のb要素としてレンダリングされていない
-      const boldElements = page.locator(
-        '[class*="whitespace-pre-wrap"] b'
-      );
+      const boldElements = page.locator('[class*="whitespace-pre-wrap"] b');
       await expect(boldElements).toHaveCount(0);
     });
 
@@ -122,9 +120,9 @@ test.describe('セキュリティ', () => {
       await page.getByText('XSSテスト').click();
 
       // scriptタグがそのまま文字列として表示される
-      await expect(
-        page.getByText("<script>alert('xss')</script>")
-      ).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText("<script>alert('xss')</script>")).toBeVisible(
+        { timeout: 10000 }
+      );
 
       // alertが実行されていない
       const xssTriggered = await page.evaluate(
@@ -140,9 +138,7 @@ test.describe('セキュリティ', () => {
       await fillTextarea(page, 'あ'.repeat(10001));
 
       // エラーメッセージが表示される
-      await expect(
-        page.getByText('文字以内で入力してください')
-      ).toBeVisible();
+      await expect(page.getByText('文字以内で入力してください')).toBeVisible();
 
       // 送信ボタンが無効化される
       const sendButton = page.locator('button[type="submit"]');
@@ -168,16 +164,13 @@ test.describe('セキュリティ', () => {
       ).toBeVisible({ timeout: 10000 });
 
       // APIが正常に動作している（会話一覧が取得できる）
-      const res = await request.get(
-        'http://localhost:3000/api/conversations'
-      );
+      const res = await request.get('http://localhost:3000/api/conversations');
       expect(res.status()).toBe(200);
     });
 
     test('CSPヘッダーが正しく設定されている', async ({ page }) => {
       const response = await page.goto('/');
-      const cspHeader =
-        response?.headers()['content-security-policy'];
+      const cspHeader = response?.headers()['content-security-policy'];
       expect(cspHeader).toBeDefined();
       expect(cspHeader).toContain("default-src 'self'");
       expect(cspHeader).toContain("script-src 'self'");

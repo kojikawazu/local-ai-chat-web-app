@@ -10,7 +10,9 @@ const FETCH_TIMEOUT_MS = 15000;
 
 function ipToNumber(ip: string): number {
   const parts = ip.split('.').map(Number);
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  return (
+    ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+  );
 }
 
 function inCidr(ip: string, cidr: string): boolean {
@@ -20,14 +22,13 @@ function inCidr(ip: string, cidr: string): boolean {
 }
 
 const IPV4_BLOCKLIST = [
-  '127.0.0.0/8',    // ループバック
-  '10.0.0.0/8',     // RFC 1918
-  '172.16.0.0/12',  // RFC 1918
+  '127.0.0.0/8', // ループバック
+  '10.0.0.0/8', // RFC 1918
+  '172.16.0.0/12', // RFC 1918
   '192.168.0.0/16', // RFC 1918
   '169.254.0.0/16', // リンクローカル
-  '0.0.0.0/8',      // カレントネットワーク
+  '0.0.0.0/8', // カレントネットワーク
 ];
-
 
 function normalizeIp(raw: string): { isV4: boolean; ip: string } {
   // IPv4-mapped IPv6 形式（::ffff:192.168.1.1）を IPv4 に正規化
@@ -76,17 +77,17 @@ async function checkSsrf(hostname: string): Promise<void> {
 // HTML タグを除去してプレーンテキストを抽出する
 function stripHtml(html: string): string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')  // script ブロック除去
-    .replace(/<style[\s\S]*?<\/style>/gi, '')     // style ブロック除去
-    .replace(/<!--[\s\S]*?-->/g, '')              // コメント除去
-    .replace(/<[^>]+>/g, ' ')                     // タグ除去
+    .replace(/<script[\s\S]*?<\/script>/gi, '') // script ブロック除去
+    .replace(/<style[\s\S]*?<\/style>/gi, '') // style ブロック除去
+    .replace(/<!--[\s\S]*?-->/g, '') // コメント除去
+    .replace(/<[^>]+>/g, ' ') // タグ除去
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s{2,}/g, ' ')                      // 連続空白を 1 つに
+    .replace(/\s{2,}/g, ' ') // 連続空白を 1 つに
     .trim();
 }
 
@@ -147,7 +148,9 @@ export const urlFetchTool: Tool = {
         res = await fetch(url, {
           redirect: 'error',
           signal: controller.signal,
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LocalAIChatBot/1.0)' },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; LocalAIChatBot/1.0)',
+          },
         });
       } finally {
         clearTimeout(timeoutId);
@@ -174,7 +177,10 @@ export const urlFetchTool: Tool = {
 
     // Content-Type チェック（text/html または text/plain のみ）
     const contentType = res.headers.get('Content-Type') ?? '';
-    if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+    if (
+      !contentType.includes('text/html') &&
+      !contentType.includes('text/plain')
+    ) {
       return `エラー: 対応していないコンテンツタイプです (${contentType})。テキストまたは HTML のみ取得できます。`;
     }
 
@@ -191,7 +197,9 @@ export const urlFetchTool: Tool = {
       return 'エラー: ページが大きすぎます（2MB 超）。';
     }
 
-    const text = contentType.includes('text/html') ? stripHtml(raw) : raw.trim();
+    const text = contentType.includes('text/html')
+      ? stripHtml(raw)
+      : raw.trim();
 
     if (!text) return '（ページにテキストコンテンツが見つかりませんでした）';
 

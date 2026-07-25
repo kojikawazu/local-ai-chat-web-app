@@ -1,0 +1,24 @@
+# Prettier の対象外。`prettier --write .` / `--check .` の両方に効く。
+
+# ビルド成果物・依存
+.next
+node_modules
+public
+
+# 自動生成（Prisma クライアント。手で整形しない）
+src/generated
+
+# テスト成果物
+playwright-report
+test-results
+blob-report
+tests/e2e/screenshot.spec.ts-snapshots
+
+# ロックファイル・自動生成の型定義
+pnpm-lock.yaml
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# 環境変数
+.env
+.env.*

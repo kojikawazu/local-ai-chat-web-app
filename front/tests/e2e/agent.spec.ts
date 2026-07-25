@@ -45,7 +45,9 @@ test.describe('エージェント機能', () => {
   });
 
   test.describe('正常系', () => {
-    test('設定モーダルにAgent Toolsセクションが表示される', async ({ page }) => {
+    test('設定モーダルにAgent Toolsセクションが表示される', async ({
+      page,
+    }) => {
       await page.goto('/');
       await openSettings(page);
 
@@ -237,7 +239,11 @@ test.describe('エージェント機能', () => {
       const res = await request.get('http://localhost:3000/api/tools');
       const data = await res.json();
 
-      for (const tool of data.tools as { name: string; description: string; enabled: boolean }[]) {
+      for (const tool of data.tools as {
+        name: string;
+        description: string;
+        enabled: boolean;
+      }[]) {
         expect(typeof tool.name).toBe('string');
         expect(typeof tool.description).toBe('string');
         expect(typeof tool.enabled).toBe('boolean');

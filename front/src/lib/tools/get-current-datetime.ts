@@ -63,7 +63,9 @@ function getUtcOffset(date: Date, timezone: string): string {
   try {
     // UTC と指定タイムゾーンの差分を計算
     const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+    const tzDate = new Date(
+      date.toLocaleString('en-US', { timeZone: timezone })
+    );
     const diffMs = tzDate.getTime() - utcDate.getTime();
     const diffMin = Math.round(diffMs / 60000);
 

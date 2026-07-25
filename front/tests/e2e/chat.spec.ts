@@ -126,9 +126,7 @@ test.describe('チャット機能', () => {
       await fillTextarea(page, 'あ'.repeat(10000));
 
       // エラーメッセージが表示されない
-      await expect(
-        page.getByText('文字以内で入力してください')
-      ).toHaveCount(0);
+      await expect(page.getByText('文字以内で入力してください')).toHaveCount(0);
 
       // 送信ボタンが有効
       const sendButton = page.locator('button[type="submit"]');
@@ -161,9 +159,7 @@ test.describe('チャット機能', () => {
       await fillTextarea(page, 'あ'.repeat(10001));
 
       // エラーメッセージが表示される
-      await expect(
-        page.getByText('文字以内で入力してください')
-      ).toBeVisible();
+      await expect(page.getByText('文字以内で入力してください')).toBeVisible();
 
       // 送信ボタンが無効
       const sendButton = page.locator('button[type="submit"]');

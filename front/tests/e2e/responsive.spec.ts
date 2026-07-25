@@ -27,9 +27,7 @@ test.describe('レスポンシブ・画面表示', () => {
       await expect(page.locator('header')).toBeVisible();
 
       // チャットエリアが存在する
-      await expect(
-        page.locator('[class*="bg-nord-0"]').first()
-      ).toBeVisible();
+      await expect(page.locator('[class*="bg-nord-0"]').first()).toBeVisible();
 
       // フッターが表示される
       await expect(page.locator('footer')).toBeVisible();

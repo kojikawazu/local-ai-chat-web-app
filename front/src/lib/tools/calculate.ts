@@ -24,7 +24,8 @@ export const calculateTool: Tool = {
     },
   },
   execute: async (args) => {
-    const expression = typeof args.expression === 'string' ? args.expression : '';
+    const expression =
+      typeof args.expression === 'string' ? args.expression : '';
 
     if (!expression.trim()) {
       return 'エラー: 計算式が空です';
@@ -41,8 +42,9 @@ export const calculateTool: Tool = {
         return 'エラー: 計算結果が不正です（ゼロ除算等）';
       }
       // 浮動小数点の誤差を考慮して適切な精度で返す
-      const formatted =
-        Number.isInteger(result) ? String(result) : String(parseFloat(result.toPrecision(12)));
+      const formatted = Number.isInteger(result)
+        ? String(result)
+        : String(parseFloat(result.toPrecision(12)));
       return `${expression.trim()} = ${formatted}`;
     } catch (e) {
       const msg = e instanceof Error ? e.message : '不明なエラー';
