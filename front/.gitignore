@@ -42,3 +42,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# playwright（テスト実行時の生成物）
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache

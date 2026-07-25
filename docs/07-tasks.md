@@ -684,7 +684,9 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `verbatimModuleSyntax: true` を有効化（新規型エラーなしを確認）
 - [x] `any` キャストを `Prisma.InputJsonObject` の型ガードで解消し、残るキャストに根拠コメントを付与 — #74
   - [x] `src/` から `any` と `eslint-disable no-explicit-any` が 0 件になったことを確認
-- [ ] `ThemeId` / `THEMES` を `types/theme.ts` へ昇格し `as const` + 型導出に揃える — #75
+- [x] `ThemeId` / `THEMES` を `types/theme.ts` へ昇格し `as const` + 型導出に揃える — #75
+  - [x] `as ThemeId` アサーションを型ガード `isThemeId` で解消
+  - [x] テーマ切替の E2E（`theme.spec.ts`）を新規追加（従来カバレッジ 0 件）
 
 ### 23-3: テスト
 

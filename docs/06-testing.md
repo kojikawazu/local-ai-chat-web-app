@@ -308,6 +308,7 @@ front/tests/
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）
     ├── responsive.spec.ts        # レスポンシブ・レイアウトテスト
+    ├── theme.spec.ts             # テーマ切替・localStorage永続化テスト
     ├── agent.spec.ts             # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
