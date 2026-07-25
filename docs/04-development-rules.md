@@ -75,16 +75,14 @@ front/tests/
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
-    ├── screenshot.spec.ts         # スクリーンショットテスト
-    ├── debug-console.spec.ts      # デバッグ用テスト
-    └── debug-input.spec.ts        # 入力方式デバッグ用テスト
+    └── screenshot.spec.ts         # スクリーンショットテスト
 ```
 
 ### CI（GitHub Actions）
 
 - `push` to main / `pull_request` to main で自動実行
 - CI環境: Ubuntu + PostgreSQL (service container) + Ollama (`qwen2.5:0.5b`)
-- CIではストリーミング完了テスト・スクリーンショットテスト・デバッグテストをスキップ
+- CIではストリーミング完了テスト・スクリーンショットテストをスキップ
 - 詳細は `docs/08-ci-e2e-bug-report.md` を参照
 
 ## コード品質

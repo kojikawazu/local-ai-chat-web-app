@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 
 /**
@@ -12,8 +13,12 @@ import { test, expect } from '@playwright/test';
  */
 const STORAGE_KEY = 'nordic-chat-theme';
 
-/** 設定モーダルを開く。サイドバーの設定ボタンが唯一の入口。 */
-async function openSettings(page: import('@playwright/test').Page) {
+/**
+ * 設定モーダルを開く。サイドバーの設定ボタンが唯一の入口。
+ *
+ * @param page - 操作対象のページ
+ */
+async function openSettings(page: Page) {
   await page.getByLabel('設定を開く').click();
   await expect(page.getByRole('dialog', { name: '設定' })).toBeVisible();
 }

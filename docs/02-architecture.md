@@ -164,8 +164,6 @@ front/tests/
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
-    ├── debug-console.spec.ts      # デバッグ用テスト（CIスキップ）
-    ├── debug-input.spec.ts        # 入力方式デバッグ用テスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
 
