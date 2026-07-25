@@ -166,7 +166,7 @@
 {
   role: 'user' | 'assistant';
   content: string;                          // 最大10,000文字
-  metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意）
+  metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意。JSONオブジェクトのみ）
 }
 ```
 
@@ -184,7 +184,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・role/content 欠落・role 不正・content が10,000文字超・JSON不正） |
+| 400 | リクエスト不正（無効なUUID・role/content 欠落・role 不正・content が10,000文字超・metadata が非オブジェクト・JSON不正） |
 | 404 | 会話が見つからない |
 | 500 | サーバー内部エラー |
 

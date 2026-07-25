@@ -682,7 +682,8 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 - [x] 型のみの import を `import type` に統一し ESLint で機械強制 — #73
   - [x] `verbatimModuleSyntax: true` を有効化（新規型エラーなしを確認）
-- [ ] `any` キャストを `Prisma.InputJsonValue` で解消し、残るキャストに根拠コメントを付与 — #74
+- [x] `any` キャストを `Prisma.InputJsonObject` の型ガードで解消し、残るキャストに根拠コメントを付与 — #74
+  - [x] `src/` から `any` と `eslint-disable no-explicit-any` が 0 件になったことを確認
 - [ ] `ThemeId` / `THEMES` を `types/theme.ts` へ昇格し `as const` + 型導出に揃える — #75
 
 ### 23-3: テスト
