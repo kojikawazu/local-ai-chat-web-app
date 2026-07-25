@@ -703,6 +703,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] C-5: `CLAUDE.md` の features 構成に constants/・types/ を反映
   - [x] A-7: `typescript.md` の漸進適用条項の対象を既存 `interface` 全体に拡大
 
+### 23-5: 追加検出分
+- [x] `generate-title` の独自デフォルトモデルを解消し、Ollama 接続を `lib/ollama.ts` に集約 — #80
+  - [x] `chatOnce()`（非ストリーミング）を `ollama.ts` に追加し route の直接 fetch を廃止
+  - [x] `features/*/types/` の `.gitkeep` のみの空ディレクトリを削除
+
 ## フェーズ24: CI 発火条件の最適化
 
 - [x] `paths-ignore` を 3 ワークフローに追加し、ドキュメントのみの変更で CI を発火させないようにした

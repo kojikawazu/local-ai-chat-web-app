@@ -112,3 +112,37 @@ export async function streamChat(
 
   return response;
 }
+
+/**
+ * Ollama `/api/chat` に非ストリーミング（`stream: false`）でリクエストし、応答本文を返す。
+ *
+ * タイトル自動生成のように「1 往復で短い文字列を得たい」用途で使う。ストリーミングが
+ * 必要な場合は {@link streamChat} を使う。
+ *
+ * @param messages - 会話履歴（system / user / assistant を時系列で並べる）
+ * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
+ * @returns アシスタント応答の本文。応答が空・欠落している場合は空文字
+ * @throws {Error} Ollama API が非 2xx を返した場合
+ */
+export async function chatOnce(
+  messages: OllamaChatMessage[],
+  model?: string
+): Promise<string> {
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: model || OLLAMA_DEFAULT_MODEL,
+      messages,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Ollama API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.message?.content ?? '';
+}

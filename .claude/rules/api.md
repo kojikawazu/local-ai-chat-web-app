@@ -9,6 +9,7 @@ globs: "front/src/app/api/**"
 
 - Next.js App Router の Route Handlers を API 層として使用する。
 - フロントエンドから Ollama / Prisma への直接通信は禁止。Route Handlers を経由する。
+- **Route Handler から Ollama へ直接 `fetch` しない。** 接続先・モデル解決は `lib/ollama.ts` に集約し、`streamChat()`（ストリーミング）・`chatOnce()`（非ストリーミング）・`listModels()`・`getDefaultModel()` を経由する。`process.env.OLLAMA_*` を読むのも同ファイルのみとする（route ごとに既定値を持つと、チャット本体とタイトル生成で別モデルを呼ぶような不整合が起きる）。
 
 ## ディレクトリ構成
 
