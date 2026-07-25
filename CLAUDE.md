@@ -45,7 +45,9 @@ pnpm install         # 依存パッケージインストール
 pnpm dev             # 開発サーバー起動
 pnpm build           # プロダクションビルド
 pnpm lint            # ESLintチェック
-pnpm format          # Prettierフォーマット
+pnpm format          # Prettierフォーマット（front 配下全体。.prettierignore で除外制御）
+pnpm format:check    # Prettier 差分チェック（書き換えずに検出。CIで実行）
+pnpm typecheck       # tsc --noEmit による型チェック
 pnpm test:unit       # Vitest ユニットテスト全実行
 pnpm test:integration # Vitest+Testcontainers インテグレーションテスト（Docker必須）
 pnpm test:e2e        # Playwright E2Eテスト全実行
@@ -135,7 +137,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 ### プロジェクト全体
 
-- **`.github/workflows/`** — GitHub Actions CI定義（UT / IT / E2E の3ジョブ。ドキュメントのみの変更では発火しない）
+- **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
 - **`docs/`** — プロジェクトドキュメント
 - **`manuals/`** — セットアップガイド等のマニュアル
@@ -170,7 +172,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **IT**: route handler をブラウザ抜きで実PostgreSQL（Testcontainers）相手に検証。実依存（DB）は使い、mockは真の外部（Ollama/Web）のみ。配置: `front/tests/integration/`
 - **E2Eテスト必須**（Playwright）。実際のOllama + PostgreSQLに接続。配置: `front/tests/e2e/`
 - **3分類必須**: UT・IT・E2Eとも正常系・準正常系・異常系に分割。
-- **CI**: push/PR to main で自動実行。UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。CIモデル: `qwen2.5:0.5b`
+- **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。CIモデル: `qwen2.5:0.5b`
 - **CI 発火除外**: ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 3 ジョブとも発火しない（`paths-ignore`）
 - 詳細は `.claude/rules/testing.md`・`docs/06-testing.md` を参照
 

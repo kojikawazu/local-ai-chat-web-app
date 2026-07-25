@@ -90,10 +90,20 @@ pnpm dev             # 開発サーバー起動
 pnpm build           # プロダクションビルド
 pnpm lint            # ESLintチェック
 pnpm format          # Prettierフォーマット
+pnpm format:check    # Prettier 差分チェック（書き換えない）
+pnpm typecheck       # 型チェック（tsc --noEmit）
 pnpm test:unit       # ユニットテスト実行（Vitest）
 pnpm test:integration # インテグレーションテスト（Vitest + Testcontainers・Docker必須）
 pnpm test:e2e        # E2Eテスト実行（Playwright）
 pnpm prisma studio   # DBブラウザ起動
+```
+
+### 整形コミットを git blame から除外する（任意・推奨）
+
+Prettier による一括整形コミットが `git blame` を占有しないよう、以下を 1 回実行してください（リポジトリ設定には含まれないため各自で設定します）。
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 ### Makefile ショートカット（任意）
@@ -140,8 +150,9 @@ make db-migrate      # マイグレーション実行
 
 ## CI
 
-GitHub Actions で自動実行（push / PR to main）。UT と E2E は独立ジョブ。
+GitHub Actions で自動実行（push / PR to main）。各ジョブは独立。**ドキュメントのみの変更（`docs/`・`*.md`・`.claude/` 等）では発火しません。**
 
+- **Quality Checks**（`quality.yml`）: `pnpm lint` / `pnpm format:check` / `pnpm typecheck`。Ollama / DB 不要。
 - **Unit Tests**（`unit-test.yml`）: Vitest。Ollama / DB 不要で数十秒。
 - **Integration Tests**（`integration-test.yml`）: Vitest + Testcontainers。使い捨て PostgreSQL を起動し route handler を実 DB で検証（Ollama 不要）。
 - **E2E Tests**（`e2e-test.yml`）: Ubuntu + PostgreSQL + Ollama (`qwen2.5:0.5b`) + Chromium。

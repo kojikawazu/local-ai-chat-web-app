@@ -88,7 +88,9 @@ cd front
 pnpm dev             # start dev server
 pnpm build           # production build
 pnpm lint            # ESLint
-pnpm format          # Prettier
+pnpm format          # Prettier (write)
+pnpm format:check    # Prettier (check only)
+pnpm typecheck       # Type check (tsc --noEmit)
 pnpm test:unit       # run unit tests (Vitest)
 pnpm test:integration # run integration tests (Vitest + Testcontainers, Docker required)
 pnpm test:e2e        # run E2E tests (Playwright)

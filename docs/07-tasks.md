@@ -713,3 +713,13 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 - [x] `paths-ignore` を 3 ワークフローに追加し、ドキュメントのみの変更で CI を発火させないようにした
 - [x] `.claude/rules/testing.md` に「CI の発火条件」節を追加（branch protection との相互作用の注意も記載）
 - [x] `CLAUDE.md`・`docs/04`・`docs/06` に発火除外を明記
+
+## フェーズ25: Prettier 整形と品質チェックの CI 機械強制
+
+- [x] `pnpm format` の対象を `front/` 配下全体に拡大し、`.prettierignore` で除外を管理
+- [x] 未整形 41 ファイルを `prettier --write .` で一括整形（整形のみの独立コミット）
+- [x] `format:check` / `typecheck` スクリプトを追加
+- [x] `quality` ワークフローを新設し `lint` / `format:check` / `typecheck` を CI で機械強制
+  - CI に lint が無く、規約違反・型エラーを含む変更がマージされ得た状態を解消
+- [x] `.git-blame-ignore-revs` に整形コミットを登録し、README に設定手順を記載
+- [x] `CLAUDE.md` / `README.md` / `README.en.md` / `docs/04` / `docs/06` / `coding-standards.md` を同期

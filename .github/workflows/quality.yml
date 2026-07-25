@@ -1,0 +1,72 @@
+name: Quality Checks
+
+# ドキュメントのみの変更では発火しない（.claude/rules/testing.md「CI の発火条件」参照）。
+# paths-ignore は「変更ファイルが全て該当した場合のみスキップ」なので、コードと
+# ドキュメントが混在する PR では通常どおり実行される。
+#
+# 注意: main に branch protection を設定して本ワークフローを required status check
+# に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。
+# その際は paths-ignore を外すか、同名 job を success させる別ワークフローを用意する。
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'manuals/**'
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'manuals/**'
+      - '**.md'
+      - '.claude/**'
+      - 'LICENSE'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 他ワークフローと同じく Node 20 / lockfileVersion 9.0 と整合する pnpm 10 に固定。
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: front/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: front
+        run: pnpm install
+
+      # tsc は @/generated/prisma を解決するため、型チェック前に生成が必要。
+      # DB 接続は行わないので PostgreSQL / Ollama は不要。
+      - name: Generate Prisma client
+        working-directory: front
+        run: pnpm prisma generate
+
+      # 以降の 3 ステップは互いに独立なので、1 つ落ちても残りの結果が見えるよう
+      # continue-on-error は使わず順に実行する（最初の失敗でジョブが落ちる）。
+      - name: Lint (ESLint)
+        working-directory: front
+        run: pnpm lint
+
+      - name: Format check (Prettier)
+        working-directory: front
+        run: pnpm format:check
+
+      - name: Type check (tsc)
+        working-directory: front
+        run: pnpm typecheck
