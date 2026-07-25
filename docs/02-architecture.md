@@ -159,6 +159,7 @@ front/tests/
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
     ├── responsive.spec.ts         # レスポンシブテスト
+    ├── theme.spec.ts              # テーマ切替・localStorage永続化テスト
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）

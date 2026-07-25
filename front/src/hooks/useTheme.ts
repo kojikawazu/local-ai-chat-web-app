@@ -1,46 +1,48 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-
-/**
- * 選択可能なテーマの識別子。CSS 変数の切り替えキーとして使う。
- */
-export type ThemeId = 'nordic' | 'aurora' | 'ocean';
-
-/**
- * 設定 UI に表示する 1 テーマの定義。
- */
-export interface ThemeOption {
-  /** テーマ識別子 */
-  id: ThemeId;
-  /** 表示名 */
-  name: string;
-  /** テーマの説明文 */
-  description: string;
-}
-
-/**
- * 選択可能な全テーマの定義一覧。設定モーダルの選択肢として使う。
- */
-export const THEMES: ThemeOption[] = [
-  { id: 'nordic', name: 'Nordic Frost', description: '北欧ブルーのデフォルトテーマ' },
-  { id: 'aurora', name: 'Aurora Borealis', description: '紫とシアンのオーロラテーマ' },
-  { id: 'ocean', name: 'Midnight Ocean', description: '深海ブルーのダークテーマ' },
-];
+import type { ThemeId } from '@/types/theme';
+import { THEMES } from '@/types/theme';
 
 const STORAGE_KEY = 'nordic-chat-theme';
 
-function readStoredTheme(): ThemeId {
-  if (typeof window === 'undefined') return 'nordic';
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved && THEMES.some((t) => t.id === saved)) {
-    return saved as ThemeId;
-  }
-  return 'nordic';
+/** 未保存・無効値のときに使う既定テーマ。`data-theme` 属性を付けない状態に対応する。 */
+const DEFAULT_THEME_ID: ThemeId = 'nordic';
+
+/**
+ * 文字列が有効なテーマ識別子かを判定する。
+ *
+ * localStorage の値は書き換えられ得る外部入力なので、`as ThemeId` で通さず
+ * {@link THEMES} の定義と突き合わせて絞り込む。
+ *
+ * @param value - 検証対象の文字列（localStorage 由来を想定）
+ * @returns THEMES に存在する識別子なら true
+ */
+function isThemeId(value: string): value is ThemeId {
+  return THEMES.some((t) => t.id === value);
 }
 
+/**
+ * localStorage に保存されたテーマを読み出す。
+ *
+ * @returns 保存済みの有効なテーマ識別子。SSR 時・未保存・無効値なら既定テーマ
+ */
+function readStoredTheme(): ThemeId {
+  if (typeof window === 'undefined') return DEFAULT_THEME_ID;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved !== null && isThemeId(saved)) {
+    return saved;
+  }
+  return DEFAULT_THEME_ID;
+}
+
+/**
+ * テーマを `data-theme` 属性として `<html>` に反映する。
+ *
+ * @param themeId - 反映するテーマ識別子。既定テーマは属性を外して表現する
+ */
 function applyThemeToDOM(themeId: ThemeId) {
-  if (themeId === 'nordic') {
+  if (themeId === DEFAULT_THEME_ID) {
     document.documentElement.removeAttribute('data-theme');
   } else {
     document.documentElement.setAttribute('data-theme', themeId);
@@ -50,7 +52,7 @@ function applyThemeToDOM(themeId: ThemeId) {
 /**
  * 現在のテーマを管理し、変更を DOM と localStorage に反映するフック。
  *
- * 初期値は localStorage の保存値（無効・未保存なら `nordic`）から復元する。
+ * 初期値は localStorage の保存値（無効・未保存なら既定テーマ）から復元する。
  *
  * @returns テーマ状態と操作関数。`theme` は現在のテーマ ID、`setTheme` は
  *   テーマを切り替えて localStorage に永続化する関数

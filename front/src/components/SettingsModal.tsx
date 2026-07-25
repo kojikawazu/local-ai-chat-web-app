@@ -1,7 +1,8 @@
 'use client';
 
 import { X, Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
-import { type ThemeId, THEMES } from '@/hooks/useTheme';
+import type { ThemeId } from '@/types/theme';
+import { THEMES } from '@/types/theme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent-prompts';
 
 /**
