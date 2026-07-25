@@ -20,7 +20,9 @@ describe('POST /api/chat（通常チャット）', () => {
     it('Ollama のストリーミング応答を中継して 200 とテキストを返す', async () => {
       stubFetch(() => ollamaStreamResponse(['こん', 'にちは']));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false }));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('こんにちは');
     });
@@ -35,7 +37,7 @@ describe('POST /api/chat（通常チャット）', () => {
           message: '次は？',
           conversationHistory: [{ role: 'user', content: '前の発言' }],
           enableTools: false,
-        }),
+        })
       );
       expect(res.status).toBe(200);
 
@@ -55,7 +57,9 @@ describe('POST /api/chat（通常チャット）', () => {
         throw new Error('ECONNREFUSED');
       });
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false }));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
       expect(res.status).toBe(502);
       expect((await res.json()).error).toContain('Ollama');
     });
@@ -63,14 +67,18 @@ describe('POST /api/chat（通常チャット）', () => {
     it('Ollama が非 2xx を返すと 502 を返す', async () => {
       stubFetch(() => new Response('boom', { status: 500 }));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false }));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
       expect(res.status).toBe(502);
     });
 
     it('空メッセージは 400。Ollama へは到達しない', async () => {
       const fetchMock = stubFetch(() => ollamaStreamResponse(['x']));
 
-      const res = await POST(jsonRequest(URL, 'POST', { message: '   ', enableTools: false }));
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: '   ', enableTools: false })
+      );
       expect(res.status).toBe(400);
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -79,7 +87,10 @@ describe('POST /api/chat（通常チャット）', () => {
       stubFetch(() => ollamaStreamResponse(['x']));
 
       const res = await POST(
-        jsonRequest(URL, 'POST', { message: 'あ'.repeat(10001), enableTools: false }),
+        jsonRequest(URL, 'POST', {
+          message: 'あ'.repeat(10001),
+          enableTools: false,
+        })
       );
       expect(res.status).toBe(400);
     });

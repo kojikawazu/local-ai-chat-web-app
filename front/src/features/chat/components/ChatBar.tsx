@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+} from 'react';
 import { Send } from 'lucide-react';
 import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 

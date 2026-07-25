@@ -6,7 +6,9 @@ import { useConversations } from '@/features/sidebar/hooks/useConversations';
 import Sidebar from '@/features/sidebar/components/Sidebar';
 import Header from '@/features/chat/components/Header';
 import ChatWindow from '@/features/chat/components/ChatWindow';
-import ChatBar, { type ChatBarHandle } from '@/features/chat/components/ChatBar';
+import ChatBar, {
+  type ChatBarHandle,
+} from '@/features/chat/components/ChatBar';
 import Footer from '@/features/chat/components/Footer';
 import SettingsModal from '@/components/SettingsModal';
 import { useTheme } from '@/hooks/useTheme';
@@ -25,7 +27,8 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [enableTools, setEnableTools] = useState(false);
-  const [agentPromptPresetId, setAgentPromptPresetId] = useState(DEFAULT_PRESET_ID);
+  const [agentPromptPresetId, setAgentPromptPresetId] =
+    useState(DEFAULT_PRESET_ID);
   const { theme, setTheme } = useTheme();
 
   // localStorage に永続化した UI 設定をマウント後に読み込む。
@@ -99,7 +102,9 @@ export default function Home() {
     conversationId: currentConversationId,
     model: selectedModel,
     enableTools,
-    systemPrompt: enableTools ? (getPresetById(agentPromptPresetId)?.prompt ?? '') : '',
+    systemPrompt: enableTools
+      ? (getPresetById(agentPromptPresetId)?.prompt ?? '')
+      : '',
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
   });
@@ -152,13 +157,21 @@ export default function Home() {
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
         />
-        <ChatWindow messages={messages} activeToolCall={activeToolCall} isLoading={isLoading} />
+        <ChatWindow
+          messages={messages}
+          activeToolCall={activeToolCall}
+          isLoading={isLoading}
+        />
         {error && (
           <div className="px-4 md:px-8 py-2 bg-nord-aurora-red/20 text-nord-aurora-red text-sm text-center">
             {error}
           </div>
         )}
-        <ChatBar ref={chatBarRef} onSendMessage={sendMessage} disabled={isLoading} />
+        <ChatBar
+          ref={chatBarRef}
+          onSendMessage={sendMessage}
+          disabled={isLoading}
+        />
         <Footer />
       </main>
 

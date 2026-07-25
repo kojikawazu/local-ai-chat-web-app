@@ -93,9 +93,13 @@ front/tests/
 - **TypeScript 固有規約**（type/interface の使い分け・型/定数の配置・`any` 禁止・`enum` 回避・`import type`・`as`/`!` 抑制）は `.claude/rules/typescript.md` を参照
 - **`import type` を `@typescript-eslint/consistent-type-imports` で機械強制**する（`fixStyle: separate-type-imports`）。`tsconfig.json` の `verbatimModuleSyntax: true` と併せて、型 import が実行時に残らないことを保証する
 - 保存時の自動フォーマットを推奨
+- **CI の `quality` ジョブで `lint` / `format:check` / `typecheck` を機械強制**する（ローカル実行に依存しない）
+- **整形コミットは機能変更と分離**し、`.git-blame-ignore-revs` に登録する
 - リント・フォーマットコマンド:
   - `pnpm lint` — ESLintチェック
-  - `pnpm format` — Prettierフォーマット
+  - `pnpm format` — Prettierフォーマット（`front/` 配下全体）
+  - `pnpm format:check` — Prettier 差分チェック（書き換えない）
+  - `pnpm typecheck` — `tsc --noEmit` による型チェック
 
 ## 技術規約
 

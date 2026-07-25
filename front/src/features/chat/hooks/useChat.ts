@@ -125,7 +125,9 @@ export function useChat({
           activeConversationId = conv.id;
           onConversationCreated?.(conv.id);
         } catch (err) {
-          setError(err instanceof Error ? err.message : '会話の作成に失敗しました');
+          setError(
+            err instanceof Error ? err.message : '会話の作成に失敗しました'
+          );
           setIsLoading(false);
           return;
         }
@@ -148,7 +150,9 @@ export function useChat({
 
       setMessages((prev) => [...prev, userMessage, aiMessage]);
 
-      await saveMessage(activeConversationId, 'user', content).catch(console.error);
+      await saveMessage(activeConversationId, 'user', content).catch(
+        console.error
+      );
 
       const conversationHistory = messages.map((msg) => ({
         role: msg.role as 'user' | 'assistant',
@@ -215,7 +219,10 @@ export function useChat({
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
-                        ? { ...msg, metadata: { ...msg.metadata, thinkingText } }
+                        ? {
+                            ...msg,
+                            metadata: { ...msg.metadata, thinkingText },
+                          }
                         : msg
                     )
                   );
@@ -229,7 +236,10 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_start') {
-                  setActiveToolCall({ name: event.name, arguments: event.arguments });
+                  setActiveToolCall({
+                    name: event.name,
+                    arguments: event.arguments,
+                  });
                   // arguments を pending キューに積む
                   const queue = pendingToolArgs.get(event.name) ?? [];
                   queue.push(event.arguments);
@@ -280,7 +290,9 @@ export function useChat({
                     prev.map((msg) => {
                       if (msg.id !== aiMessageId) return msg;
                       const toolCalls = [...(msg.metadata?.toolCalls ?? [])];
-                      const idx = toolCalls.map((t) => t.name).lastIndexOf(event.name);
+                      const idx = toolCalls
+                        .map((t) => t.name)
+                        .lastIndexOf(event.name);
                       if (idx >= 0) {
                         toolCalls[idx] = {
                           ...toolCalls[idx],
@@ -288,7 +300,10 @@ export function useChat({
                           isError: event.isError,
                         };
                       }
-                      return { ...msg, metadata: { ...msg.metadata, toolCalls } };
+                      return {
+                        ...msg,
+                        metadata: { ...msg.metadata, toolCalls },
+                      };
                     })
                   );
                 } else if (event.type === 'done') {
@@ -299,10 +314,16 @@ export function useChat({
                       return {
                         ...msg,
                         metadata: {
-                          ...(event.metadata?.toolCalls && { toolCalls: event.metadata.toolCalls }),
+                          ...(event.metadata?.toolCalls && {
+                            toolCalls: event.metadata.toolCalls,
+                          }),
                           ...(thinkingText && { thinkingText }),
-                          ...(event.metadata?.agentRounds !== undefined && { agentRounds: event.metadata.agentRounds }),
-                          ...(event.metadata?.agentDurationMs !== undefined && { agentDurationMs: event.metadata.agentDurationMs }),
+                          ...(event.metadata?.agentRounds !== undefined && {
+                            agentRounds: event.metadata.agentRounds,
+                          }),
+                          ...(event.metadata?.agentDurationMs !== undefined && {
+                            agentDurationMs: event.metadata.agentDurationMs,
+                          }),
                         },
                       };
                     })
@@ -361,7 +382,9 @@ export function useChat({
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
+        setError(
+          err instanceof Error ? err.message : '不明なエラーが発生しました'
+        );
         setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
       } finally {
         setIsLoading(false);
@@ -369,7 +392,15 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [conversationId, model, enableTools, systemPrompt, messages, onConversationCreated, onTitleGenerated]
+    [
+      conversationId,
+      model,
+      enableTools,
+      systemPrompt,
+      messages,
+      onConversationCreated,
+      onTitleGenerated,
+    ]
   );
 
   const clearMessages = useCallback(() => {

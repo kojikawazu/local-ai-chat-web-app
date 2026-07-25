@@ -18,7 +18,8 @@ function parseSearchResults(html: string): SearchResult[] {
   const results: SearchResult[] = [];
 
   // result__a クラスのリンクからタイトルと URL を抽出
-  const linkPattern = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  const linkPattern =
+    /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
   const snippetPattern = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
 
   const links: { url: string; title: string }[] = [];
@@ -33,7 +34,10 @@ function parseSearchResults(html: string): SearchResult[] {
   }
 
   const snippets: string[] = [];
-  while ((m = snippetPattern.exec(html)) !== null && snippets.length < MAX_RESULTS) {
+  while (
+    (m = snippetPattern.exec(html)) !== null &&
+    snippets.length < MAX_RESULTS
+  ) {
     snippets.push(m[1].replace(/<[^>]+>/g, '').trim());
   }
 
@@ -63,7 +67,9 @@ function formatResults(query: string, results: SearchResult[]): string {
   }
 
   const joined = lines.join('\n');
-  return joined.length > MAX_CHARS ? joined.slice(0, MAX_CHARS) + '…（省略）' : joined;
+  return joined.length > MAX_CHARS
+    ? joined.slice(0, MAX_CHARS) + '…（省略）'
+    : joined;
 }
 
 async function fetchWithRetry(query: string): Promise<string> {
@@ -81,7 +87,11 @@ async function fetchWithRetry(query: string): Promise<string> {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
       try {
-        res = await fetch(url, { headers, redirect: 'follow', signal: controller.signal });
+        res = await fetch(url, {
+          headers,
+          redirect: 'follow',
+          signal: controller.signal,
+        });
       } finally {
         clearTimeout(timeoutId);
       }
@@ -91,7 +101,9 @@ async function fetchWithRetry(query: string): Promise<string> {
         await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
-      throw new Error(`Web検索に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      throw new Error(
+        `Web検索に失敗しました: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
 
     if (res.status === 429) {
@@ -100,7 +112,9 @@ async function fetchWithRetry(query: string): Promise<string> {
         await new Promise((r) => setTimeout(r, (attempt + 1) * 2000));
         continue;
       }
-      throw new Error('Web検索がレートリミットに達しました。しばらく待ってから再試行してください。');
+      throw new Error(
+        'Web検索がレートリミットに達しました。しばらく待ってから再試行してください。'
+      );
     }
 
     if (res.status >= 500) {

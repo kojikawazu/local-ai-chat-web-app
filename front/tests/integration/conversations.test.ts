@@ -27,7 +27,9 @@ describe('POST /api/conversations（作成）', () => {
       expect(body.title).toBe('テスト会話');
       expect(body.id).toMatch(/^[0-9a-f-]{36}$/i);
       // DB に実際に永続化されている
-      const stored = await prisma.conversation.findUnique({ where: { id: body.id } });
+      const stored = await prisma.conversation.findUnique({
+        where: { id: body.id },
+      });
       expect(stored?.title).toBe('テスト会話');
     });
 
@@ -66,7 +68,7 @@ describe('POST /api/conversations（作成）', () => {
   describe('異常系', () => {
     it('title が上限文字数を超えると 400（DB には保存されない）', async () => {
       const res = await POST(
-        jsonRequest(URL, 'POST', { title: 'あ'.repeat(MAX_TITLE_LENGTH + 1) }),
+        jsonRequest(URL, 'POST', { title: 'あ'.repeat(MAX_TITLE_LENGTH + 1) })
       );
       expect(res.status).toBe(400);
       expect(await prisma.conversation.count()).toBe(0);
@@ -77,8 +79,12 @@ describe('POST /api/conversations（作成）', () => {
 describe('GET /api/conversations（一覧）', () => {
   describe('正常系', () => {
     it('作成した会話を更新日時の降順（最新が先頭）で返す', async () => {
-      const first = await prisma.conversation.create({ data: { title: '古い' } });
-      const second = await prisma.conversation.create({ data: { title: '新しい' } });
+      const first = await prisma.conversation.create({
+        data: { title: '古い' },
+      });
+      const second = await prisma.conversation.create({
+        data: { title: '新しい' },
+      });
       // second を更新して updatedAt を確実に後にする
       await prisma.conversation.update({
         where: { id: second.id },
@@ -92,9 +98,12 @@ describe('GET /api/conversations（一覧）', () => {
       expect(conversations[0].id).toBe(second.id);
       expect(conversations[1].id).toBe(first.id);
       // 一覧は id/title/createdAt/updatedAt のみ返す
-      expect(Object.keys(conversations[0]).sort()).toEqual(
-        ['createdAt', 'id', 'title', 'updatedAt'],
-      );
+      expect(Object.keys(conversations[0]).sort()).toEqual([
+        'createdAt',
+        'id',
+        'title',
+        'updatedAt',
+      ]);
     });
   });
 

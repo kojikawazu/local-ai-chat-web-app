@@ -21,9 +21,7 @@ const components: Components = {
   code({ children, className }) {
     const isBlock = className?.startsWith('language-');
     if (isBlock) {
-      return (
-        <code className={`${className} text-nord-6`}>{children}</code>
-      );
+      return <code className={`${className} text-nord-6`}>{children}</code>;
     }
     return (
       <code className="px-1.5 py-0.5 rounded bg-nord-0 border border-nord-3 text-nord-frost-1 text-sm">
@@ -44,13 +42,19 @@ const components: Components = {
     return <li>{children}</li>;
   },
   h1({ children }) {
-    return <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0">{children}</h1>;
+    return (
+      <h1 className="text-xl font-bold mb-3 mt-4 first:mt-0">{children}</h1>
+    );
   },
   h2({ children }) {
-    return <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>;
+    return (
+      <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>
+    );
   },
   h3({ children }) {
-    return <h3 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h3>;
+    return (
+      <h3 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h3>
+    );
   },
   blockquote({ children }) {
     return (
@@ -76,9 +80,7 @@ const components: Components = {
     );
   },
   td({ children }) {
-    return (
-      <td className="border border-nord-3 px-3 py-2">{children}</td>
-    );
+    return <td className="border border-nord-3 px-3 py-2">{children}</td>;
   },
   a({ children, href }) {
     return (

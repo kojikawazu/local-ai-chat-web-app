@@ -22,9 +22,13 @@ export async function resetDb(): Promise<void> {
 export function jsonRequest(
   url: string,
   method: string,
-  body?: unknown,
+  body?: unknown
 ): NextRequest {
-  const init: { method: string; headers: Record<string, string>; body?: string } = {
+  const init: {
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+  } = {
     method,
     headers: { 'content-type': 'application/json' },
   };

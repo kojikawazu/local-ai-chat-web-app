@@ -1,16 +1,23 @@
 import { test, expect, type Page } from '@playwright/test';
-import { cleanupAllConversations, postChatWithRetry } from './helpers/test-data';
+import {
+  cleanupAllConversations,
+  postChatWithRetry,
+} from './helpers/test-data';
 
 const BASE_URL = 'http://localhost:3000';
 
 // 設定モーダルを開くヘルパー
 async function openSettings(page: Page) {
   await page.locator('button[aria-label="設定を開く"]').click();
-  await expect(page.getByRole('dialog', { name: '設定' })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByRole('dialog', { name: '設定' })).toBeVisible({
+    timeout: 5000,
+  });
 }
 async function closeSettings(page: Page) {
   await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.getByRole('dialog', { name: '設定' })).toBeHidden({ timeout: 3000 });
+  await expect(page.getByRole('dialog', { name: '設定' })).toBeHidden({
+    timeout: 3000,
+  });
 }
 
 test.describe('エージェント Phase C — 自律エージェント化', () => {
@@ -25,10 +32,14 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
   });
 
   test.describe('正常系', () => {
-    test('設定モーダルに Agent Prompt セクションが表示される（Tools ON 時）', async ({ page }) => {
+    test('設定モーダルに Agent Prompt セクションが表示される（Tools ON 時）', async ({
+      page,
+    }) => {
       await page.goto('/');
       // localStorage で Tools ON にしてリロード
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'true'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'true')
+      );
       await page.reload();
 
       await openSettings(page);
@@ -39,12 +50,18 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
 
       await closeSettings(page);
       // クリーンアップ
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'false'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'false')
+      );
     });
 
-    test('Tools OFF のとき Agent Prompt セクションが非表示になる', async ({ page }) => {
+    test('Tools OFF のとき Agent Prompt セクションが非表示になる', async ({
+      page,
+    }) => {
       await page.goto('/');
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'false'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'false')
+      );
       await page.reload();
 
       await openSettings(page);
@@ -54,14 +71,18 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
 
     test('プリセット選択が localStorage に保存される', async ({ page }) => {
       await page.goto('/');
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'true'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'true')
+      );
       await page.reload();
 
       await openSettings(page);
       await page.getByRole('button', { name: /分析者/ }).click();
       await closeSettings(page);
 
-      const stored = await page.evaluate(() => localStorage.getItem('agent-prompt-preset-id'));
+      const stored = await page.evaluate(() =>
+        localStorage.getItem('agent-prompt-preset-id')
+      );
       expect(stored).toBe('analyst');
 
       // クリーンアップ
@@ -92,38 +113,58 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       });
     });
 
-    test('エージェントモードで応答が返りラウンド数が表示される', async ({ page }) => {
-      test.skip(!!process.env.CI, 'CI 環境ではモデルのツール呼び出しに依存するためスキップ');
+    test('エージェントモードで応答が返りラウンド数が表示される', async ({
+      page,
+    }) => {
+      test.skip(
+        !!process.env.CI,
+        'CI 環境ではモデルのツール呼び出しに依存するためスキップ'
+      );
 
       await page.goto('/');
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'true'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'true')
+      );
       await page.reload();
 
       const textarea = page.locator('textarea');
       await textarea.click();
-      await textarea.pressSequentially('今の日時を教えてください', { delay: 10 });
+      await textarea.pressSequentially('今の日時を教えてください', {
+        delay: 10,
+      });
       await page.locator('button[type="submit"]').click();
 
       // 送信完了まで待機
-      await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 120000 });
+      await expect(page.locator('button[type="submit"]')).toBeEnabled({
+        timeout: 120000,
+      });
 
       // ラウンド数表示を確認（「N ラウンド」）
       await expect(page.getByText(/ラウンド/)).toBeVisible({ timeout: 5000 });
     });
 
     test('thinking イベントで思考過程が表示される', async ({ page }) => {
-      test.skip(!!process.env.CI, 'CI 環境ではモデルのツール呼び出しに依存するためスキップ');
+      test.skip(
+        !!process.env.CI,
+        'CI 環境ではモデルのツール呼び出しに依存するためスキップ'
+      );
 
       await page.goto('/');
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'true'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'true')
+      );
       await page.reload();
 
       const textarea = page.locator('textarea');
       await textarea.click();
-      await textarea.pressSequentially('今の日時を教えてください', { delay: 10 });
+      await textarea.pressSequentially('今の日時を教えてください', {
+        delay: 10,
+      });
       await page.locator('button[type="submit"]').click();
 
-      await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 120000 });
+      await expect(page.locator('button[type="submit"]')).toBeEnabled({
+        timeout: 120000,
+      });
 
       // 思考過程が表示されていれば確認（モデルが thinking を出力しない場合は skip）
       const thinkingEl = page.getByText('思考過程').first();
@@ -138,16 +179,24 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
   });
 
   test.describe('準正常系', () => {
-    test('プリセット「なし」を選択するとシステムプロンプトなしで動作する', async ({ page }) => {
+    test('プリセット「なし」を選択するとシステムプロンプトなしで動作する', async ({
+      page,
+    }) => {
       await page.goto('/');
-      await page.evaluate(() => localStorage.setItem('agent-tools-enabled', 'true'));
+      await page.evaluate(() =>
+        localStorage.setItem('agent-tools-enabled', 'true')
+      );
       await page.reload();
 
       await openSettings(page);
-      await page.getByRole('button', { name: /なし（システムプロンプトなし）/ }).click();
+      await page
+        .getByRole('button', { name: /なし（システムプロンプトなし）/ })
+        .click();
       await closeSettings(page);
 
-      const stored = await page.evaluate(() => localStorage.getItem('agent-prompt-preset-id'));
+      const stored = await page.evaluate(() =>
+        localStorage.getItem('agent-prompt-preset-id')
+      );
       expect(stored).toBe('none');
 
       // クリーンアップ
@@ -157,7 +206,9 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       });
     });
 
-    test('systemPrompt 付きで /api/chat POST してもリクエストが受理される', async ({ request }) => {
+    test('systemPrompt 付きで /api/chat POST してもリクエストが受理される', async ({
+      request,
+    }) => {
       // Ollama の一時的な segfault（CI/CPU）を吸収するためリトライ付きで送信する
       const res = await postChatWithRetry(request, {
         message: 'こんにちは',
@@ -173,7 +224,9 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
   });
 
   test.describe('異常系', () => {
-    test('systemPrompt が極端に長くても API が正常に処理する', async ({ request }) => {
+    test('systemPrompt が極端に長くても API が正常に処理する', async ({
+      request,
+    }) => {
       // Ollama の一時的な segfault（CI/CPU）を吸収するためリトライ付きで送信する
       const res = await postChatWithRetry(request, {
         message: 'こんにちは',
@@ -186,7 +239,9 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       expect([200, 502]).toContain(res.status());
     });
 
-    test('enableTools=true かつ空メッセージは 400 を返す', async ({ request }) => {
+    test('enableTools=true かつ空メッセージは 400 を返す', async ({
+      request,
+    }) => {
       const res = await request.post(`${BASE_URL}/api/chat`, {
         data: {
           message: '',

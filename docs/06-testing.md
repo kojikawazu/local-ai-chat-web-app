@@ -40,7 +40,7 @@
   - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
 - **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入（`page.route`）を唯一の許容mock例外とする。
 - **ブラウザ**（E2E）: Chromiumのみ。
-- **CI**: GitHub Actionsで自動実行（UT・IT・E2Eは独立ジョブ）。
+- **CI**: GitHub Actionsで自動実行（品質チェック・UT・IT・E2Eは独立ジョブ）。
 
 ### ユニットテスト（Vitest）
 
@@ -352,15 +352,18 @@ front/tests/
 
 > **注意**: main に branch protection を設定してこれらを required status check に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。詳細は `.claude/rules/testing.md`「CI の発火条件」を参照。
 
-### ワークフロー構成（3ジョブ）
+### ワークフロー構成（4ジョブ）
 
 | ワークフロー | ファイル | 内容 | 依存 |
 |---|---|---|---|
+| Quality Checks | `.github/workflows/quality.yml` | `pnpm lint` → `pnpm format:check` → `pnpm typecheck` | `prisma generate` のみ（tsc が生成クライアントを解決するため）。Ollama / DB 不要 |
 | Unit Tests | `.github/workflows/unit-test.yml` | `pnpm test:unit`（Vitest） | Ollama / DB 不要・数十秒 |
 | Integration Tests | `.github/workflows/integration-test.yml` | `pnpm test:integration`（Vitest + Testcontainers） | Docker のみ（Testcontainers が PostgreSQL を起動）。Ollama 不要 |
 | E2E Tests | `.github/workflows/e2e-test.yml` | `pnpm test:e2e`（Playwright） | Ollama + PostgreSQL |
 
-UT・IT ジョブは Ollama を必要とせず、E2E と独立に高速実行される。IT は PostgreSQL サービスコンテナを使わず Testcontainers が使い捨て DB を起動するため、`prisma generate` のみ前処理として実行する。
+Quality・UT・IT ジョブは Ollama を必要とせず、E2E と独立に高速実行される。IT は PostgreSQL サービスコンテナを使わず Testcontainers が使い捨て DB を起動するため、`prisma generate` のみ前処理として実行する。
+
+**Quality ジョブが担うもの**: `.claude/rules/` で定めた機械強制可能な規約（JSDoc 規約・`import type` 強制・Prettier 整形・型健全性）の検証。**このジョブが無い間、規約違反や型エラーを含む変更が main にマージされ得た**（実際に発生した）。ローカルの `pnpm lint` 実行に依存せず CI で担保する。
 
 ### 実行環境（E2E）
 
