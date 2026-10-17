@@ -49,7 +49,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: front
-        run: pnpm install
+        # lockfile と package.json の食い違いを書き換えで解決させず、CI を落として検出する
+        run: pnpm install --frozen-lockfile
 
       # UT は純ロジック対象で Ollama / PostgreSQL / Prisma 生成を必要としないため、
       # E2E ジョブと独立に数十秒で完了する。

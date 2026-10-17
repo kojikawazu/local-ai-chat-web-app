@@ -52,7 +52,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: front
-        run: pnpm install
+        # lockfile と package.json の食い違いを書き換えで解決させず、CI を落として検出する
+        run: pnpm install --frozen-lockfile
 
       # 生成クライアント（src/generated/prisma/）は gitignore のため CI 上で生成が必須。
       - name: Generate Prisma client

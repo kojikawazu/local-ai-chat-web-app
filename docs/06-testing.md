@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-07-25
+> 最終更新: 2026-10-17
 
 ## 目次
 
@@ -378,7 +378,7 @@ Quality・UT・IT ジョブは Ollama を必要とせず、E2E と独立に高�
 ### ワークフロー概要
 
 1. ディスク容量確保（不要SDK削除）
-2. 依存パッケージインストール（`pnpm install`）
+2. 依存パッケージインストール（`pnpm install --frozen-lockfile`。lockfile と `package.json` がずれていれば失敗する）
 3. Playwrightブラウザインストール（Chromiumのみ）
 4. Ollama起動 + モデルダウンロード（`qwen2.5:0.5b`）
 5. PostgreSQL service containerで自動起動
