@@ -113,11 +113,12 @@ export async function createMessage(
   request: APIRequestContext,
   conversationId: string,
   role: 'user' | 'assistant',
-  content: string
+  content: string,
+  metadata?: Record<string, unknown>
 ): Promise<TestMessage> {
   const res = await request.post(
     `${BASE_URL}/api/conversations/${conversationId}/messages`,
-    { data: { role, content } }
+    { data: { role, content, metadata } }
   );
   return res.json();
 }

@@ -78,6 +78,7 @@ front/tests/
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
+    ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     └── screenshot.spec.ts         # スクリーンショットテスト
 ```
 
