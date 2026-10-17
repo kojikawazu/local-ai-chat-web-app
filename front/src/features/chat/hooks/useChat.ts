@@ -283,7 +283,9 @@ export function useChat({
                 const event: AgentStreamEvent = JSON.parse(line);
 
                 if (event.type === 'thinking') {
-                  thinkingText += event.content;
+                  // thinking イベントは思考のブロック（ラウンドごと）単位で届く。
+                  // 区切らずに連結すると前のブロックの文末に次の文頭がくっつくため、空行で区切る
+                  thinkingText += (thinkingText ? '\n\n' : '') + event.content;
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId

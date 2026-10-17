@@ -78,7 +78,11 @@ export async function POST(request: NextRequest) {
 
   let ollamaResponse: Response;
   try {
-    ollamaResponse = await streamChat(messages, model);
+    // 通常チャットは思考させない（#116）。思考に対応したモデルは既定で考えてから答えるため、
+    // 最初の文字が出るまで数秒、画面に何も出ない。考えさせたい場合はエージェントモードを使う
+    ollamaResponse = await streamChat(messages, model, undefined, {
+      think: false,
+    });
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';

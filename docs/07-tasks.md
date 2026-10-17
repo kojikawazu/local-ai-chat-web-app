@@ -798,6 +798,10 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] 保存失敗の表示が消えたかの判定を `role="status"` に絞り、dev オーバーレイの同じ文言に一致しないようにする（`conversation.spec.ts` 2 箇所）
   - [x] スクリーンショットの基準画像を 3 件追加し、送信時刻をマスクする。初回コミットのまま古くなっていた `initial-empty` を更新
   - [x] エージェント系 E2E が直接書いていた未取得モデル `qwen3-coder:latest` を `E2E_OLLAMA_MODEL` に置き換える
-- [ ] Ollama の `message.thinking` を思考過程として表示し、通常チャットの思考の扱いを決める — #116（#111 の前提）
+- [x] Ollama の `message.thinking` を思考過程として表示し、通常チャットの思考の扱いを決める — #116（#111 の前提）
+  - [x] `lib/ollama.ts` の `streamChat()` / `chatOnce()` に `think` オプションを追加
+  - [x] エージェントで `message.thinking` を 1 回の応答ごとにまとめて `thinking` イベントにする（`<think>` タグの解析は残す）
+  - [x] 通常チャットとタイトル生成は `think: false`（`qwen3.8:27b` で最初の文字まで約 5.7 秒 → 約 0.4 秒）
+  - [x] ラウンドごとの思考過程を空行で区切って表示する
 - [ ] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111
 - [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113

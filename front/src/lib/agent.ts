@@ -57,6 +57,8 @@ async function runTool(
 // Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
 // Ollama は tool_calls がある場合、done=true のチャンクに tool_calls を含めて返す。
 // テキスト応答の場合は各チャンクを逐次ストリームに流してリアルタイム表示を維持する。
+// 思考過程は 2 通りの返し方に対応する: 本文中の <think> タグ（qwen3 等）と、
+// 本文とは別の message.thinking フィールド（qwen3.8 等。#116）。
 async function readOllamaResponse(
   response: Response,
   onTextChunk: (text: string) => void,
@@ -75,6 +77,15 @@ async function readOllamaResponse(
   let contentBuffer = '';
   let inThinkBlock = false;
 
+  // message.thinking の断片をためるバッファ。断片はトークン単位で届き、thinking イベントは
+  // trim されるため、断片ごとに流すと単語間の空白が消える。<think> タグと同じくブロック単位にし、
+  // 思考が終わった時点（本文・ツール呼び出しが来た時点、またはストリームの終わり）でまとめて流す
+  let thinkingFieldBuffer = '';
+  const flushThinkingField = () => {
+    if (thinkingFieldBuffer) onThinking(thinkingFieldBuffer);
+    thinkingFieldBuffer = '';
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -88,12 +99,18 @@ async function readOllamaResponse(
       try {
         const chunk: OllamaStreamChunk = JSON.parse(line);
 
+        if (chunk.message?.thinking) {
+          thinkingFieldBuffer += chunk.message.thinking;
+        }
+
         // tool_calls を収集（通常は done=true のチャンクに含まれる）
         if (chunk.message?.tool_calls) {
+          flushThinkingField();
           toolCalls.push(...chunk.message.tool_calls);
         }
 
         if (chunk.message?.content && !chunk.message.tool_calls) {
+          flushThinkingField();
           contentBuffer += chunk.message.content;
 
           // <think>...</think> ブロックをストリーム全体で検出する
@@ -147,7 +164,8 @@ async function readOllamaResponse(
     }
   }
 
-  // ストリーム終了時に残ったバッファをフラッシュ
+  // ストリーム終了時に残ったバッファをフラッシュ（本文なしで思考だけが返った場合を含む）
+  flushThinkingField();
   if (contentBuffer) {
     // 閉じタグが来なかった場合（不正な出力）も thinking として扱う
     if (inThinkBlock) {
@@ -164,8 +182,9 @@ async function readOllamaResponse(
  * エージェントループを実行し、進捗を NDJSON イベントとして流す ReadableStream を返す。
  *
  * ツール呼び出しが無くなるまで最大 `MAX_TOOL_ROUNDS` 回、Ollama への問い合わせと
- * ツール実行を繰り返す。テキストは逐次 `text_delta` で中継し、`<think>` ブロックは
- * `thinking` イベントとして分離する。エージェントモード（enableTools=true）時に呼ぶ。
+ * ツール実行を繰り返す。テキストは逐次 `text_delta` で中継し、思考過程（`<think>` ブロック、
+ * または `message.thinking` フィールド）は `thinking` イベントとして分離する。
+ * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * @param messages - 会話履歴（user / assistant / tool を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う

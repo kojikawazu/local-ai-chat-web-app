@@ -1,7 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { POST } from '@/app/api/chat/route';
 import { jsonRequest } from './helpers/db';
-import { ollamaStreamResponse, stubFetch } from './helpers/ollama-stub';
+import {
+  ollamaChunksResponse,
+  ollamaStreamResponse,
+  stubFetch,
+} from './helpers/ollama-stub';
 
 /**
  * `/api/chat`（非エージェント経路）の IT。
@@ -26,6 +30,18 @@ describe('POST /api/chat（通常チャット）', () => {
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('こんにちは');
     });
+
+    it('Ollama に think: false を送り、思考させずに答えさせる', async () => {
+      // 思考に対応したモデルは既定で考えてから答え、最初の文字まで数秒かかるため（#116）
+      const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
+
+      await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(init!.body as string).think).toBe(false);
+    });
   });
 
   describe('準正常系', () => {
@@ -48,6 +64,22 @@ describe('POST /api/chat（通常チャット）', () => {
         { role: 'user', content: '前の発言' },
         { role: 'user', content: '次は？' },
       ]);
+    });
+
+    it('応答に思考過程（message.thinking）が混ざっても本文だけを中継する', async () => {
+      // think: false を無視して思考を返すモデルでも、思考が本文に混ざらないこと
+      stubFetch(() =>
+        ollamaChunksResponse([
+          { thinking: '挨拶を' },
+          { thinking: '返す' },
+          { content: 'こんにちは' },
+        ])
+      );
+
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
+      expect(await res.text()).toBe('こんにちは');
     });
   });
 

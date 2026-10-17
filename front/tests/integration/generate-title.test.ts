@@ -102,6 +102,19 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       expect(sentBody(mock).model).toBe('gemma3:4b');
     });
+
+    it('Ollama に think: false を送る', async () => {
+      // 短いタイトルに思考は要らず、思考に対応したモデルでは待ち時間が延びるだけのため（#116）
+      const id = await createConversation();
+      const mock = stubFetch(() => ollamaChatResponse('タイトル'));
+
+      await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
+
+      expect(sentBody(mock).think).toBe(false);
+    });
   });
 
   describe('準正常系', () => {

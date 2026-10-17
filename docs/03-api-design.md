@@ -42,7 +42,7 @@
 
 **レスポンス**
 
-- 通常モード（`enableTools: false`）: Content-Type `text/event-stream`。ストリーミングで逐次テキストチャンクを返す。
+- 通常モード（`enableTools: false`）: Content-Type `text/event-stream`。ストリーミングで逐次テキストチャンクを返す。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。
 - エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。
 
 **エラーレスポンス**

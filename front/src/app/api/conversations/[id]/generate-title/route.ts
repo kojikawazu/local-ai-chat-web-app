@@ -53,7 +53,9 @@ export async function POST(
           content: `以下のメッセージに対して、会話のタイトルを日本語で簡潔に生成してください。タイトルのみを出力し、それ以外は何も出力しないでください。20文字以内でお願いします。\n\nメッセージ: ${message.slice(0, TITLE_SOURCE_MAX_CHARS)}`,
         },
       ],
-      model
+      model,
+      // 短いタイトルに思考は要らず、思考に対応したモデルでは待ち時間が数秒延びるだけのため止める
+      { think: false }
     );
 
     const generatedTitle = content.trim().slice(0, MAX_TITLE_LENGTH);
