@@ -4,7 +4,7 @@ import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
 import { streamChat } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
 import { initializeTools } from '@/lib/tools/registry';
-import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
+import { parseChatBody, readJsonBody } from '@/lib/request-body';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();
@@ -16,52 +16,24 @@ initializeTools();
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
  * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
  *
- * @param request - `message`（必須・最大 {@link MAX_MESSAGE_LENGTH} 文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
- * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。バリデーション失敗時は 400、Ollama 接続・空応答時は 502 の JSON エラーレスポンス
+ * ボディは {@link parseChatBody} で検証し、不正なら Ollama を呼ばずに 400 を返す。
+ *
+ * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
+ * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。JSON 構文・形・型・上限の検証失敗時は 400、Ollama 接続・空応答時は 502 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
-  let body: {
-    message?: string;
-    conversationHistory?: OllamaChatMessage[];
-    model?: string;
-    enableTools?: boolean;
-    systemPrompt?: string;
-  };
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'リクエストボディのJSON形式が不正です' },
-      { status: 400 }
-    );
+  const raw = await readJsonBody(request);
+  const parsed = raw.ok ? parseChatBody(raw.value) : raw;
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const {
-    message,
-    conversationHistory = [],
-    model,
-    enableTools = false,
-    systemPrompt,
-  } = body;
-
-  if (!message || typeof message !== 'string' || !message.trim()) {
-    return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
-  }
-
-  if (message.trim().length > MAX_MESSAGE_LENGTH) {
-    return NextResponse.json(
-      {
-        // ロケール既定に依存すると桁区切りが環境で変わるため 'ja-JP' を明示する
-        error: `メッセージは${MAX_MESSAGE_LENGTH.toLocaleString('ja-JP')}文字以内で入力してください`,
-      },
-      { status: 400 }
-    );
-  }
+  const { message, conversationHistory, model, enableTools, systemPrompt } =
+    parsed.value;
 
   const messages: OllamaChatMessage[] = [
     ...conversationHistory,
-    { role: 'user', content: message.trim() },
+    { role: 'user', content: message },
   ];
 
   // エージェントモード: NDJSON イベントストリームを返す

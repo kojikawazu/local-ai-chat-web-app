@@ -178,6 +178,30 @@ describe('POST /api/conversations/[id]/generate-title', () => {
       expect(mock).not.toHaveBeenCalled();
     });
 
+    // JSON としては正しいが API の形に合わないボディ。以前は分割代入が例外を投げて 500 になっていた（#95）
+    it.each([
+      ['ボディが null', null],
+      ['ボディが配列', [{ message: 'やあ' }]],
+      ['message が数値', { message: 1 }],
+      ['model が数値', { message: 'やあ', model: 1 }],
+    ])(
+      '%sなら 400（Ollama を呼ばず、タイトルも変えない）',
+      async (_label, body) => {
+        const id = await createConversation();
+        const mock = stubFetch(() => ollamaChatResponse('タイトル'));
+
+        const res = await POST(
+          jsonRequest(URL, 'POST', body),
+          routeContext(id)
+        );
+        expect(res.status).toBe(400);
+        expect(typeof (await res.json()).error).toBe('string');
+        expect(mock).not.toHaveBeenCalled();
+        const stored = await prisma.conversation.findUnique({ where: { id } });
+        expect(stored?.title).toBe('新しい会話');
+      }
+    );
+
     it('Ollama が非 2xx を返すと 500', async () => {
       const id = await createConversation();
       stubFetch(() => new Response('model not found', { status: 404 }));

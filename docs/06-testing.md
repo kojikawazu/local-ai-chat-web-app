@@ -338,6 +338,8 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 front/tests/
 ├── unit/                         # ユニットテスト（Vitest）
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
+│   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限）
+│   ├── conversation-history.test.ts # 会話履歴の組み立て（失敗した user の除外・件数／長さの上限）
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
