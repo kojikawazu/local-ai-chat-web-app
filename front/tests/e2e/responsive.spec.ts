@@ -62,16 +62,22 @@ test.describe('レスポンシブ・画面表示', () => {
       // モバイル幅に縮小
       await page.setViewportSize({ width: 375, height: 667 });
 
-      // サイドバーが非表示になる（hidden md:flex）
+      // サイドバーが非表示になり（hidden md:flex）、代わりにメニューボタンが出る
       await expect(page.locator('aside')).toBeHidden();
+      await expect(
+        page.getByRole('button', { name: 'メニューを開く' })
+      ).toBeVisible();
 
       // メインコンテンツは表示される
       await expect(page.locator('header')).toBeVisible();
       await expect(page.locator('textarea')).toBeVisible();
 
-      // デスクトップに戻す
+      // デスクトップに戻すとサイドバーが戻り、メニューボタンは隠れる
       await page.setViewportSize({ width: 1280, height: 720 });
       await expect(page.locator('aside')).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'メニューを開く' })
+      ).toBeHidden();
     });
 
     test('非常に長いメッセージでもレイアウトが崩れない', async ({
@@ -141,6 +147,15 @@ test.describe('レスポンシブ・画面表示', () => {
       // タッチターゲットが十分な大きさ
       expect(box!.width).toBeGreaterThanOrEqual(30);
       expect(box!.height).toBeGreaterThanOrEqual(30);
+
+      // 会話管理・設定への入口（メニューボタン）も十分な大きさで押せる。
+      // ドロワー内の各操作の到達性は mobile-navigation.spec.ts で検証する
+      const menuButton = page.getByRole('button', { name: 'メニューを開く' });
+      await expect(menuButton).toBeEnabled();
+      const menuBox = await menuButton.boundingBox();
+      expect(menuBox).toBeTruthy();
+      expect(menuBox!.width).toBeGreaterThanOrEqual(30);
+      expect(menuBox!.height).toBeGreaterThanOrEqual(30);
     });
   });
 });
