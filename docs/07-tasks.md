@@ -763,7 +763,10 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 - [ ] Route Handler の JSON ボディを実行時検証し、不正な型を 400 で拒否する — #95
 - [ ] 存在しない会話の DELETE を 500 ではなく 404 で返す — #97
-- [ ] `thinkingText` とエージェント実行統計を `Message.metadata` に永続化する — #94
+- [x] `thinkingText` とエージェント実行統計を `Message.metadata` に永続化する — #94
+  - [x] `lib/message-metadata.ts` に metadata の組み立て（`buildMessageMetadata`）と取得時の実行時検証（`parseMessageMetadata`）を追加
+  - [x] `useChat` の表示と保存で同じ組み立て関数を使い、`thinkingText`・`agentRounds`・`agentDurationMs` も保存する
+  - [x] UT・IT・E2E（`agent-metadata.spec.ts`）を追加
 - [ ] エージェント最大ラウンド到達時に途中結果を捨てず最終回答へフォールバックする — #96
 
 ### 26-3: CI 衛生

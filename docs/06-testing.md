@@ -146,6 +146,11 @@ describe('機能名', () => {
 - ユーザーメッセージの保存に失敗すると「送信に失敗しました」を表示し、LLM を呼ばない。再送で保存・応答生成が進む
 - AI応答の保存に失敗すると応答を残したまま「保存に失敗しました」を表示し、再試行で保存される（CI スキップ）
 
+**エージェント応答の付随情報（`agent-metadata.spec.ts`、#94）**
+- 正常系: 保存済みの応答を開くと、思考過程・ツール結果・ラウンド数・所要時間が表示される。エージェントの応答を再読み込みしても、ラウンド数（と、出ていれば思考過程）が表示される（CI スキップ）
+- 準正常系: ツール呼び出しが無く思考過程だけの応答も復元される
+- 異常系: metadata の不正な項目は表示せず、残りの項目と本文は表示する
+
 ### ストリーミング表示
 
 **正常系**
@@ -335,7 +340,8 @@ front/tests/
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
-│   └── agent-prompts.test.ts     # getPresetById・プリセット不変条件
+│   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
+│   └── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
@@ -365,6 +371,7 @@ front/tests/
     ├── agent.spec.ts             # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
+    ├── agent-metadata.spec.ts    # エージェント応答の付随情報（思考過程・ツール結果・ラウンド数・所要時間）の復元
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -447,6 +454,7 @@ CPU onlyのCIランナーではLLM推論が遅いため、以下のテストを�
 |---------------|-------------|------|
 | `chat-streaming.spec.ts` | ストリーミング完了を待つ4テスト | CPU onlyで120秒以内に完了しない |
 | `agent.spec.ts` / `agent-phase-c.spec.ts` | ツール呼び出しに依存する 5 テスト | 軽量モデルではツール呼び出しが安定しない（`IS_LIGHT_MODEL` で判定するため、ローカルでも既定ではスキップ） |
+| `agent-metadata.spec.ts` | エージェントの応答を再読み込みするテスト | CPU onlyでエージェント応答の完了が遅い |
 | `screenshot.spec.ts` | 全テスト | OS間フォントレンダリング差異 |
 
 ### CI固有の技術的考慮事項

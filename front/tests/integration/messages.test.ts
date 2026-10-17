@@ -76,6 +76,36 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       });
     });
 
+    it('エージェント応答の metadata 4 項目を保存し、GET で同じ内容を返す（#94）', async () => {
+      const id = await createConversation();
+      const metadata = {
+        toolCalls: [
+          {
+            name: 'get_current_datetime',
+            arguments: { timezone: 'Asia/Tokyo' },
+            result: '2026-10-17T21:25:52+09:00',
+            isError: false,
+            durationMs: 1,
+          },
+        ],
+        thinkingText: '時刻を調べる\n\n答える',
+        agentRounds: 2,
+        agentDurationMs: 14800,
+      };
+      await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'assistant',
+          content: '今です',
+          metadata,
+        }),
+        routeContext(id)
+      );
+
+      const res = await GET(jsonRequest(URL, 'GET'), routeContext(id));
+      const { messages } = await res.json();
+      expect(messages[0].metadata).toEqual(metadata);
+    });
+
     it('assistant 応答は入力上限を超えても保存できる（LLM 出力は user と別上限）', async () => {
       const id = await createConversation();
       const content = 'あ'.repeat(MAX_MESSAGE_LENGTH + 1);
@@ -100,6 +130,28 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
         routeContext(id)
       );
       expect(res.status).toBe(201);
+    });
+
+    it('ツール呼び出しが無く思考過程と統計だけの metadata も保存される（#94）', async () => {
+      const id = await createConversation();
+      const metadata = {
+        thinkingText: '挨拶を返す',
+        agentRounds: 1,
+        agentDurationMs: 3000,
+      };
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'assistant',
+          content: 'やあ',
+          metadata,
+        }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(201);
+      const stored = await prisma.message.findUnique({
+        where: { id: (await res.json()).id },
+      });
+      expect(stored?.metadata).toEqual(metadata);
     });
 
     it('metadata が null なら metadata 無しで保存される', async () => {

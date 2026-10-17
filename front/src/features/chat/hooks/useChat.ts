@@ -4,6 +4,10 @@ import { useState, useCallback, useRef } from 'react';
 import type { Message, MessageSaveState, ToolCallInfo } from '@/types';
 import type { AgentStreamEvent } from '@/lib/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/validation';
+import {
+  buildMessageMetadata,
+  parseMessageMetadata,
+} from '@/lib/message-metadata';
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
@@ -186,10 +190,12 @@ export function useChat({
             id: string;
             role: Message['role'];
             content: string;
-            metadata?: Message['metadata'];
+            // DB の JSON 列は任意の値を持てるため、型を信用せず検証してから使う
+            metadata?: unknown;
             createdAt: string;
           }) => ({
             ...msg,
+            metadata: parseMessageMetadata(msg.metadata),
             createdAt: new Date(msg.createdAt),
           })
         )
@@ -231,6 +237,9 @@ export function useChat({
 
       let fullAiContent = '';
       let thinkingText = '';
+      // done イベントで届く実行統計。表示と保存の両方に使う
+      let agentRounds: number | undefined;
+      let agentDurationMs: number | undefined;
       const toolCallRecords: ToolCallInfo[] = [];
       // tool_call_start で受け取った arguments を tool_call_result まで保持する
       // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
@@ -378,30 +387,26 @@ export function useChat({
                   );
                 } else if (event.type === 'done') {
                   // done イベントで metadata（toolCalls・統計）を最終確定
-                  setMessages((prev) =>
-                    prev.map((msg) => {
-                      if (msg.id !== aiMessageId) return msg;
-                      return {
-                        ...msg,
-                        metadata: {
-                          ...(event.metadata?.toolCalls && {
-                            toolCalls: event.metadata.toolCalls,
-                          }),
-                          ...(thinkingText && { thinkingText }),
-                          ...(event.metadata?.agentRounds !== undefined && {
-                            agentRounds: event.metadata.agentRounds,
-                          }),
-                          ...(event.metadata?.agentDurationMs !== undefined && {
-                            agentDurationMs: event.metadata.agentDurationMs,
-                          }),
-                        },
-                      };
-                    })
-                  );
                   if (event.metadata?.toolCalls) {
                     toolCallRecords.length = 0;
                     toolCallRecords.push(...event.metadata.toolCalls);
                   }
+                  agentRounds = event.metadata?.agentRounds;
+                  agentDurationMs = event.metadata?.agentDurationMs;
+                  // 保存時と同じ関数で組み立て、表示と DB の内容を揃える（#94）
+                  const finalMetadata = buildMessageMetadata({
+                    toolCalls: [...toolCallRecords],
+                    thinkingText,
+                    agentRounds,
+                    agentDurationMs,
+                  });
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, metadata: finalMetadata }
+                        : msg
+                    )
+                  );
                 } else if (event.type === 'error') {
                   throw new Error(event.message);
                 }
@@ -440,10 +445,13 @@ export function useChat({
             conversationId: activeConversationId,
             role: 'assistant',
             content: fullAiContent,
-            metadata:
-              toolCallRecords.length > 0
-                ? { toolCalls: toolCallRecords }
-                : null,
+            // 表示中の metadata と同じ内容を保存する。ツールを使わず思考だけした応答も残す（#94）
+            metadata: buildMessageMetadata({
+              toolCalls: toolCallRecords,
+              thinkingText,
+              agentRounds,
+              agentDurationMs,
+            }),
             onSaved: generateTitle,
           });
           if (saved) generateTitle?.();

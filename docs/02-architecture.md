@@ -128,6 +128,7 @@ front/src/
 │   ├── validation.ts          #   バリデーションユーティリティ
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御）
 │   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
+│   ├── message-metadata.ts    #   メッセージ metadata の組み立て・取得時の実行時検証
 │   └── tools/                 #   ツール実装
 │       ├── types.ts           #     ツール関連型定義
 │       ├── index.ts           #     ツールレジストリ（register/get/execute）
@@ -171,6 +172,7 @@ front/tests/
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
+    ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
