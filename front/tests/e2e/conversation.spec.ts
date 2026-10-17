@@ -1,11 +1,40 @@
+import type { Route } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import {
   cleanupAllConversations,
   createConversation,
   createMessage,
+  fetchConversations,
   fetchMessages,
   sendMessage,
 } from './helpers/test-data';
+
+/** メッセージ保存 API のパス（会話 ID 部分はワイルドカード）。 */
+const MESSAGES_API = '**/api/conversations/*/messages';
+
+/**
+ * メッセージ保存 API の POST を、指定 role のときだけ 500 にする route ハンドラを作る。
+ *
+ * 実 DB を安定して壊せないため、境界の障害注入（`page.route`）で保存失敗を再現する
+ * （testing.md「エラーハンドリングの層分担」の唯一の許容例外）。取得（GET）や
+ * 対象外 role の保存は実バックエンドへ素通しする。
+ *
+ * @param role - 保存を失敗させるメッセージの役割
+ * @returns `page.route` / `page.unroute` に渡すハンドラ
+ */
+function failSaveOf(role: 'user' | 'assistant') {
+  return (route: Route) => {
+    const req = route.request();
+    if (req.method() === 'POST' && req.postDataJSON()?.role === role) {
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'メッセージの保存に失敗しました' }),
+      });
+    }
+    return route.continue();
+  };
+}
 
 test.describe('会話管理', () => {
   test.beforeAll(async ({ request }) => {
@@ -178,6 +207,81 @@ test.describe('会話管理', () => {
         `http://localhost:3000/api/conversations/${fakeId}`
       );
       expect(res.status()).toBe(500);
+    });
+
+    test('ユーザーメッセージの保存に失敗すると送信失敗を表示し LLM を呼ばない。再送で保存・生成が進む', async ({
+      page,
+      request,
+    }) => {
+      test.setTimeout(60000);
+      await cleanupAllConversations(request);
+      const failUserSave = failSaveOf('user');
+      await page.route(MESSAGES_API, failUserSave);
+      let chatRequested = false;
+      page.on('request', (req) => {
+        if (req.url().endsWith('/api/chat')) chatRequested = true;
+      });
+
+      await page.goto('/');
+      await sendMessage(page, '保存失敗テスト');
+
+      // 成功表示にせず、送信失敗を明示する
+      await expect(
+        page.getByRole('status').filter({ hasText: '送信に失敗しました' })
+      ).toBeVisible({ timeout: 10000 });
+      // 未保存の質問に対して LLM を呼ばない（DB に回答だけが残る不整合を防ぐ）
+      expect(chatRequested).toBe(false);
+
+      // 保存 API を復旧して再送すると、保存されたうえで応答生成が始まる
+      await page.unroute(MESSAGES_API, failUserSave);
+      const chatRequest = page.waitForRequest('**/api/chat');
+      await page.getByRole('button', { name: '再送' }).click();
+      await chatRequest;
+      await expect(page.getByText('送信に失敗しました')).toHaveCount(0);
+
+      const [conv] = await fetchConversations(request);
+      const messages = await fetchMessages(request, conv.id);
+      expect(messages[0]).toMatchObject({
+        role: 'user',
+        content: '保存失敗テスト',
+      });
+    });
+
+    test('AI応答の保存に失敗すると応答を残したまま保存失敗を表示し、再試行で保存される', async ({
+      page,
+      request,
+    }) => {
+      test.skip(
+        !!process.env.CI,
+        'CI環境(CPU only)ではストリーミング完了まで時間がかかりすぎるためスキップ'
+      );
+      test.setTimeout(180000);
+      await cleanupAllConversations(request);
+      const failAssistantSave = failSaveOf('assistant');
+      await page.route(MESSAGES_API, failAssistantSave);
+
+      await page.goto('/');
+      await sendMessage(page, 'Say hi');
+
+      // ストリーミング完了後、応答は消さずに保存失敗を表示する
+      await expect(
+        page.getByRole('status').filter({ hasText: '保存に失敗しました' })
+      ).toBeVisible({ timeout: 150000 });
+      const aiMessage = page.locator('[class*="bg-nord-2"]').first();
+      const displayed = (await aiMessage.textContent()) ?? '';
+      expect(displayed.length).toBeGreaterThan(0);
+
+      // 保存 API を復旧して再試行すると、失敗表示が消えて DB に保存される
+      await page.unroute(MESSAGES_API, failAssistantSave);
+      await page.getByRole('button', { name: '再試行' }).click();
+      await expect(page.getByText('保存に失敗しました')).toHaveCount(0, {
+        timeout: 10000,
+      });
+
+      const [conv] = await fetchConversations(request);
+      const messages = await fetchMessages(request, conv.id);
+      expect(messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+      expect(messages[1].content.length).toBeGreaterThan(0);
     });
   });
 });

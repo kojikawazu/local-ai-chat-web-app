@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { Message, ToolCallInfo } from '@/types';
+import type { Message, MessageSaveState, ToolCallInfo } from '@/types';
 import type { AgentStreamEvent } from '@/lib/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/validation';
 
@@ -21,36 +21,78 @@ interface UseChatOptions {
   onTitleGenerated?: () => void;
 }
 
+/** LLM へ渡す会話履歴の 1 件。 */
+type HistoryEntry = Pick<Message, 'role' | 'content'>;
+
+/** 保存に失敗したメッセージの再試行に必要な情報。失敗時と同じ内容を再送する。 */
+type PendingSave = {
+  /** 保存先の会話 ID */
+  conversationId: string;
+  /** メッセージの役割 */
+  role: Message['role'];
+  /** メッセージ本文 */
+  content: string;
+  /** ツール呼び出し情報等の付随メタデータ */
+  metadata: Message['metadata'];
+  /** 再試行で保存に成功した後に続ける処理（user なら応答生成、初回の assistant ならタイトル生成） */
+  onSaved?: () => void;
+};
+
 /**
  * メッセージを会話に永続化する（API 経由で保存）。
  *
- * 応答成否は呼び出し側でハンドリングする想定（本関数は結果を返さない）。
+ * `fetch()` は HTTP 4xx/5xx では reject しないため、`response.ok` を検証して
+ * 失敗を例外に変換する（検証しないと保存失敗が成功扱いになる）。
  *
  * @param conversationId - 保存先の会話 ID
  * @param role - メッセージの役割（`'user'` | `'assistant'`）
  * @param content - メッセージ本文
  * @param metadata - ツール呼び出し情報等の付随メタデータ（無ければ省略・`null`）
+ * @throws {Error} 保存 API がエラーを返した、または通信に失敗した場合
  */
 async function saveMessage(
   conversationId: string,
-  role: string,
+  role: Message['role'],
   content: string,
-  metadata?: { toolCalls?: ToolCallInfo[] } | null
-) {
-  await fetch(`/api/conversations/${conversationId}/messages`, {
+  metadata?: Message['metadata']
+): Promise<void> {
+  const res = await fetch(`/api/conversations/${conversationId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role, content, metadata }),
   });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      data.error || `メッセージの保存に失敗しました (${res.status})`
+    );
+  }
+}
+
+/**
+ * 表示中のメッセージから LLM へ渡す会話履歴を組み立てる。
+ *
+ * 送信に失敗した user メッセージ（`saveState` 付き）は LLM に届いていないため除く。
+ * 保存に失敗した assistant メッセージは LLM が実際に返した内容なので含める。
+ *
+ * @param messages - 表示中のメッセージ一覧
+ * @returns LLM へ渡す会話履歴
+ */
+function toConversationHistory(messages: Message[]): HistoryEntry[] {
+  return messages
+    .filter((msg) => !(msg.role === 'user' && msg.saveState))
+    .map((msg) => ({ role: msg.role, content: msg.content }));
 }
 
 /**
  * チャットのメッセージ状態と送受信ロジックを管理するフック。
  *
- * メッセージ送信時に `/api/chat` へストリーミング要求を行い、NDJSON（エージェント
- * モード）とプレーンテキスト（通常モード）の両方式を扱う。会話 ID が未指定なら
- * 新規会話を作成し、初回応答後はタイトル自動生成を要求する。ユーザー・アシスタント
- * 両メッセージは API へ永続化する。中断は内部の `AbortController` で扱う。
+ * メッセージ送信時は user メッセージの保存を待ってから `/api/chat` へストリーミング
+ * 要求を行い、NDJSON（エージェントモード）とプレーンテキスト（通常モード）の両方式を
+ * 扱う。会話 ID が未指定なら新規会話を作成し、初回応答の保存後にタイトル自動生成を
+ * 要求する。保存に失敗したメッセージは `saveState` を付けて表示に残し、
+ * `retrySave` で同じ内容を再送できる（user の保存失敗時は LLM を呼ばない）。
+ * 中断は内部の `AbortController` で扱う。
  *
  * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
  *   エージェント有効化・システムプロンプトと、会話作成／タイトル生成完了時の
@@ -58,7 +100,8 @@ async function saveMessage(
  * @returns チャット状態と操作関数。`messages` は現在のメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
  *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`sendMessage` は
- *   本文を送信して応答をストリーム受信する関数、`clearMessages` はメッセージ・エラー・
+ *   本文を送信して応答をストリーム受信する関数、`retrySave` は保存に失敗した
+ *   メッセージを ID 指定で再送する関数、`clearMessages` はメッセージ・エラー・
  *   実行中ツールを初期化する関数、`loadMessages` は指定会話のメッセージを読み込む関数
  */
 export function useChat({
@@ -77,8 +120,62 @@ export function useChat({
     arguments: Record<string, unknown>;
   } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // 保存に失敗したメッセージ ID → 再送内容。表示用の state とは分け、再試行時に参照する
+  const pendingSavesRef = useRef(new Map<string, PendingSave>());
+
+  const setSaveState = useCallback(
+    (messageId: string, saveState: MessageSaveState | undefined) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, saveState } : msg))
+      );
+    },
+    []
+  );
+
+  /**
+   * メッセージを保存し、結果を表示状態へ反映する。失敗時は再送内容を保持する。
+   *
+   * @param messageId - 表示中のメッセージ ID
+   * @param payload - 保存内容
+   * @returns 保存に成功したら true
+   */
+  const persist = useCallback(
+    async (messageId: string, payload: PendingSave): Promise<boolean> => {
+      try {
+        await saveMessage(
+          payload.conversationId,
+          payload.role,
+          payload.content,
+          payload.metadata
+        );
+        pendingSavesRef.current.delete(messageId);
+        setSaveState(messageId, undefined);
+        return true;
+      } catch (err) {
+        console.error('Failed to save message:', err);
+        pendingSavesRef.current.set(messageId, payload);
+        setSaveState(messageId, 'failed');
+        return false;
+      }
+    },
+    [setSaveState]
+  );
+
+  const requestTitleGeneration = useCallback(
+    (convId: string, firstMessage: string) => {
+      fetch(`/api/conversations/${convId}/generate-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: firstMessage, model }),
+      })
+        .then(() => onTitleGenerated?.())
+        .catch(console.error);
+    },
+    [model, onTitleGenerated]
+  );
 
   const loadMessages = useCallback(async (convId: string) => {
+    pendingSavesRef.current.clear();
     try {
       const res = await fetch(`/api/conversations/${convId}/messages`);
       if (!res.ok) return;
@@ -87,9 +184,9 @@ export function useChat({
         data.messages.map(
           (msg: {
             id: string;
-            role: string;
+            role: Message['role'];
             content: string;
-            metadata?: { toolCalls?: ToolCallInfo[] } | null;
+            metadata?: Message['metadata'];
             createdAt: string;
           }) => ({
             ...msg,
@@ -102,43 +199,24 @@ export function useChat({
     }
   }, []);
 
-  const sendMessage = useCallback(
-    async (content: string) => {
+  /**
+   * 保存済みの user メッセージに対する応答を生成し、assistant メッセージとして保存する。
+   *
+   * @param activeConversationId - 応答を保存する会話 ID
+   * @param content - 応答対象の user メッセージ本文
+   * @param conversationHistory - この user メッセージより前の会話履歴
+   * @param isFirstExchange - 会話の最初のやり取りか（true なら保存後にタイトルを生成する）
+   */
+  const generateResponse = useCallback(
+    async (
+      activeConversationId: string,
+      content: string,
+      conversationHistory: HistoryEntry[],
+      isFirstExchange: boolean
+    ) => {
       setError(null);
       setIsLoading(true);
       setActiveToolCall(null);
-
-      let activeConversationId: string = conversationId || '';
-      const isNewConversation = !activeConversationId;
-
-      if (isNewConversation) {
-        try {
-          const res = await fetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // API 側の上限（MAX_TITLE_LENGTH）と同じ値で切り詰める。
-            // ここがずれると会話作成が 400 になるため定数を共有する。
-            body: JSON.stringify({ title: content.slice(0, MAX_TITLE_LENGTH) }),
-          });
-          if (!res.ok) throw new Error('会話の作成に失敗しました');
-          const conv = await res.json();
-          activeConversationId = conv.id;
-          onConversationCreated?.(conv.id);
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : '会話の作成に失敗しました'
-          );
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content,
-        createdAt: new Date(),
-      };
 
       const aiMessageId = crypto.randomUUID();
       const aiMessage: Message = {
@@ -147,17 +225,7 @@ export function useChat({
         content: '',
         createdAt: new Date(),
       };
-
-      setMessages((prev) => [...prev, userMessage, aiMessage]);
-
-      await saveMessage(activeConversationId, 'user', content).catch(
-        console.error
-      );
-
-      const conversationHistory = messages.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      }));
+      setMessages((prev) => [...prev, aiMessage]);
 
       abortControllerRef.current = new AbortController();
 
@@ -361,24 +429,22 @@ export function useChat({
         }
 
         if (fullAiContent) {
-          const metadata =
-            toolCallRecords.length > 0 ? { toolCalls: toolCallRecords } : null;
-          await saveMessage(
-            activeConversationId,
-            'assistant',
-            fullAiContent,
-            metadata
-          ).catch(console.error);
-
-          if (isNewConversation) {
-            fetch(`/api/conversations/${activeConversationId}/generate-title`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: content, model }),
-            })
-              .then(() => onTitleGenerated?.())
-              .catch(console.error);
-          }
+          const generateTitle = isFirstExchange
+            ? () => requestTitleGeneration(activeConversationId, content)
+            : undefined;
+          // タイトル生成は応答の保存成功後に限る（未保存のまま完了扱いへ進めない）。
+          // 失敗時は再試行で保存できた時点で onSaved として実行する
+          const saved = await persist(aiMessageId, {
+            conversationId: activeConversationId,
+            role: 'assistant',
+            content: fullAiContent,
+            metadata:
+              toolCallRecords.length > 0
+                ? { toolCalls: toolCallRecords }
+                : null,
+            onSaved: generateTitle,
+          });
+          if (saved) generateTitle?.();
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -392,18 +458,107 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [
-      conversationId,
-      model,
-      enableTools,
-      systemPrompt,
-      messages,
-      onConversationCreated,
-      onTitleGenerated,
-    ]
+    [model, enableTools, systemPrompt, persist, requestTitleGeneration]
+  );
+
+  const sendMessage = useCallback(
+    async (content: string) => {
+      setError(null);
+      setIsLoading(true);
+      setActiveToolCall(null);
+
+      // 送信に失敗したまま新しいメッセージが送られた場合、未送信の user メッセージは
+      // 再送の対象外とし破棄する（LLM にも DB にも届いていないため履歴の整合は崩れない）
+      const unsentIds = new Set(
+        messages
+          .filter((msg) => msg.role === 'user' && msg.saveState)
+          .map((msg) => msg.id)
+      );
+      unsentIds.forEach((id) => pendingSavesRef.current.delete(id));
+      const visibleMessages = messages.filter((msg) => !unsentIds.has(msg.id));
+
+      let activeConversationId: string = conversationId || '';
+
+      if (!activeConversationId) {
+        try {
+          const res = await fetch('/api/conversations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // API 側の上限（MAX_TITLE_LENGTH）と同じ値で切り詰める。
+            // ここがずれると会話作成が 400 になるため定数を共有する。
+            body: JSON.stringify({ title: content.slice(0, MAX_TITLE_LENGTH) }),
+          });
+          if (!res.ok) throw new Error('会話の作成に失敗しました');
+          const conv = await res.json();
+          activeConversationId = conv.id;
+          onConversationCreated?.(conv.id);
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : '会話の作成に失敗しました'
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const conversationHistory = toConversationHistory(visibleMessages);
+      // 保存済みのメッセージが 1 件も無ければ最初のやり取り（タイトル生成の対象）
+      const isFirstExchange = !visibleMessages.some((msg) => !msg.saveState);
+
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content,
+        createdAt: new Date(),
+      };
+      setMessages((prev) => [
+        ...prev.filter((msg) => !unsentIds.has(msg.id)),
+        userMessage,
+      ]);
+
+      // user メッセージの保存を待ってから LLM を呼ぶ。先に呼ぶと、保存に失敗した
+      // 場合に DB 上で質問の無い回答だけが残る
+      const saved = await persist(userMessage.id, {
+        conversationId: activeConversationId,
+        role: 'user',
+        content,
+        metadata: null,
+        onSaved: () =>
+          generateResponse(
+            activeConversationId,
+            content,
+            conversationHistory,
+            isFirstExchange
+          ),
+      });
+      if (!saved) {
+        setIsLoading(false);
+        return;
+      }
+
+      await generateResponse(
+        activeConversationId,
+        content,
+        conversationHistory,
+        isFirstExchange
+      );
+    },
+    [conversationId, messages, onConversationCreated, persist, generateResponse]
+  );
+
+  const retrySave = useCallback(
+    async (messageId: string) => {
+      const pending = pendingSavesRef.current.get(messageId);
+      if (!pending) return;
+      setSaveState(messageId, 'retrying');
+      const saved = await persist(messageId, pending);
+      if (saved) pending.onSaved?.();
+    },
+    [persist, setSaveState]
   );
 
   const clearMessages = useCallback(() => {
+    pendingSavesRef.current.clear();
     setMessages([]);
     setError(null);
     setActiveToolCall(null);
@@ -415,6 +570,7 @@ export function useChat({
     error,
     activeToolCall,
     sendMessage,
+    retrySave,
     clearMessages,
     loadMessages,
   };

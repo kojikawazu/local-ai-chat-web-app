@@ -101,7 +101,7 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 
 **現状 `src/constants/` は存在しない**（機能をまたぐ定数がまだ無いため）。上表は「機能横断の定数が 2 箇所目の参照を得た時点で作る」という前向きの指針であり、先回りして空のディレクトリを作る必要はない。
 
-なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
+なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
 
 ### 運用ルール
 

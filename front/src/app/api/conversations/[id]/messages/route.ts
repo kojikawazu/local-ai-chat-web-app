@@ -2,7 +2,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
-import { isValidUUID, MAX_MESSAGE_LENGTH } from '@/lib/validation';
+import {
+  isValidUUID,
+  MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_MESSAGE_LENGTH,
+} from '@/lib/validation';
 
 /**
  * 値が JSON オブジェクトかを判定し、Prisma の JSON 入力型へ絞り込む。
@@ -64,13 +68,13 @@ export async function GET(
 }
 
 /**
- * 指定した会話に新規メッセージを保存し、会話の更新日時を現在時刻に更新する。
+ * 指定した会話に新規メッセージを保存し、会話の更新日時を現在時刻に更新する（両者は同一トランザクション）。
  *
  * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
  * 思考過程等）は任意で、JSON オブジェクトの場合のみ保存する（配列・プリミティブを
  * 指定した場合は黙って捨てずに 400 を返す）。
  *
- * @param request - `role`（必須・user|assistant）・`content`（必須・最大 {@link MAX_MESSAGE_LENGTH} 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
+ * @param request - `role`（必須・user|assistant）・`content`（必須・user は最大 {@link MAX_MESSAGE_LENGTH} 文字、assistant は最大 {@link MAX_ASSISTANT_MESSAGE_LENGTH} 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
  * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・role/content 欠落・role 不正・metadata 非オブジェクト・content 長さ超過は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
  */
@@ -121,11 +125,13 @@ export async function POST(
     );
   }
 
-  if (content.length > MAX_MESSAGE_LENGTH) {
+  const maxLength =
+    role === 'assistant' ? MAX_ASSISTANT_MESSAGE_LENGTH : MAX_MESSAGE_LENGTH;
+  if (content.length > maxLength) {
     return NextResponse.json(
       {
         // ロケール既定に依存すると桁区切りが環境で変わるため 'ja-JP' を明示する
-        error: `メッセージは${MAX_MESSAGE_LENGTH.toLocaleString('ja-JP')}文字以内で入力してください`,
+        error: `メッセージは${maxLength.toLocaleString('ja-JP')}文字以内で入力してください`,
       },
       { status: 400 }
     );
@@ -143,19 +149,22 @@ export async function POST(
       );
     }
 
-    const message = await prisma.message.create({
-      data: {
-        conversationId: id,
-        role,
-        content,
-        ...(isJsonObject(metadata) && { metadata }),
-      },
-    });
-
-    await prisma.conversation.update({
-      where: { id },
-      data: { updatedAt: new Date() },
-    });
+    // メッセージ作成と会話の updatedAt 更新を 1 トランザクションにまとめ、
+    // 片方だけ成功する部分成功（履歴の並び順と保存内容の食い違い）を防ぐ
+    const [message] = await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId: id,
+          role,
+          content,
+          ...(isJsonObject(metadata) && { metadata }),
+        },
+      }),
+      prisma.conversation.update({
+        where: { id },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
 
     return NextResponse.json(message, { status: 201 });
   } catch (error) {
