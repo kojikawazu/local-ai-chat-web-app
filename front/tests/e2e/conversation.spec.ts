@@ -201,12 +201,12 @@ test.describe('会話管理', () => {
       expect(res.status()).toBe(404);
     });
 
-    test('存在しないUUIDで会話削除するとエラーが返る', async ({ request }) => {
+    test('存在しないUUIDで会話削除すると 404 が返る', async ({ request }) => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
       const res = await request.delete(
         `http://localhost:3000/api/conversations/${fakeId}`
       );
-      expect(res.status()).toBe(500);
+      expect(res.status()).toBe(404);
     });
 
     test('ユーザーメッセージの保存に失敗すると送信失敗を表示し LLM を呼ばない。再送で保存・生成が進む', async ({

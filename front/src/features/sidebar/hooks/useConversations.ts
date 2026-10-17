@@ -84,7 +84,8 @@ export function useConversations() {
         const res = await fetch(`/api/conversations/${id}`, {
           method: 'DELETE',
         });
-        if (!res.ok) return;
+        // 404 は別タブ等で既に削除済み。一覧に残すと消せない項目になるため、削除できたものとして扱う
+        if (!res.ok && res.status !== 404) return;
         setConversations((prev) => prev.filter((c) => c.id !== id));
         if (currentConversationId === id) {
           setCurrentConversationId(null);

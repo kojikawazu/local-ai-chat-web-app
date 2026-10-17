@@ -768,7 +768,10 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `POST /api/conversations` は空のボディだけを省略とみなし、構文が不正な JSON・非オブジェクトは 400 にする（従来は構文エラーを握りつぶしていた）
   - [x] クライアントの履歴組み立てを `lib/conversation-history.ts` に切り出し、件数（新しい方から 1,000 件）と role 別の本文長をサーバーの上限内に収める（保存上限を超えて保存に失敗した assistant 応答が画面に残っても、次の送信が 400 にならない）
   - [x] UT `request-body.test.ts`・`conversation-history.test.ts`、IT（4 route の `null`／配列／型不正で 400、DB・Ollama に届かないこと）を追加
-- [ ] 存在しない会話の DELETE を 500 ではなく 404 で返す — #97
+- [x] 存在しない会話の DELETE を 500 ではなく 404 で返す — #97
+  - [x] `delete` を `deleteMany` に変え、削除件数 0 なら 404（DELETE 1 文の結果で判定し、存在確認と削除の間の競合に強くする）。DB 障害は 500 のまま
+  - [x] `useConversations` は削除 API の 404 を削除済みとして扱い、一覧から外す（別タブ等で先に消えた会話が消せない項目として残らない）
+  - [x] IT（404・二重削除・トリガーで障害を入れた 500）・E2E（`conversation.spec.ts` の期待値を 404 に、`sidebar.spec.ts` に 404／500 時の一覧の扱い）を更新
 - [x] `thinkingText` とエージェント実行統計を `Message.metadata` に永続化する — #94
   - [x] `lib/message-metadata.ts` に metadata の組み立て（`buildMessageMetadata`）と取得時の実行時検証（`parseMessageMetadata`）を追加
   - [x] `useChat` の表示と保存で同じ組み立て関数を使い、`thinkingText`・`agentRounds`・`agentDurationMs` も保存する
