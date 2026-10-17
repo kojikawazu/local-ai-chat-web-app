@@ -19,28 +19,30 @@ function encodeEvent(event: AgentStreamEvent): Uint8Array {
 }
 
 // ツール実行（タイムアウト付き、全体タイムアウトはリトライ含む合計に適用）
+// タイムアウト時は race で応答を返すだけでなく signal を abort し、ツール内の
+// fetch・本文読み取り・リトライ待機を止めてバックグラウンドに処理を残さない。
+// signal を見ないツールがあっても応答が返るよう race は残す。
 async function runTool(
   name: string,
   args: Record<string, unknown>
 ): Promise<{ result: string; isError: boolean; durationMs: number }> {
   const start = Date.now();
+  const abortController = new AbortController();
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`
-          )
-        ),
-      TOOL_TIMEOUT_MS
-    );
+    timeoutId = setTimeout(() => {
+      const timeoutError = new Error(
+        `ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`
+      );
+      abortController.abort(timeoutError);
+      reject(timeoutError);
+    }, TOOL_TIMEOUT_MS);
   });
 
   try {
     const result = await Promise.race([
-      executeTool(name, args),
+      executeTool(name, args, abortController.signal),
       timeoutPromise,
     ]);
     clearTimeout(timeoutId);

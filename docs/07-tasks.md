@@ -744,7 +744,13 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] タイトル生成を assistant 応答の保存成功後に限定
   - [x] 保存上限を role 別に分離（user 10,000 / assistant 100,000 文字。`MAX_ASSISTANT_MESSAGE_LENGTH`）
   - [x] メッセージ作成と会話 `updatedAt` 更新をトランザクション化（DB トリガーで障害注入する IT で検証）
-- [ ] `url_fetch` / `web_search` のレスポンス本文をストリーム制限し、無制限バッファと実行リークを防ぐ — #92
+- [x] `url_fetch` / `web_search` のレスポンス本文をストリーム制限し、無制限バッファと実行リークを防ぐ — #92
+  - [x] `lib/tools/read-body.ts`（`readBodyWithLimit`）で本文をストリーム読み取りし、受信バイト数の上限超過・signal 中断で reader を cancel
+  - [x] タイムアウトをヘッダー受信から本文の読了まで有効化（`AbortSignal.any` で期限とエージェントの中断を合流）
+  - [x] `runTool()` から `Tool.execute(args, signal)` へ `AbortSignal` を伝播し、タイムアウト時に fetch・本文読み取り・リトライ待機を中断
+  - [x] 上限をバイト単位で定義（`url_fetch` 2 MiB / `web_search` 1 MiB）。`Content-Length` は早期拒否の補助、早期 return 時は本文を cancel
+  - [x] UT `read-body.test.ts`・IT `chat-agent.test.ts`（サイズ超過・偽装 Content-Length・タイムアウト中断・SSRF・中断後のリトライ停止の tool result）を追加
+  - [x] `agent-phase-b.spec.ts` の SSRF / URL 異常系で NDJSON の tool result 内容を検証（LLM が対象 URL を取得した場合のみ）
 - [ ] モバイル表示でも会話履歴・新規会話・設定へアクセスできる導線を追加する — #93
 
 ### 26-2: P2 — API 契約・永続化の不整合

@@ -1,9 +1,19 @@
 import type { Tool } from './types';
 import { lookup } from 'dns/promises';
+import {
+  BodyTooLargeError,
+  discardBody,
+  isTimeoutError,
+  readBodyWithLimit,
+} from './read-body';
 
 const MAX_CHARS = 5000;
-const MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2MB: メモリ枯渇防止
+// 2 MiB: 受信バイト数の上限（メモリ枯渇防止）。本文はこれを超えた時点で受信を打ち切る
+const MAX_INPUT_BYTES = 2 * 1024 * 1024;
+// ヘッダー受信から本文の読了までを含めた 1 回の取得の期限（ミリ秒）
 const FETCH_TIMEOUT_MS = 15000;
+const TIMEOUT_MESSAGE = `エラー: URL の取得がタイムアウトしました（${FETCH_TIMEOUT_MS / 1000}秒）`;
+const TOO_LARGE_MESSAGE = 'エラー: ページが大きすぎます（2MB 超）。';
 
 // SSRF 防止: プライベート・特殊 IP アドレス範囲のブロックリスト
 // IPv4-mapped IPv6（::ffff:x.x.x.x）はホスト部を正規化してから照合する
@@ -96,8 +106,10 @@ function stripHtml(html: string): string {
  *
  * 引数 `url`（http:// または https:// のみ）を受け取り、SSRF 対策として
  * 名前解決後の IP がプライベート・特殊アドレス範囲でないことを検証したうえで
- * fetch する。リダイレクトは禁止、タイムアウトあり、`text/html` または
- * `text/plain` のみ対応、最大 2MB。HTML はタグを除去したプレーンテキスト化し、
+ * fetch する。リダイレクトは禁止、`text/html` または `text/plain` のみ対応。
+ * タイムアウトはヘッダー受信から本文の読了までを覆い、本文は受信バイト数が
+ * 2 MiB を超えた時点で打ち切る。呼び出し元の `signal` が中断された場合も
+ * fetch と本文読み取りを止める。HTML はタグを除去したプレーンテキスト化し、
  * 5,000 文字を超える場合は末尾を省略する。エラーはすべて `"エラー: ..."`
  * 形式の文字列で返し、例外は投げない。
  */
@@ -117,7 +129,7 @@ export const urlFetchTool: Tool = {
       required: ['url'],
     },
   },
-  execute: async (args) => {
+  execute: async (args, signal) => {
     const url = typeof args.url === 'string' ? args.url.trim() : '';
     if (!url) return 'エラー: URL が空です';
 
@@ -139,23 +151,24 @@ export const urlFetchTool: Tool = {
       return `エラー: ${e instanceof Error ? e.message : String(e)}`;
     }
 
+    // ヘッダー受信だけでなく本文の読了までを 1 つの期限で覆い、エージェント側の中断も合流させる
+    const fetchSignal = AbortSignal.any([
+      signal,
+      AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    ]);
+
     // fetch（リダイレクト禁止）
     let res: Response;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      try {
-        res = await fetch(url, {
-          redirect: 'error',
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; LocalAIChatBot/1.0)',
-          },
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      res = await fetch(url, {
+        redirect: 'error',
+        signal: fetchSignal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; LocalAIChatBot/1.0)',
+        },
+      });
     } catch (e) {
+      if (isTimeoutError(e)) return TIMEOUT_MESSAGE;
       // redirect: 'error' 時のリダイレクト検出: TypeError かつ message または cause に 'redirect' を含む
       // undici は 'fetch failed' という TypeError を投げ、実際の原因を e.cause に格納する場合がある
       if (e instanceof TypeError) {
@@ -172,6 +185,7 @@ export const urlFetchTool: Tool = {
     }
 
     if (!res.ok) {
+      discardBody(res);
       return `エラー: HTTP ${res.status} ${res.statusText}`;
     }
 
@@ -181,20 +195,25 @@ export const urlFetchTool: Tool = {
       !contentType.includes('text/html') &&
       !contentType.includes('text/plain')
     ) {
+      discardBody(res);
       return `エラー: 対応していないコンテンツタイプです (${contentType})。テキストまたは HTML のみ取得できます。`;
     }
 
-    // Content-Length による事前サイズチェック（ヘッダーがない場合はスキップ）
+    // Content-Length による早期拒否（補助。宣言が無い・偽っている場合は下の実受信量の検査で止める）
     const contentLength = Number(res.headers.get('Content-Length') ?? 0);
     if (contentLength > MAX_INPUT_BYTES) {
+      discardBody(res);
       return `エラー: ページが大きすぎます（${Math.round(contentLength / 1024 / 1024)}MB）。2MB 以下のページのみ取得できます。`;
     }
 
-    const raw = await res.text();
-
-    // Content-Length なしの場合のサイズチェック（ストリーム展開後）
-    if (raw.length > MAX_INPUT_BYTES) {
-      return 'エラー: ページが大きすぎます（2MB 超）。';
+    let raw: string;
+    try {
+      raw = await readBodyWithLimit(res, MAX_INPUT_BYTES, fetchSignal);
+    } catch (e) {
+      if (e instanceof BodyTooLargeError) return TOO_LARGE_MESSAGE;
+      if (isTimeoutError(e)) return TIMEOUT_MESSAGE;
+      const msg = e instanceof Error ? e.message : String(e);
+      return `エラー: ページ本文の読み取りに失敗しました: ${msg}`;
     }
 
     const text = contentType.includes('text/html')

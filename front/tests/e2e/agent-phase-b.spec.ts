@@ -1,7 +1,51 @@
+import type { APIResponse } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import { cleanupAllConversations } from './helpers/test-data';
 
 const BASE_URL = 'http://localhost:3000';
+
+/** NDJSON の 1 行。検証に使うフィールドだけを持つ（AgentStreamEvent の部分形） */
+type StreamEvent = {
+  type: string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+  result?: string;
+  isError?: boolean;
+};
+
+/**
+ * エージェント応答の NDJSON から url_fetch の実行結果を取り出し、取得が拒否されたことを検証する。
+ *
+ * 実 LLM はツールを呼ぶか・どの URL を渡すかが非決定的なため、**対象 URL を 1 回だけ
+ * 取得しようとした場合に限り**結果の中身を検証する（呼ばなければ検証なしで通る）。
+ * 結果が毎回同じになる検証は IT（`tests/integration/chat-agent.test.ts`）が担保する。
+ *
+ * @param res - `/api/chat`（enableTools=true）のレスポンス
+ * @param target - LLM が url_fetch に渡すと期待する URL の一部
+ */
+async function expectUrlFetchRejected(res: APIResponse, target: string) {
+  const events = (await res.text())
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as StreamEvent);
+  const starts = events.filter(
+    (e) => e.type === 'tool_call_start' && e.name === 'url_fetch'
+  );
+  const results = events.filter(
+    (e) => e.type === 'tool_call_result' && e.name === 'url_fetch'
+  );
+
+  if (
+    starts.length !== 1 ||
+    !String(starts[0].arguments?.url ?? '').includes(target)
+  ) {
+    return;
+  }
+  expect(results).toHaveLength(1);
+  // ツールは拒否理由を "エラー: ..." の文字列で返す（タイムアウト時は isError=true）
+  const [{ result = '', isError }] = results;
+  expect(isError || result.startsWith('エラー:')).toBe(true);
+}
 
 test.describe('エージェント Phase B — 調査系ツール', () => {
   test.setTimeout(180000);
@@ -86,6 +130,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
 
       // enableTools=true で NDJSON が返ること自体は正常
       expect(res.status()).toBe(200);
+      await expectUrlFetchRejected(res, '192.168.1.1');
     });
 
     test('url_fetch にローカルホストを渡すとエラーが返る', async ({
@@ -101,6 +146,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       });
 
       expect(res.status()).toBe(200);
+      await expectUrlFetchRejected(res, 'localhost');
     });
 
     test('url_fetch に http/https 以外のスキームを渡すとツールエラーになる', async ({
@@ -116,6 +162,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
       });
 
       expect(res.status()).toBe(200);
+      await expectUrlFetchRejected(res, '/etc/passwd');
     });
 
     test('空メッセージで enableTools=true のとき API が 400 を返す', async ({
@@ -151,6 +198,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
 
       // API 自体は 200（ツール側でエラーを文字列として返す）
       expect(res.status()).toBe(200);
+      await expectUrlFetchRejected(res, 'not-a-url');
     });
 
     test('enableTools=true かつ 10001 文字メッセージで 400 を返す', async ({
