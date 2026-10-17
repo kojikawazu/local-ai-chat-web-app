@@ -762,3 +762,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 - [ ] 4 ワークフローの衛生（permissions / concurrency / paths-ignore 重複）を是正し、actionlint を導入する — #99
 - [ ] 鍵・`.env` の Git 混入を検出する Secret scan ジョブを追加する — #100
 - [ ] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
+
+### 26-4: 依存パッケージの脆弱性解消
+
+- [x] Dependabot セキュリティアラート（npm）を一括解消する — #107
+  - [x] `next` / `eslint-config-next` を 16.1.4 → 16.4.2 に更新（critical の RCE 2 件を含む）
+  - [x] `vitest` を 4.1.12 に更新（`@vitest/mocker` のパストラバーサル）
+  - [x] 現行メジャー内で全依存を更新し、推移依存（hono / undici / postcss / sharp / js-yaml 等）を解消
+  - [x] `pnpm audit` の残り 1 件（`braces`：修正版未提供・`eslint-config-next` 経由の lint 時専用）は解消不能として記録
