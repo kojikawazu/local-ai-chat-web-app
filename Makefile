@@ -47,7 +47,7 @@ test-unit: ## ユニットテスト（Vitest）
 test-integration: ## インテグレーションテスト（Vitest + Testcontainers・Docker必須）
 	cd $(FRONT) && pnpm test:integration
 
-test-e2e: ## E2Eテスト（Playwright・Ollama + PostgreSQL必須）
+test-e2e: ## E2Eテスト（Playwright・Ollama + PostgreSQL必須。既定モデル qwen2.5:0.5b、E2E_OLLAMA_MODEL で変更）
 	cd $(FRONT) && pnpm test:e2e
 
 ## --- DB（PostgreSQL / Prisma） ---

@@ -24,6 +24,7 @@
 - [テストデータ管理](#テストデータ管理)
 - [失敗時レポート](#失敗時レポート)
   - [Playwright設定（抜粋）](#playwright設定抜粋)
+  - [E2E のモデル](#e2e-のモデル)
 - [テストファイル構成](#テストファイル構成)
   - [テストヘルパー（test-data.ts）](#テストヘルパーtest-datats)
 - [CI（GitHub Actions）](#cigithub-actions)
@@ -296,13 +297,32 @@ describe('機能名', () => {
 ```typescript
 // playwright.config.ts
 {
+  globalSetup: './tests/e2e/helpers/global-setup.ts',
   use: {
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
   retries: 1,
+  webServer: {
+    command: 'pnpm dev',
+    env: { OLLAMA_MODEL: E2E_OLLAMA_MODEL }, // 既定 qwen2.5:0.5b
+  },
 }
 ```
+
+### E2E のモデル
+
+E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行する（#110）。アプリ既定の `qwen3-coder-next`（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫し、他のアプリ（ブラウザの音声再生など）に影響が出たため。
+
+| 項目 | 内容 |
+|------|------|
+| 定義 | `tests/e2e/helpers/model.ts`（`E2E_OLLAMA_MODEL` / `E2E_LIGHT_MODEL` / `IS_LIGHT_MODEL`） |
+| 上書き | `E2E_OLLAMA_MODEL=qwen3-coder-next:latest pnpm test:e2e`（大モデルで全件） |
+| 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される |
+| 事前準備 | `ollama pull qwen2.5:0.5b` |
+| 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略） |
+| 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
+| 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
 
 ## テストファイル構成
 
@@ -327,7 +347,9 @@ front/tests/
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/
     ├── helpers/
-    │   └── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済みを検証
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
@@ -421,6 +443,7 @@ CPU onlyのCIランナーではLLM推論が遅いため、以下のテストを�
 | テストファイル | スキップ対象 | 理由 |
 |---------------|-------------|------|
 | `chat-streaming.spec.ts` | ストリーミング完了を待つ4テスト | CPU onlyで120秒以内に完了しない |
+| `agent.spec.ts` / `agent-phase-c.spec.ts` | ツール呼び出しに依存する 5 テスト | 軽量モデルではツール呼び出しが安定しない（`IS_LIGHT_MODEL` で判定するため、ローカルでも既定ではスキップ） |
 | `screenshot.spec.ts` | 全テスト | OS間フォントレンダリング差異 |
 
 ### CI固有の技術的考慮事項

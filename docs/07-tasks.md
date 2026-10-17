@@ -787,5 +787,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 ローカル E2E で既定の大モデル（`qwen3-coder-next`、読み込み時約 58GB）が読み込まれ、64GB の Mac でメモリが逼迫した（2026-10-17）。
 
-- [ ] ローカル E2E の既定モデルを `qwen2.5:0.5b` にし、大モデルの意図しない読み込みを防ぐ — #110
+- [x] ローカル E2E の既定モデルを `qwen2.5:0.5b` にし、大モデルの意図しない読み込みを防ぐ — #110
+  - [x] `tests/e2e/helpers/model.ts` に E2E のモデル解決を集約し、`playwright.config.ts` の `webServer.env` で dev サーバーの `OLLAMA_MODEL` に渡す（`E2E_OLLAMA_MODEL` で上書き可）
+  - [x] `globalSetup` で、再利用した dev サーバーのモデル不一致・モデル未取得を検出して開始前に止める
+  - [x] ツール呼び出し依存の E2E 5 件のスキップ条件を `process.env.CI` から `IS_LIGHT_MODEL` に変更
+  - [x] `chat-loading.spec.ts` を、軽量モデルの速い応答でもローディング表示を取りこぼさないよう MutationObserver による監視に変更（10 回連続・リトライなしで全件成功）
+  - [x] CI（`E2E_OLLAMA_MODEL`）・`Makefile`・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/02`・`docs/04`・`docs/06`・`.claude/rules/testing.md`・`manuals/setup-guide-macos.md` を同期
 - [ ] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111
+- [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113

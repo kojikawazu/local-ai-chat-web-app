@@ -3,6 +3,7 @@ import {
   cleanupAllConversations,
   postChatWithRetry,
 } from './helpers/test-data';
+import { E2E_LIGHT_MODEL, IS_LIGHT_MODEL } from './helpers/model';
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -117,8 +118,8 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       page,
     }) => {
       test.skip(
-        !!process.env.CI,
-        'CI 環境ではモデルのツール呼び出しに依存するためスキップ'
+        IS_LIGHT_MODEL,
+        `軽量モデル（${E2E_LIGHT_MODEL}）はツール呼び出しが安定しないためスキップ`
       );
 
       await page.goto('/');
@@ -145,8 +146,8 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
 
     test('thinking イベントで思考過程が表示される', async ({ page }) => {
       test.skip(
-        !!process.env.CI,
-        'CI 環境ではモデルのツール呼び出しに依存するためスキップ'
+        IS_LIGHT_MODEL,
+        `軽量モデル（${E2E_LIGHT_MODEL}）はツール呼び出しが安定しないためスキップ`
       );
 
       await page.goto('/');

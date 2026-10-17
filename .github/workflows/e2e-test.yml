@@ -110,7 +110,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/chat_db
           OLLAMA_BASE_URL: http://localhost:11434
-          OLLAMA_MODEL: qwen2.5:0.5b
+          # E2E のモデルは playwright.config.ts が E2E_OLLAMA_MODEL（既定 qwen2.5:0.5b）から
+          # dev サーバーへ OLLAMA_MODEL として渡す。上の pull と揃えるため明示する
+          E2E_OLLAMA_MODEL: qwen2.5:0.5b
           CI: true
         run: pnpm test:e2e
 

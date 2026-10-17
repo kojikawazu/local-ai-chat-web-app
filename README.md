@@ -94,7 +94,7 @@ pnpm format:check    # Prettier 差分チェック（書き換えない）
 pnpm typecheck       # 型チェック（tsc --noEmit）
 pnpm test:unit       # ユニットテスト実行（Vitest）
 pnpm test:integration # インテグレーションテスト（Vitest + Testcontainers・Docker必須）
-pnpm test:e2e        # E2Eテスト実行（Playwright）
+pnpm test:e2e        # E2Eテスト実行（Playwright。既定モデル qwen2.5:0.5b、E2E_OLLAMA_MODEL で変更）
 pnpm prisma studio   # DBブラウザ起動
 ```
 
@@ -114,7 +114,7 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 make setup           # 初期セットアップ（DB起動→install→Prisma生成→migrate）
 make dev             # 開発サーバー起動
 make test            # UT + IT（Ollama不要）
-make test-e2e        # E2Eテスト（Ollama + PostgreSQL必須）
+make test-e2e        # E2Eテスト（Ollama + PostgreSQL必須。要 ollama pull qwen2.5:0.5b）
 make db-up           # PostgreSQL 起動
 make db-migrate      # マイグレーション実行
 ```

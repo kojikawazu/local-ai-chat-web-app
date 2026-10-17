@@ -156,7 +156,9 @@ front/prisma/
 front/tests/
 └── e2e/
     ├── helpers/
-    │   └── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済みを検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
