@@ -279,7 +279,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ```json
 {
-  "model": "qwen3-coder-next:latest",
+  "model": "qwen3.8:27b",
   "messages": [
     { "role": "user", "content": "..." }
   ],
@@ -290,9 +290,9 @@ Ollamaで利用可能なモデル一覧を取得する。
 **ストリーミングレスポンス（NDJSON）**
 
 ```json
-{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":"Hello"},"done":false}
-{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":"!"},"done":false}
-{"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":""},"done":true}
+{"model":"qwen3.8:27b","message":{"role":"assistant","content":"Hello"},"done":false}
+{"model":"qwen3.8:27b","message":{"role":"assistant","content":"!"},"done":false}
+{"model":"qwen3.8:27b","message":{"role":"assistant","content":""},"done":true}
 ```
 
 各行がJSONオブジェクト。`done: true` でストリーミング完了。
@@ -310,7 +310,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```json
 {
   "models": [
-    { "name": "qwen3-coder-next:latest", "modified_at": "...", "size": 12345678 }
+    { "name": "qwen3.8:27b", "modified_at": "...", "size": 12345678 }
   ]
 }
 ```

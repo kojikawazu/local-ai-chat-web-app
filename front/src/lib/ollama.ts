@@ -1,6 +1,5 @@
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const OLLAMA_DEFAULT_MODEL =
-  process.env.OLLAMA_MODEL || 'qwen3-coder-next:latest';
+const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'qwen3.8:27b';
 
 import type { OllamaToolDefinition, OllamaToolCall } from './tools/types';
 
@@ -55,7 +54,7 @@ export type OllamaChatOptions = {
  * Ollama にインストール済みのモデル情報（`/api/tags` の 1 要素）。
  */
 export interface OllamaModel {
-  /** モデル名（例: `qwen3-coder-next:latest`）。切替やリクエスト指定に使う */
+  /** モデル名（例: `qwen3.8:27b`）。切替やリクエスト指定に使う */
   name: string;
   /** モデルの最終更新日時（ISO 文字列） */
   modified_at: string;
@@ -84,7 +83,7 @@ export async function listModels(): Promise<OllamaModel[]> {
 /**
  * 環境変数 `OLLAMA_MODEL` で決まるデフォルトモデル名を返す。
  *
- * @returns デフォルトモデル名（未設定時は `qwen3-coder-next:latest`）
+ * @returns デフォルトモデル名（未設定時は `qwen3.8:27b`）
  */
 export function getDefaultModel(): string {
   return OLLAMA_DEFAULT_MODEL;

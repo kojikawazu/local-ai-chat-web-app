@@ -26,7 +26,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | アイコン | lucide-react |
 | Markdown表示 | react-markdown + remark-gfm |
 | パッケージマネージャー | pnpm |
-| LLM | Ollama — デフォルト `qwen3-coder-next:latest`（動的にモデル切替可能） |
+| LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
 | ORM | Prisma 7（クライアント出力先: `src/generated/prisma/`） |
 | ユニットテスト | Vitest（純ロジック対象） |
@@ -71,7 +71,7 @@ cd front
 pnpm test:e2e tests/e2e/chat.spec.ts              # 特定ファイルのみ実行
 pnpm test:e2e --grep "メッセージ送信"               # テスト名で絞り込み
 pnpm test:e2e tests/e2e/chat.spec.ts --headed      # ブラウザ表示付き実行
-E2E_OLLAMA_MODEL=qwen3-coder-next:latest pnpm test:e2e  # 大モデルで実行（ツール呼び出し依存のテストも走る）
+E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e  # 大モデルで実行（ツール呼び出し依存のテストも走る）
 ```
 
 E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、`playwright.config.ts` が dev サーバーへ `OLLAMA_MODEL` として渡す（`.env.local` の大モデルを読み込ませないため）。起動済みの `pnpm dev` を別モデルで再利用している場合・モデル未取得の場合は、開始前に `tests/e2e/helpers/global-setup.ts` が止める。
@@ -92,7 +92,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
-| `OLLAMA_MODEL` | 使用モデル | `qwen3-coder-next:latest` |
+| `OLLAMA_MODEL` | 使用モデル | `qwen3.8:27b` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |

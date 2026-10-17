@@ -31,7 +31,7 @@
     ↓ fetch (streaming)
 Next.js Route Handlers (API層)
     ├──→ Prisma ORM ──→ PostgreSQL (Docker)
-    └──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3-coder-next:latest
+    └──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
 ```
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
@@ -256,7 +256,7 @@ model Message {
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|
 | `OLLAMA_BASE_URL` | Ollama APIの接続先 | `http://localhost:11434` |
-| `OLLAMA_MODEL` | 使用するモデル名 | `qwen3-coder-next:latest` |
+| `OLLAMA_MODEL` | 使用するモデル名 | `qwen3.8:27b` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |

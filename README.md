@@ -77,7 +77,7 @@ pnpm dev                          # → http://localhost:3000
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
-| `OLLAMA_MODEL` | 使用モデル（**実際に pull したモデル名に合わせる**） | `qwen3-coder-next:latest` |
+| `OLLAMA_MODEL` | 使用モデル（**実際に pull したモデル名に合わせる**） | `qwen3.8:27b` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントの最大ツール呼び出しラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
