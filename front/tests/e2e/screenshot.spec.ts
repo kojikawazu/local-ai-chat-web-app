@@ -1,3 +1,4 @@
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import {
   cleanupAllConversations,
@@ -5,6 +6,19 @@ import {
   createMessage,
   sendMessage,
 } from './helpers/test-data';
+
+/**
+ * メッセージの送信時刻（`toLocaleTimeString` の「時:分」）を指す。
+ *
+ * 時刻はテストを実行した時間で変わり、基準画像と一致しなくなるため、スクリーンショットではマスクする。
+ * 表記はブラウザのロケールで変わる（`14:05` / `02:05 PM`）ため、先頭の「時:分」だけで一致させる。
+ *
+ * @param page - 対象のページ
+ * @returns 送信時刻の要素
+ */
+function messageTimes(page: Page): Locator {
+  return page.getByText(/^\d{1,2}:\d{2}/);
+}
 
 // スクリーンショットテストはOS間でレンダリング差異があるためCI環境ではスキップ
 test.describe('スクリーンショットテスト', () => {
@@ -63,6 +77,7 @@ test.describe('スクリーンショットテスト', () => {
       });
 
       await expect(page).toHaveScreenshot('chat-with-messages.png', {
+        mask: [messageTimes(page)],
         maxDiffPixelRatio: 0.05,
       });
     });
@@ -85,7 +100,9 @@ test.describe('スクリーンショットテスト', () => {
   });
 
   test.describe('準正常系', () => {
-    test('エラー表示時', async ({ page }) => {
+    test('エラー表示時', async ({ page, request }) => {
+      // 前のテストの会話がサイドバーに残ると画像が変わるため、会話なしから始める
+      await cleanupAllConversations(request);
       // Ollama APIを失敗させてエラー状態を作る
       await page.route('**/api/chat', (route) => {
         route.fulfill({
@@ -108,6 +125,7 @@ test.describe('スクリーンショットテスト', () => {
       });
 
       await expect(page).toHaveScreenshot('error-display.png', {
+        mask: [messageTimes(page)],
         maxDiffPixelRatio: 0.05,
       });
     });

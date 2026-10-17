@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
   cleanupAllConversations,
   postChatWithRetry,
+  waitForResponseComplete,
 } from './helpers/test-data';
 import { E2E_LIGHT_MODEL, IS_LIGHT_MODEL } from './helpers/model';
 
@@ -135,10 +136,8 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       });
       await page.locator('button[type="submit"]').click();
 
-      // 送信完了まで待機
-      await expect(page.locator('button[type="submit"]')).toBeEnabled({
-        timeout: 120000,
-      });
+      // 応答の完了を待つ
+      await waitForResponseComplete(page);
 
       // ラウンド数表示を確認（「N ラウンド」）
       await expect(page.getByText(/ラウンド/)).toBeVisible({ timeout: 5000 });
@@ -163,9 +162,7 @@ test.describe('エージェント Phase C — 自律エージェント化', () =
       });
       await page.locator('button[type="submit"]').click();
 
-      await expect(page.locator('button[type="submit"]')).toBeEnabled({
-        timeout: 120000,
-      });
+      await waitForResponseComplete(page);
 
       // 思考過程が表示されていれば確認（モデルが thinking を出力しない場合は skip）
       const thinkingEl = page.getByText('思考過程').first();

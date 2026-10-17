@@ -1,6 +1,6 @@
 # CI E2Eテスト バグレポート
 
-> 最終更新: 2026-07-11
+> 最終更新: 2026-10-17
 
 ## 目次
 
@@ -18,6 +18,7 @@
 - [11. `overflow-y-auto` コンテナの可視性（1件）](#11-overflow-y-auto-コンテナの可視性1件)
 - [12. pnpm 11 系が Node 20 で起動失敗（ビルド前に全失敗）](#12-pnpm-11-系が-node-20-で起動失敗ビルド前に全失敗)
 - [13. Ollama 最新版が CPU 推論で segfault（2件）](#13-ollama-最新版が-cpu-推論で-segfault2件)
+- [14. ローカルで常に失敗していた既存の E2E（12件）](#14-ローカルで常に失敗していた既存の-e2e12件)
 - [CI スキップ対象テスト一覧](#ci-スキップ対象テスト一覧)
 - [今後の改善案](#今後の改善案)
 
@@ -171,6 +172,8 @@ test.skip(!!process.env.CI, 'CI環境(CPU only)ではストリーミング完了
 
 **ファイル**: `.github/workflows/e2e-test.yml`, `front/tests/e2e/chat-streaming.spec.ts`
 
+**追記（2026-10-17 / #115）**: タイムアウトの主因は推論の遅さではなかった。送信ボタンは**入力欄が空だと無効のまま**（`ChatBar` の `canSend`）なので、送信後にボタンを待つと応答が終わっても有効にならない。GPU のローカルでも常に失敗していた。完了待ちを `waitForResponseComplete` に変えて解消した（[14](#14-ローカルで常に失敗していた既存の-e2e12件) 参照）。CPU only の CI で完了まで時間がかかるのは事実のため、CI スキップは残す。
+
 ---
 
 ## 10. Shift+Enter テストでメッセージが送信される（1件）
@@ -241,6 +244,42 @@ Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
 **恒久対応**: この2テストの本質は「valid な systemPrompt が **4xx で拒否されない**」ことなので、生成成功(200)だけでなく **Ollama ダウン由来の 502 も受理**とする（`expect([200, 502]).toContain(res.status())`）。これにより CI インフラ flake を許容しつつ、バリデーション不具合（400）や API クラッシュ（500）は引き続き検出できる。実 Ollama のローカルでは 200 で通り、フルカバレッジは維持される。バージョン固定・リトライは緩和策として残す。
 
 **ファイル**: `.github/workflows/e2e-test.yml`, `front/tests/e2e/helpers/test-data.ts`, `front/tests/e2e/agent-phase-c.spec.ts`
+
+---
+
+## 14. ローカルで常に失敗していた既存の E2E（12件）
+
+#111（Qwen3.8 への移行検証）で E2E 全件をローカル実行した際に見つかった。いずれも CI ではスキップされるテストのため、CI は成功していた。アプリではなくテスト側の不具合。
+
+### 14-1. 送信ボタンの有効化で応答の完了を待っていた（8件）
+
+**症状**: `chat-streaming.spec.ts` 4件・`agent.spec.ts` 2件・`agent-phase-c.spec.ts` 2件が `expect(sendButton).toBeEnabled({ timeout: 120000 })` でタイムアウト。失敗時のスクリーンショットでは応答・ツール結果・ラウンド数がすべて表示されていた。
+
+**原因**: 送信ボタンは「入力欄が空でない かつ 生成中でない」ときだけ有効になる。送信すると入力欄は空になるため、応答が終わっても有効にならない（[9](#9-ストリーミング完了タイムアウト4件) の真因）。
+
+**対応**: `helpers/test-data.ts` に `waitForResponseComplete` を追加。1 文字入力してからボタンの有効化を待ち、入力した文字は消す。生成中インジケーター（`aria-label="応答を生成中"`）は最初のチャンクを待つ間しか出ないため、完了の判定には使えない。
+
+### 14-2. dev オーバーレイの文言に一致した（1件）
+
+**症状**: `conversation.spec.ts` の AI 応答の保存失敗テストで、再試行後に `page.getByText('保存に失敗しました')` が 0 件にならない。
+
+**原因**: 保存 API の失敗を Next.js の dev オーバーレイがエラーとして表示し、その中に同じ文言が含まれる。
+
+**対応**: アプリの表示（`page.getByRole('status')`）に絞る。同じ書き方のユーザーメッセージ側の判定もあわせて揃えた。
+
+### 14-3. スクリーンショットの基準画像がなかった（3件）
+
+**症状**: `screenshot.spec.ts` の `chat-with-messages` / `sidebar-with-conversations` / `error-display` が毎回「基準画像なし」で失敗する。
+
+**対応**: 基準画像を追加。メッセージの送信時刻は実行時刻で変わるため `mask` で隠す。`error-display` は前のテストの会話がサイドバーに残らないよう、会話を消してから撮る。あわせて、初回コミットのまま古くなっていた `initial-empty`（英語の文言・旧モデル名）を更新した。許容差（`maxDiffPixelRatio: 0.05`）内のため成功し続けていた。
+
+### 14-4. 取得していないモデル名を直接書いていた
+
+**症状**: `agent.spec.ts` 2件・`agent-phase-b.spec.ts` 8件が `/api/chat` に `model: 'qwen3-coder:latest'`（未取得）を送っていた。ステータス 200 で NDJSON のエラーイベントが返るため成功していたが、ツールの検証は実質行われていなかった。
+
+**対応**: `E2E_OLLAMA_MODEL` に置き換え、E2E の実行モデルで検証する。
+
+**ファイル**: `front/tests/e2e/helpers/test-data.ts`, `front/tests/e2e/chat-streaming.spec.ts`, `front/tests/e2e/agent.spec.ts`, `front/tests/e2e/agent-phase-b.spec.ts`, `front/tests/e2e/agent-phase-c.spec.ts`, `front/tests/e2e/conversation.spec.ts`, `front/tests/e2e/screenshot.spec.ts`
 
 ---
 

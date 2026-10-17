@@ -793,5 +793,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] ツール呼び出し依存の E2E 5 件のスキップ条件を `process.env.CI` から `IS_LIGHT_MODEL` に変更
   - [x] `chat-loading.spec.ts` を、軽量モデルの速い応答でもローディング表示を取りこぼさないよう MutationObserver による監視に変更（10 回連続・リトライなしで全件成功）
   - [x] CI（`E2E_OLLAMA_MODEL`）・`Makefile`・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/02`・`docs/04`・`docs/06`・`.claude/rules/testing.md`・`manuals/setup-guide-macos.md` を同期
+- [x] 既存の E2E の不具合を直し、ツール呼び出し系のテストで新しいモデルを判定できるようにする — #115（#111 の前提）
+  - [x] 応答の完了待ちを、入力欄が空だと有効にならない送信ボタン待ちから `waitForResponseComplete`（1 文字入力してから有効化を待つ）に変更（8 件）
+  - [x] 保存失敗の表示が消えたかの判定を `role="status"` に絞り、dev オーバーレイの同じ文言に一致しないようにする（`conversation.spec.ts` 2 箇所）
+  - [x] スクリーンショットの基準画像を 3 件追加し、送信時刻をマスクする。初回コミットのまま古くなっていた `initial-empty` を更新
+  - [x] エージェント系 E2E が直接書いていた未取得モデル `qwen3-coder:latest` を `E2E_OLLAMA_MODEL` に置き換える
+- [ ] Ollama の `message.thinking` を思考過程として表示し、通常チャットの思考の扱いを決める — #116（#111 の前提）
 - [ ] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111
 - [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113
