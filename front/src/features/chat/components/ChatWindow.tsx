@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { User, Bot, Copy } from 'lucide-react';
+import { User, Bot, Copy, TriangleAlert, RotateCw } from 'lucide-react';
 import type { Message } from '@/types';
 import MarkdownContent from './MarkdownContent';
 import { ToolCallIndicator } from './ToolCallIndicator';
@@ -9,28 +9,32 @@ import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 
 /** {@link ChatWindow} の props。 */
-interface ChatWindowProps {
+type ChatWindowProps = {
   /** 表示する会話メッセージ一覧（時系列順）。空なら空状態のウェルカム画面を表示する。 */
   messages: Message[];
   /** 現在実行中のツール呼び出し。ある場合はスピナー付きインジケーターを表示する。 */
   activeToolCall?: { name: string; arguments: Record<string, unknown> } | null;
   /** 応答生成中か。末尾の空 assistant メッセージと組み合わせて「最初のチャンク待ち」演出を出す。 */
   isLoading?: boolean;
-}
+  /** 保存に失敗したメッセージの再試行ボタン押下時のコールバック。メッセージ ID を受け取る。 */
+  onRetrySave?: (messageId: string) => void;
+};
 
 /**
  * チャットのメッセージ一覧を描画するスクロール領域。
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
  * 描画し、思考過程・ツール呼び出し結果・ラウンド統計を付随表示する。最初のチャンク
- * 待ち中はドットアニメーションを表示する。
+ * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
+ * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
  *
- * @param props - メッセージ一覧・実行中ツール・ローディング状態を持つ props
+ * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行コールバックを持つ props
  */
 export default function ChatWindow({
   messages,
   activeToolCall,
   isLoading,
+  onRetrySave,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +149,33 @@ export default function ChatWindow({
                       msg.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
+                    {msg.saveState && (
+                      <span
+                        role="status"
+                        className="flex items-center gap-1 text-nord-aurora-red"
+                      >
+                        <TriangleAlert size={14} />
+                        {msg.role === 'user'
+                          ? '送信に失敗しました'
+                          : '保存に失敗しました'}
+                      </span>
+                    )}
+                    {msg.saveState && (
+                      <button
+                        className="flex items-center gap-1 text-nord-frost-1 hover:underline disabled:opacity-50 disabled:no-underline"
+                        onClick={() => onRetrySave?.(msg.id)}
+                        // 再試行中、または応答生成中（user の再送は生成を伴うため）は押させない
+                        disabled={msg.saveState === 'retrying' || isLoading}
+                      >
+                        <RotateCw
+                          size={14}
+                          className={
+                            msg.saveState === 'retrying' ? 'animate-spin' : ''
+                          }
+                        />
+                        {msg.role === 'user' ? '再送' : '再試行'}
+                      </button>
+                    )}
                     {msg.role === 'assistant' && (
                       <button
                         className="hover:text-nord-frost-1 transition-colors"

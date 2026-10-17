@@ -141,6 +141,8 @@ describe('機能名', () => {
 **異常系**
 - DB接続エラー時にエラーメッセージが表示される
 - 削除済み会話のメッセージ取得時にエラーが表示される
+- ユーザーメッセージの保存に失敗すると「送信に失敗しました」を表示し、LLM を呼ばない。再送で保存・応答生成が進む
+- AI応答の保存に失敗すると応答を残したまま「保存に失敗しました」を表示し、再試行で保存される（CI スキップ）
 
 ### ストリーミング表示
 
@@ -295,7 +297,7 @@ front/tests/
 │   │   └── db.ts                 # resetDb・NextRequest/コンテキスト構築
 │   ├── conversations.test.ts     # 作成/一覧（POST/GET）
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
-│   ├── messages.test.ts          # メッセージ保存/取得・バリデーション
+│   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）

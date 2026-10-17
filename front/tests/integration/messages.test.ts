@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '@/app/api/conversations/[id]/messages/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
-import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
+import {
+  MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_MESSAGE_LENGTH,
+} from '@/lib/validation';
 
 /**
  * `/api/conversations/[id]/messages`（取得・保存）の IT。
@@ -72,6 +75,21 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
         toolCalls: [{ name: 'calculate', result: '4' }],
       });
     });
+
+    it('assistant 応答は入力上限を超えても保存できる（LLM 出力は user と別上限）', async () => {
+      const id = await createConversation();
+      const content = 'あ'.repeat(MAX_MESSAGE_LENGTH + 1);
+      const res = await POST(
+        jsonRequest(URL, 'POST', { role: 'assistant', content }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(201);
+      // 表示内容と永続化内容が食い違わない（切り詰められていない）
+      const stored = await prisma.message.findUnique({
+        where: { id: (await res.json()).id },
+      });
+      expect(stored?.content).toBe(content);
+    });
   });
 
   describe('準正常系', () => {
@@ -107,6 +125,18 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
         jsonRequest(URL, 'POST', {
           role: 'user',
           content: 'あ'.repeat(MAX_MESSAGE_LENGTH),
+        }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(201);
+    });
+
+    it('assistant 応答がちょうど上限文字数なら保存できる（境界値）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'assistant',
+          content: 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH),
         }),
         routeContext(id)
       );
@@ -199,6 +229,47 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(res.status).toBe(400);
       // 長さ検証は会話存在チェックより前に走るため、DB は一切変更されない
       expect(await prisma.message.count()).toBe(0);
+    });
+
+    it('assistant 応答が上限文字数を超えると 400（DB には保存されない）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'assistant',
+          content: 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH + 1),
+        }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.message.count()).toBe(0);
+    });
+
+    it('会話の updatedAt 更新に失敗するとメッセージ作成もロールバックされ 500', async () => {
+      const id = await createConversation();
+      // Prisma をモックせず、実 DB 側に障害を注入する: Conversation の UPDATE だけを
+      // 失敗させるトリガー。message.create は成功するため、トランザクションで
+      // まとめていなければ「メッセージだけ保存された」部分成功が残る
+      await prisma.$executeRaw`
+        CREATE FUNCTION fail_conversation_update() RETURNS trigger AS $$
+        BEGIN
+          RAISE EXCEPTION 'injected failure';
+        END;
+        $$ LANGUAGE plpgsql`;
+      await prisma.$executeRaw`
+        CREATE TRIGGER fail_conversation_update
+        BEFORE UPDATE ON "Conversation"
+        FOR EACH ROW EXECUTE FUNCTION fail_conversation_update()`;
+      try {
+        const res = await POST(
+          jsonRequest(URL, 'POST', { role: 'user', content: 'x' }),
+          routeContext(id)
+        );
+        expect(res.status).toBe(500);
+        expect(await prisma.message.count()).toBe(0);
+      } finally {
+        await prisma.$executeRaw`DROP TRIGGER fail_conversation_update ON "Conversation"`;
+        await prisma.$executeRaw`DROP FUNCTION fail_conversation_update()`;
+      }
     });
   });
 });

@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-07-25
+> 最終更新: 2026-10-17
 
 ## 目次
 
@@ -165,7 +165,7 @@
 ```typescript
 {
   role: 'user' | 'assistant';
-  content: string;                          // 最大10,000文字
+  content: string;                          // user は最大10,000文字、assistant は最大100,000文字
   metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意。JSONオブジェクトのみ）
 }
 ```
@@ -184,11 +184,15 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・role/content 欠落・role 不正・content が10,000文字超・metadata が非オブジェクト・JSON不正） |
+| 400 | リクエスト不正（無効なUUID・role/content 欠落・role 不正・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・JSON不正） |
 | 404 | 会話が見つからない |
 | 500 | サーバー内部エラー |
 
-上限値は `front/src/lib/validation.ts` の `MAX_MESSAGE_LENGTH` が正準（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）。
+上限値は `front/src/lib/validation.ts` が正準。user は `MAX_MESSAGE_LENGTH`（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）、assistant は `MAX_ASSISTANT_MESSAGE_LENGTH`（LLM 出力は長さを制御できないため入力上限と分ける）。
+
+メッセージの作成と会話の `updatedAt` 更新は同一トランザクションで行い、片方だけが成功する部分成功を起こさない。
+
+クライアント（`useChat`）は 2xx 以外を保存失敗として扱い、該当メッセージに失敗表示と再試行ボタンを出す。user メッセージの保存に失敗した場合は `POST /api/chat` を呼ばない（再送で保存できてから応答を生成する）。
 
 ---
 
