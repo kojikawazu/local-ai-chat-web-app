@@ -103,7 +103,7 @@ front/src/
 │   │   │   ├── Footer.tsx     #     フッター
 │   │   │   ├── Header.tsx     #     ヘッダー（モデル選択ドロップダウン）
 │   │   │   ├── MarkdownContent.tsx #  Markdown整形表示
-│   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think>対応）
+│   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │   │   │   └── ToolCallResult.tsx  #  ツール実行結果の折りたたみ表示
 │   │   ├── constants/

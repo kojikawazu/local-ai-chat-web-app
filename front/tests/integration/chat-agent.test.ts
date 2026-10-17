@@ -10,7 +10,11 @@ import {
 import type { NextRequest } from 'next/server';
 import type { AgentStreamEvent } from '@/lib/tools/types';
 import { jsonRequest } from './helpers/db';
-import { ollamaStreamResponse, stubFetch } from './helpers/ollama-stub';
+import {
+  ollamaChunksResponse,
+  ollamaStreamResponse,
+  stubFetch,
+} from './helpers/ollama-stub';
 
 /**
  * `/api/chat`（エージェント経路・`url_fetch` / `web_search`）の IT。
@@ -307,6 +311,127 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       // 中断されなかった場合に 2 回目が走るはずの時刻（最初の待機 1 秒）を過ぎるまで待ってから確かめる
       await new Promise((r) => setTimeout(r, 1200));
       expect(search).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+/**
+ * Ollama への問い合わせごとに、用意した応答を順に返す fetch スタブ。
+ *
+ * @param responses - 1 回目・2 回目…の問い合わせに返す応答を作る関数
+ * @returns スタブした fetch のモック関数
+ */
+function stubOllamaSequence(responses: (() => Response)[]) {
+  let calls = 0;
+  return stubFetch(() => responses[calls++]());
+}
+
+describe('POST /api/chat（エージェント・思考過程）', () => {
+  describe('正常系', () => {
+    it('message.thinking の断片を 1 つの thinking イベントにまとめ、本文より先に流す', async () => {
+      stubOllamaSequence([
+        () =>
+          ollamaChunksResponse([
+            { thinking: 'The user' },
+            { thinking: ' says hi.' },
+            { content: 'こんにちは' },
+          ]),
+      ]);
+
+      const events = await runAgent();
+
+      // 断片ごとに trim されると単語間の空白が消える（'The usersays hi.'）ため、まとめて流す
+      expect(events.filter((e) => e.type === 'thinking')).toEqual([
+        { type: 'thinking', content: 'The user says hi.' },
+      ]);
+      expect(events.map((e) => e.type)).toEqual([
+        'thinking',
+        'text_delta',
+        'done',
+      ]);
+    });
+
+    it('ツール呼び出しのラウンドの思考過程も、ラウンドごとに thinking イベントになる', async () => {
+      stubOllamaSequence([
+        () =>
+          ollamaChunksResponse([
+            { thinking: '時刻を調べる' },
+            {
+              tool_calls: [
+                { function: { name: 'get_current_datetime', arguments: {} } },
+              ],
+            },
+          ]),
+        () =>
+          ollamaChunksResponse([{ thinking: '答える' }, { content: '今です' }]),
+      ]);
+
+      const events = await runAgent();
+
+      expect(events.map((e) => e.type)).toEqual([
+        'thinking',
+        'tool_call_start',
+        'tool_call_result',
+        'thinking',
+        'text_delta',
+        'done',
+      ]);
+      expect(
+        events.flatMap((e) => (e.type === 'thinking' ? [e.content] : []))
+      ).toEqual(['時刻を調べる', '答える']);
+    });
+
+    it('Ollama に think を送らず、思考するかはモデルの既定に任せる', async () => {
+      const fetchMock = stubOllamaSequence([
+        () => ollamaStreamResponse(['完了']),
+      ]);
+
+      await runAgent();
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(init!.body as string)).not.toHaveProperty('think');
+    });
+  });
+
+  describe('準正常系', () => {
+    it('本文なしで思考過程だけが返っても thinking イベントを流して完了する', async () => {
+      stubOllamaSequence([
+        () => ollamaChunksResponse([{ thinking: '考えた' }]),
+      ]);
+
+      const events = await runAgent();
+
+      expect(events).toEqual([
+        { type: 'thinking', content: '考えた' },
+        expect.objectContaining({ type: 'done' }),
+      ]);
+    });
+
+    it('本文中の <think> タグの思考過程も、従来どおり thinking イベントになる', async () => {
+      stubOllamaSequence([
+        () => ollamaStreamResponse(['<think>考え', 'た</think>', '答え']),
+      ]);
+
+      const events = await runAgent();
+
+      expect(events.filter((e) => e.type === 'thinking')).toEqual([
+        { type: 'thinking', content: '考えた' },
+      ]);
+      expect(
+        events.flatMap((e) => (e.type === 'text_delta' ? [e.content] : []))
+      ).toEqual(['答え']);
+    });
+  });
+
+  describe('異常系', () => {
+    it('空白だけの思考過程は thinking イベントにしない', async () => {
+      stubOllamaSequence([
+        () => ollamaChunksResponse([{ thinking: ' \n ' }, { content: '答え' }]),
+      ]);
+
+      const events = await runAgent();
+
+      expect(events.map((e) => e.type)).toEqual(['text_delta', 'done']);
     });
   });
 });

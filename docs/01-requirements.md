@@ -106,7 +106,8 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
    - ツール実行中インジケーター表示（ToolCallIndicator）
    - ツール実行結果の折りたたみ表示（ToolCallResult）
    - Web 検索結果のリッチ表示（リンク付き）
-   - 思考過程の表示（AgentThinking — `<think>` タグ対応モデルで動作）
+   - 思考過程の表示（AgentThinking — 本文中の `<think>` タグ、または Ollama の `message.thinking` で思考過程を返すモデルで動作）
+   - 通常チャット（エージェントモード OFF）では思考させず、最初の文字が出るまでの時間を優先する
    - システムプロンプトプリセット選択（リサーチャー / 分析者 / 比較レビュアー / なし）
    - 実行統計表示（ラウンド数・所要時間）
    - SSRF 防止（DNS 解決後 IP ブロックリスト、redirect: 'error'）

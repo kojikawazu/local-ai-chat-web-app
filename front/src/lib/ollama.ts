@@ -30,10 +30,26 @@ export interface OllamaStreamChunk {
     content: string;
     /** ツール呼び出し要求（通常は `done=true` のチャンクに含まれる） */
     tool_calls?: OllamaToolCall[];
+    /**
+     * このチャンク分の思考過程の断片。思考に対応したモデル（`qwen3.8` 等）が本文とは別に返す。
+     * 本文中に `<think>` タグで思考を書くモデルでは未設定
+     */
+    thinking?: string;
   };
   /** ストリームの終端チャンクなら true */
   done: boolean;
 }
+
+/**
+ * Ollama `/api/chat` へのリクエストに付けるオプション。
+ */
+export type OllamaChatOptions = {
+  /**
+   * 思考させるか。`false` で思考を止めて最初の本文を速く返させる。未指定ならモデルの既定に従う。
+   * 思考に対応していないモデルへ `true` を送ると Ollama がエラーを返すため、送るのは `false` に限る想定
+   */
+  think?: boolean;
+};
 
 /**
  * Ollama にインストール済みのモデル情報（`/api/tags` の 1 要素）。
@@ -82,13 +98,15 @@ export function getDefaultModel(): string {
  * @param messages - 会話履歴（system / user / assistant / tool を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
  * @param tools - エージェントに渡すツール定義。空・未指定ならツール無しで送信する
+ * @param options - 思考の有無などのオプション。未指定ならモデルの既定に従う
  * @returns ストリーミング応答の `Response`（呼び出し側でボディを逐次読み取る）
  * @throws {Error} Ollama API が非 2xx を返した場合
  */
 export async function streamChat(
   messages: OllamaChatMessage[],
   model?: string,
-  tools?: OllamaToolDefinition[]
+  tools?: OllamaToolDefinition[],
+  options: OllamaChatOptions = {}
 ): Promise<Response> {
   const body: Record<string, unknown> = {
     model: model || OLLAMA_DEFAULT_MODEL,
@@ -97,6 +115,9 @@ export async function streamChat(
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
+  }
+  if (options.think !== undefined) {
+    body.think = options.think;
   }
 
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
@@ -121,12 +142,14 @@ export async function streamChat(
  *
  * @param messages - 会話履歴（system / user / assistant を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
- * @returns アシスタント応答の本文。応答が空・欠落している場合は空文字
+ * @param options - 思考の有無などのオプション。未指定ならモデルの既定に従う
+ * @returns アシスタント応答の本文（思考過程は含まない）。応答が空・欠落している場合は空文字
  * @throws {Error} Ollama API が非 2xx を返した場合
  */
 export async function chatOnce(
   messages: OllamaChatMessage[],
-  model?: string
+  model?: string,
+  options: OllamaChatOptions = {}
 ): Promise<string> {
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
     method: 'POST',
@@ -135,6 +158,7 @@ export async function chatOnce(
       model: model || OLLAMA_DEFAULT_MODEL,
       messages,
       stream: false,
+      ...(options.think !== undefined && { think: options.think }),
     }),
   });
 

@@ -44,6 +44,51 @@ export function ollamaStreamResponse(contents: string[]): Response {
   });
 }
 
+/** {@link ollamaChunksResponse} の 1 チャンクが運ぶメッセージ断片。 */
+type StubChunkMessage = {
+  /** 本文の断片 */
+  content?: string;
+  /** 思考過程の断片（思考に対応したモデルが本文とは別に返すフィールド） */
+  thinking?: string;
+  /** ツール呼び出し要求 */
+  tool_calls?: {
+    function: { name: string; arguments: Record<string, unknown> };
+  }[];
+};
+
+/**
+ * Ollama `/api/chat` 相当の NDJSON ストリーミング応答を、チャンクの中身を指定して組み立てる。
+ *
+ * {@link ollamaStreamResponse} は本文だけを運ぶ。思考過程（`message.thinking`）や
+ * ツール呼び出しを本文と混ぜた順序で流したい場合に使う。末尾に `done: true` のチャンクを付ける。
+ *
+ * @param chunks - 各チャンクが運ぶメッセージ断片（この順に流れる）
+ * @returns `.ok` が true でボディが NDJSON ストリームの `Response`
+ */
+export function ollamaChunksResponse(chunks: StubChunkMessage[]): Response {
+  const lines = [
+    ...chunks.map((message) =>
+      JSON.stringify({
+        model: 'test',
+        message: { role: 'assistant', content: '', ...message },
+        done: false,
+      })
+    ),
+    JSON.stringify({
+      model: 'test',
+      message: { role: 'assistant', content: '' },
+      done: true,
+    }),
+  ]
+    .map((l) => l + '\n')
+    .join('');
+
+  return new Response(lines, {
+    status: 200,
+    headers: { 'content-type': 'application/x-ndjson' },
+  });
+}
+
 /**
  * global `fetch` を任意のハンドラでスタブする。呼び出し記録を返すので引数検証にも使える。
  *
