@@ -289,6 +289,7 @@ front/tests/
 ├── unit/                         # ユニットテスト（Vitest）
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
+│   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
 │   └── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
@@ -299,6 +300,7 @@ front/tests/
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
+│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/

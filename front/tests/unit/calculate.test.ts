@@ -5,7 +5,10 @@ import { calculateTool } from '@/lib/tools/calculate';
  * `calculateTool` の UT。自前の再帰下降パーサーは外部 I/O を持たないため mock は使わない。
  * 契約: 例外は投げず、結果もエラーも常に文字列で返す。成功時は `"式 = 結果"` 形式。
  */
-const calc = (expression: unknown) => calculateTool.execute({ expression });
+// 計算は即時に終わり中断を見ないため、signal は使い捨ての未中断のもので足りる
+const signal = new AbortController().signal;
+const calc = (expression: unknown) =>
+  calculateTool.execute({ expression }, signal);
 
 describe('calculateTool.execute', () => {
   describe('正常系', () => {
@@ -40,7 +43,9 @@ describe('calculateTool.execute', () => {
     });
 
     it('expression が未指定（文字列でない）ときは空扱いでエラーを返す', async () => {
-      expect(await calculateTool.execute({})).toBe('エラー: 計算式が空です');
+      expect(await calculateTool.execute({}, signal)).toBe(
+        'エラー: 計算式が空です'
+      );
     });
 
     it('割り切れない除算は 12 桁精度に丸めて返す', async () => {

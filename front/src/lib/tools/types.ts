@@ -131,14 +131,21 @@ export interface ToolDefinition {
 /**
  * 実行可能なツールの実装。定義とその処理本体をひとまとめにする。
  */
-export interface Tool {
+export type Tool = {
   /** ツールのメタ情報（名前・説明・引数スキーマ） */
   definition: ToolDefinition;
   /**
    * ツール本体を実行する。
    *
+   * 外部 I/O を行うツールは `signal` を fetch・本文読み取り・リトライ待機へ伝播し、
+   * 中断されたら速やかに処理を止めること。ローカルで即時に終わるツールは無視してよい。
+   *
    * @param args - LLM から渡された引数（キー→値のマップ）
+   * @param signal - エージェントのツールタイムアウトで中断される signal
    * @returns 実行結果を表す文字列（エラー時もエラー内容を文字列で返す）
    */
-  execute: (args: Record<string, unknown>) => Promise<string>;
-}
+  execute: (
+    args: Record<string, unknown>,
+    signal: AbortSignal
+  ) => Promise<string>;
+};

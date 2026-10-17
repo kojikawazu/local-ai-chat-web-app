@@ -158,7 +158,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — 共通カスタムフック（useTheme等）
 - **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, agent.ts, agent-prompts.ts）
-  - `lib/tools/` — ツール実装（types.ts, index.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts）
+  - `lib/tools/` — ツール実装（types.ts, index.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
 - **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）

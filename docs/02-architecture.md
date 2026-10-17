@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-07-25
+> 最終更新: 2026-10-17
 
 ## 目次
 
@@ -132,7 +132,8 @@ front/src/
 │       ├── get-current-datetime.ts # 現在日時取得ツール
 │       ├── calculate.ts       #     数式計算ツール
 │       ├── web-search.ts      #     Web検索ツール（DuckDuckGo）
-│       └── url-fetch.ts       #     URL取得ツール（SSRF防止）
+│       ├── url-fetch.ts       #     URL取得ツール（SSRF防止）
+│       └── read-body.ts       #     本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
 └── types/
     ├── index.ts               #   共通型定義（Message, Conversation, ToolCallInfo等）
     └── theme.ts               #   テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
