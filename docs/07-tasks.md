@@ -751,7 +751,13 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] 上限をバイト単位で定義（`url_fetch` 2 MiB / `web_search` 1 MiB）。`Content-Length` は早期拒否の補助、早期 return 時は本文を cancel
   - [x] UT `read-body.test.ts`・IT `chat-agent.test.ts`（サイズ超過・偽装 Content-Length・タイムアウト中断・SSRF・中断後のリトライ停止の tool result）を追加
   - [x] `agent-phase-b.spec.ts` の SSRF / URL 異常系で NDJSON の tool result 内容を検証（LLM が対象 URL を取得した場合のみ）
-- [ ] モバイル表示でも会話履歴・新規会話・設定へアクセスできる導線を追加する — #93
+- [x] モバイル表示でも会話履歴・新規会話・設定へアクセスできる導線を追加する — #93
+  - [x] ヘッダーにモバイル用メニューボタン（`aria-expanded` / `aria-controls` / `aria-haspopup`）を追加
+  - [x] サイドバーの中身を `SidebarContent` に切り出し、デスクトップの `Sidebar` とモバイルの `SidebarDrawer` で共有
+  - [x] `useDrawerDialog` でフォーカス移動・フォーカストラップ・Escape・閉じた後のフォーカス復帰・背景スクロール固定・デスクトップ幅での自動クローズを実装
+  - [x] 削除ボタンをドロワーでは常時表示し、デスクトップではキーボードフォーカス時にも表示（`aria-label` 付与）
+  - [x] E2E `mobile-navigation.spec.ts` を追加し、`responsive.spec.ts` でメニューボタンの到達性を検証
+  - [x] `screenshot.spec.ts` の `mobile-view` ベースラインを更新（メニューボタン追加後のヘッダー。旧画像は許容差 5% で通っていたが、文言・ヘッダーとも古かった）
 
 ### 26-2: P2 — API 契約・永続化の不整合
 
@@ -776,3 +782,10 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `vitest` を 4.1.12 に更新（`@vitest/mocker` のパストラバーサル）
   - [x] 現行メジャー内で全依存を更新し、推移依存（hono / undici / postcss / sharp / js-yaml 等）を解消
   - [x] `pnpm audit` の残り 1 件（`braces`：修正版未提供・`eslint-config-next` 経由の lint 時専用）は解消不能として記録
+
+## フェーズ27: ローカル開発環境の負荷軽減・モデル更新
+
+ローカル E2E で既定の大モデル（`qwen3-coder-next`、読み込み時約 58GB）が読み込まれ、64GB の Mac でメモリが逼迫した（2026-10-17）。
+
+- [ ] ローカル E2E の既定モデルを `qwen2.5:0.5b` にし、大モデルの意図しない読み込みを防ぐ — #110
+- [ ] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111

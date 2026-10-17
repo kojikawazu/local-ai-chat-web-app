@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useChat } from '@/features/chat/hooks/useChat';
 import { useConversations } from '@/features/sidebar/hooks/useConversations';
 import Sidebar from '@/features/sidebar/components/Sidebar';
+import SidebarDrawer from '@/features/sidebar/components/SidebarDrawer';
 import Header from '@/features/chat/components/Header';
 import ChatWindow from '@/features/chat/components/ChatWindow';
 import ChatBar, {
@@ -15,7 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent-prompts';
 
 /**
- * チャット画面のトップページ。サイドバー・チャット領域・設定モーダルを統合する。
+ * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
  *
  * 会話の選択/作成/削除、メッセージ送受信、モデル・ツール・テーマ・エージェント
  * プロンプトの UI 設定を束ね、各機能フックと子コンポーネントへ受け渡す。
@@ -26,6 +27,9 @@ export default function Home() {
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
+  const menuId = useId();
   const [enableTools, setEnableTools] = useState(false);
   const [agentPromptPresetId, setAgentPromptPresetId] =
     useState(DEFAULT_PRESET_ID);
@@ -140,16 +144,24 @@ export default function Home() {
     [deleteConversation, currentConversationId, clearMessages]
   );
 
+  const sidebarProps = {
+    conversations,
+    currentConversationId,
+    isNewConversationMode,
+    onSelectConversation: selectConversation,
+    onNewConversation: handleNewConversation,
+    onDeleteConversation: handleDeleteConversation,
+    onOpenSettings: () => setIsSettingsOpen(true),
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-nord-0 text-nord-6 font-sans">
-      <Sidebar
-        conversations={conversations}
-        currentConversationId={currentConversationId}
-        isNewConversationMode={isNewConversationMode}
-        onSelectConversation={selectConversation}
-        onNewConversation={handleNewConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+      <Sidebar {...sidebarProps} />
+      <SidebarDrawer
+        id={menuId}
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        {...sidebarProps}
       />
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
@@ -157,6 +169,9 @@ export default function Home() {
           models={models}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          menuId={menuId}
+          isMenuOpen={isMenuOpen}
+          onOpenMenu={() => setIsMenuOpen(true)}
         />
         <ChatWindow
           messages={messages}

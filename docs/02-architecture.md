@@ -112,9 +112,12 @@ front/src/
 │   │       └── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成）
 │   └── sidebar/
 │       ├── components/
-│       │   └── Sidebar.tsx    #     サイドバー（会話一覧、設定ボタン）
+│       │   ├── Sidebar.tsx    #     デスクトップのサイドバー（md 以上）
+│       │   ├── SidebarDrawer.tsx #  モバイルのサイドバードロワー（md 未満）
+│       │   └── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
 │       └── hooks/
-│           └── useConversations.ts # 会話CRUD管理
+│           ├── useConversations.ts # 会話CRUD管理
+│           └── useDrawerDialog.ts  # ドロワーのフォーカス管理・Escape・スクロール固定
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
 ├── hooks/
@@ -161,6 +164,7 @@ front/tests/
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
     ├── responsive.spec.ts         # レスポンシブテスト
+    ├── mobile-navigation.spec.ts  # モバイルのドロワーから会話管理・設定へ到達できるか
     ├── theme.spec.ts              # テーマ切替・localStorage永続化テスト
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
