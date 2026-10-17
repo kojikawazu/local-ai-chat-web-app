@@ -30,6 +30,7 @@ globs:
 | CI / E2E の変更・バグ記録 | `docs/08-ci-e2e-bug-report.md`、`.github/workflows/` |
 | エージェント機能・ツールの変更 | `docs/09-agent-architecture.md` |
 | ロードマップ・今後の方針の変更 | `docs/10-roadmap.md` |
+| 使用モデルの追加・変更、モデルの挙動の新しい知見 | `docs/models/`（`README.md` の一覧・比較とモデルごとのファイル） |
 | 技術スタック・コマンド・環境変数の変更 | `CLAUDE.md`（技術スタック / コマンド / 環境変数節）、`README.md` |
 | DB スキーマ・Prisma 構成の変更 | `.claude/rules/database.md`、`CLAUDE.md`（必要に応じて） |
 | セットアップ手順の変更 | `manuals/setup-guide-macos.md`、`README.md` |
@@ -43,7 +44,7 @@ globs:
 
 | 事実 | 正準（source of truth） | 転記されている箇所（要同期） |
 |---|---|---|
-| デフォルトLLMモデル名 | `front/src/lib/ollama.ts`（`OLLAMA_DEFAULT_MODEL`） | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`front/.env.example`、`manuals/setup-guide-macos.md`（※ `docs/07`・`docs/08` の履歴記述は除く） |
+| デフォルトLLMモデル名 | `front/src/lib/ollama.ts`（`OLLAMA_DEFAULT_MODEL`） | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`front/.env.example`、`manuals/setup-guide-macos.md`、`docs/models/README.md`（モデル一覧の役割）（※ `docs/07`・`docs/08` の履歴記述と `docs/models/` の各モデルのファイルは除く） |
 | Ollama 接続情報（ベース URL・モデル解決） | `front/src/lib/ollama.ts` のみ | **転記先なし**。`process.env.OLLAMA_*` を読むのは同ファイルだけとし、Route Handler は `getDefaultModel()` / `streamChat()` / `chatOnce()` を経由する |
 | E2E テストファイル一覧 | `front/tests/e2e/*.spec.ts`（実体） | `docs/02`、`docs/04`、`docs/06` の3箇所のツリー |
 | API エンドポイント一覧 | `front/src/app/api/**/route.ts`（実体） | `CLAUDE.md`、`docs/03`、`.claude/rules/api.md` |
