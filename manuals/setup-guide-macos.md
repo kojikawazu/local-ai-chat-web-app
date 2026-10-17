@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-06-11
+> 最終更新: 2026-10-17
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -183,6 +183,16 @@ ollama pull llama3.1:8b
 ```
 
 利用可能なモデルは [Ollama Library](https://ollama.ai/library) で確認できます。
+
+#### E2E テストを実行する場合（開発者向け）
+
+E2E テスト（`pnpm test:e2e`）は、アプリの設定とは別に**軽量モデル `qwen2.5:0.5b`（約 400MB）**を使います。大型モデルを E2E で読み込むとメモリを大きく消費するためです。
+
+```bash
+ollama pull qwen2.5:0.5b
+```
+
+> 大型モデルで E2E を実行したい場合は `E2E_OLLAMA_MODEL=qwen3-coder-next:latest pnpm test:e2e` のように指定します。
 
 ### Ollama の動作確認
 

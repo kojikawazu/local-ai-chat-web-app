@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { cleanupAllConversations, sendMessage } from './helpers/test-data';
+import { E2E_LIGHT_MODEL, IS_LIGHT_MODEL } from './helpers/model';
 
 // エージェント設定のON/OFFを切り替えるヘルパー
 async function openSettings(page: Parameters<typeof sendMessage>[0]) {
@@ -138,8 +139,8 @@ test.describe('エージェント機能', () => {
       page,
     }) => {
       test.skip(
-        !!process.env.CI,
-        'CI環境ではエージェントのツール呼び出しがモデルに依存するためスキップ'
+        IS_LIGHT_MODEL,
+        `軽量モデル（${E2E_LIGHT_MODEL}）はツール呼び出しが安定しないためスキップ`
       );
 
       await page.goto('/');
@@ -161,8 +162,8 @@ test.describe('エージェント機能', () => {
       page,
     }) => {
       test.skip(
-        !!process.env.CI,
-        'CI環境ではエージェントのツール呼び出しがモデルに依存するためスキップ'
+        IS_LIGHT_MODEL,
+        `軽量モデル（${E2E_LIGHT_MODEL}）はツール呼び出しが安定しないためスキップ`
       );
 
       await page.goto('/');
@@ -181,8 +182,8 @@ test.describe('エージェント機能', () => {
 
     test('ツール呼び出し結果は折りたたみ/展開できる', async ({ page }) => {
       test.skip(
-        !!process.env.CI,
-        'CI環境ではエージェントのツール呼び出しがモデルに依存するためスキップ'
+        IS_LIGHT_MODEL,
+        `軽量モデル（${E2E_LIGHT_MODEL}）はツール呼び出しが安定しないためスキップ`
       );
 
       await page.goto('/');

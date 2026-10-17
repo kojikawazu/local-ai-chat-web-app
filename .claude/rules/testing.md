@@ -79,6 +79,11 @@ globs: "front/tests/**"
 ## Playwright 設定
 
 - `workers: 1`（順次実行）、`retry: 1`、`webServer` で `pnpm dev` を自動起動
+- **モデル**: `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`。ローカル・CI 共通）を `webServer.env` で dev サーバーの `OLLAMA_MODEL` として渡す。定義は `tests/e2e/helpers/model.ts` のみ。
+  - 理由: アプリ既定の大モデル（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫する（#110）。
+  - 大モデルで回す場合は `E2E_OLLAMA_MODEL=<model> pnpm test:e2e`。
+  - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
+  - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。
 - 失敗時: スクリーンショット + トレースを保存
 - テストファイル配置: `front/tests/e2e/`
 - Base URL: `http://localhost:3000`

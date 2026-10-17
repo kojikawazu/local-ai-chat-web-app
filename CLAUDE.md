@@ -50,7 +50,7 @@ pnpm format:check    # Prettier 差分チェック（書き換えずに検出。
 pnpm typecheck       # tsc --noEmit による型チェック
 pnpm test:unit       # Vitest ユニットテスト全実行
 pnpm test:integration # Vitest+Testcontainers インテグレーションテスト（Docker必須）
-pnpm test:e2e        # Playwright E2Eテスト全実行
+pnpm test:e2e        # Playwright E2Eテスト全実行（既定モデル qwen2.5:0.5b。要 `ollama pull qwen2.5:0.5b`）
 ```
 
 ルート直下の `Makefile` から上記コマンドを短縮実行できる（`make dev` / `make test` / `make db-up` 等）。`make` 単体でターゲット一覧を表示。Makefile は pnpm / docker compose の薄いラッパーであり、コマンドの正準は本節の pnpm スクリプトとする。
@@ -71,7 +71,10 @@ cd front
 pnpm test:e2e tests/e2e/chat.spec.ts              # 特定ファイルのみ実行
 pnpm test:e2e --grep "メッセージ送信"               # テスト名で絞り込み
 pnpm test:e2e tests/e2e/chat.spec.ts --headed      # ブラウザ表示付き実行
+E2E_OLLAMA_MODEL=qwen3-coder-next:latest pnpm test:e2e  # 大モデルで実行（ツール呼び出し依存のテストも走る）
 ```
+
+E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、`playwright.config.ts` が dev サーバーへ `OLLAMA_MODEL` として渡す（`.env.local` の大モデルを読み込ませないため）。起動済みの `pnpm dev` を別モデルで再利用している場合・モデル未取得の場合は、開始前に `tests/e2e/helpers/global-setup.ts` が止める。
 
 ### DB関連
 
@@ -172,7 +175,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **IT**: route handler をブラウザ抜きで実PostgreSQL（Testcontainers）相手に検証。実依存（DB）は使い、mockは真の外部（Ollama/Web）のみ。配置: `front/tests/integration/`
 - **E2Eテスト必須**（Playwright）。実際のOllama + PostgreSQLに接続。配置: `front/tests/e2e/`
 - **3分類必須**: UT・IT・E2Eとも正常系・準正常系・異常系に分割。
-- **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。CIモデル: `qwen2.5:0.5b`
+- **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。E2Eモデル: `qwen2.5:0.5b`（ローカル・CI 共通。`E2E_OLLAMA_MODEL` で上書き）
 - **CI 発火除外**: ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 3 ジョブとも発火しない（`paths-ignore`）
 - 詳細は `.claude/rules/testing.md`・`docs/06-testing.md` を参照
 
