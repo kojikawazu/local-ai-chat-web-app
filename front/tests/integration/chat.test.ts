@@ -66,6 +66,29 @@ describe('POST /api/chat（通常チャット）', () => {
       ]);
     });
 
+    it('履歴の要素は role と content だけを Ollama へ渡す（tool_calls 等の余分な項目は落とす）', async () => {
+      const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
+
+      await POST(
+        jsonRequest(URL, 'POST', {
+          message: '次は？',
+          conversationHistory: [
+            {
+              role: 'assistant',
+              content: '前の回答',
+              tool_calls: [{ function: { name: 'x', arguments: {} } }],
+            },
+          ],
+        })
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(init!.body as string).messages[0]).toEqual({
+        role: 'assistant',
+        content: '前の回答',
+      });
+    });
+
     it('応答に思考過程（message.thinking）が混ざっても本文だけを中継する', async () => {
       // think: false を無視して思考を返すモデルでも、思考が本文に混ざらないこと
       stubFetch(() =>
@@ -131,5 +154,43 @@ describe('POST /api/chat（通常チャット）', () => {
       const res = await POST(jsonRequest(URL, 'POST', 'not-json'));
       expect(res.status).toBe(400);
     });
+
+    // 以下は JSON としては正しいが API の形に合わないボディ（#95）。
+    // 以前は分割代入や spread が TypeError を投げて 500 になっていた
+    it.each([
+      ['ボディが null', null],
+      ['ボディが配列', [{ message: 'やあ' }]],
+      [
+        'conversationHistory がオブジェクト',
+        { message: 'やあ', conversationHistory: {} },
+      ],
+      [
+        '履歴の role が system',
+        {
+          message: 'やあ',
+          conversationHistory: [{ role: 'system', content: '指示' }],
+        },
+      ],
+      [
+        '履歴の content が数値',
+        {
+          message: 'やあ',
+          conversationHistory: [{ role: 'user', content: 1 }],
+        },
+      ],
+      ['model が数値', { message: 'やあ', model: 1 }],
+      ['enableTools が文字列', { message: 'やあ', enableTools: 'true' }],
+      ['systemPrompt が数値', { message: 'やあ', systemPrompt: 1 }],
+    ])(
+      '%sなら 400 と { error }。Ollama へは到達しない',
+      async (_label, body) => {
+        const fetchMock = stubFetch(() => ollamaStreamResponse(['x']));
+
+        const res = await POST(jsonRequest(URL, 'POST', body));
+        expect(res.status).toBe(400);
+        expect(typeof (await res.json()).error).toBe('string');
+        expect(fetchMock).not.toHaveBeenCalled();
+      }
+    );
   });
 });

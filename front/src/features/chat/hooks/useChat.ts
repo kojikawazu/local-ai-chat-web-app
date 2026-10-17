@@ -1,9 +1,15 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { Message, MessageSaveState, ToolCallInfo } from '@/types';
+import type {
+  HistoryEntry,
+  Message,
+  MessageSaveState,
+  ToolCallInfo,
+} from '@/types';
 import type { AgentStreamEvent } from '@/lib/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/validation';
+import { toConversationHistory } from '@/lib/conversation-history';
 import {
   buildMessageMetadata,
   parseMessageMetadata,
@@ -24,9 +30,6 @@ interface UseChatOptions {
   /** 初回応答後にタイトル自動生成が完了したときのコールバック。 */
   onTitleGenerated?: () => void;
 }
-
-/** LLM へ渡す会話履歴の 1 件。 */
-type HistoryEntry = Pick<Message, 'role' | 'content'>;
 
 /** 保存に失敗したメッセージの再試行に必要な情報。失敗時と同じ内容を再送する。 */
 type PendingSave = {
@@ -71,21 +74,6 @@ async function saveMessage(
       data.error || `メッセージの保存に失敗しました (${res.status})`
     );
   }
-}
-
-/**
- * 表示中のメッセージから LLM へ渡す会話履歴を組み立てる。
- *
- * 送信に失敗した user メッセージ（`saveState` 付き）は LLM に届いていないため除く。
- * 保存に失敗した assistant メッセージは LLM が実際に返した内容なので含める。
- *
- * @param messages - 表示中のメッセージ一覧
- * @returns LLM へ渡す会話履歴
- */
-function toConversationHistory(messages: Message[]): HistoryEntry[] {
-  return messages
-    .filter((msg) => !(msg.role === 'user' && msg.saveState))
-    .map((msg) => ({ role: msg.role, content: msg.content }));
 }
 
 /**

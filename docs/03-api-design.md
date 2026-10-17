@@ -20,6 +20,15 @@
 
 ## 内部API（Next.js Route Handlers）
 
+### リクエストボディの検証（全 POST 共通）
+
+ボディは `unknown` として読み取り、`front/src/lib/request-body.ts` の検証関数（`parseChatBody` 等）を通してから DB・Ollama へ渡す（#95）。JSON として構文が正しくても API の形に合わない入力は、すべて `{ error: string }` + 400 で返す。
+
+- ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
+- 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
+- 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
+- 上限値は `front/src/lib/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH`）
+
 ### POST /api/chat
 
 チャットメッセージをOllamaに送信し、ストリーミングレスポンスを返す。
@@ -30,15 +39,17 @@
 ```typescript
 {
   message: string;
-  conversationHistory?: {
-    role: 'user' | 'assistant' | 'tool' | 'system';
-    content: string;
+  conversationHistory?: {   // 最大 1,000 件
+    role: 'user' | 'assistant';  // system は systemPrompt、tool はサーバー内のエージェントループだけが作る
+    content: string;             // user は最大 10,000 文字、assistant は最大 100,000 文字（保存上限と同じ）
   }[];
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
-  systemPrompt?: string;   // システムプロンプト（エージェントモード時に先頭挿入）
+  systemPrompt?: string;   // システムプロンプト（エージェントモード時に先頭挿入）。最大 10,000 文字
 }
 ```
+
+履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
 **レスポンス**
 
@@ -54,7 +65,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 成功（ストリーミング開始） |
-| 400 | リクエスト不正（メッセージ空・10,000文字超・JSON不正等） |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・メッセージ空・10,000文字超・各フィールドの型不正・履歴の件数／role／content 長さ不正・systemPrompt 上限超過） |
 | 502 | Ollama接続エラー |
 | 500 | サーバー内部エラー |
 
@@ -96,6 +107,8 @@
 }
 ```
 
+ボディ自体を省略（空の本文）した場合も既定タイトルで作成する。本文があるのに JSON として不正・オブジェクトでない場合は 400（#95 以前は構文エラーを握りつぶして既定タイトルで作成していた）。
+
 **レスポンス**
 
 ```typescript
@@ -110,7 +123,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 作成成功 |
-| 400 | リクエスト不正（title が100文字超） |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title が文字列でない・title が100文字超） |
 | 500 | サーバー内部エラー |
 
 上限値は `front/src/lib/validation.ts` の `MAX_TITLE_LENGTH` が正準。
@@ -184,7 +197,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・role/content 欠落・role 不正・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・JSON不正） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト） |
 | 404 | 会話が見つからない |
 | 500 | サーバー内部エラー |
 
@@ -262,7 +275,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 生成成功 |
-| 400 | リクエスト不正（無効なUUID、空メッセージ） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・空メッセージ・model が文字列でない） |
 | 500 | タイトル生成失敗 |
 
 **備考**: Ollama APIに `stream: false` で非ストリーミングリクエストを送信する。

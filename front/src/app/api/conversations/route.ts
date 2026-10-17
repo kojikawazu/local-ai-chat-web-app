@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { MAX_TITLE_LENGTH } from '@/lib/validation';
+import { parseCreateConversationBody, readJsonBody } from '@/lib/request-body';
 
 /**
  * 会話一覧を更新日時の降順（最新順）で取得する。
@@ -35,28 +35,21 @@ export async function GET() {
 /**
  * 新規会話を作成する。
  *
- * `title` は任意で、未指定・空文字・ボディ不正の場合は既定値「新しい会話」を用いる。
+ * `title` は任意で、未指定・空文字・空のボディの場合は既定値「新しい会話」を用いる。
+ * ボディがあるのに JSON として不正・オブジェクトでない・`title` が文字列でない場合は 400 を返す
+ * （{@link parseCreateConversationBody}）。
  *
- * @param request - 任意の `title`（最大 {@link MAX_TITLE_LENGTH} 文字）を含む JSON ボディを持つリクエスト（本文が不正でも既定タイトルで作成する）
- * @returns 成功時は作成された会話の JSON（ステータス 201）。title 長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
+ * @param request - 任意の `title`（最大 `MAX_TITLE_LENGTH` 文字）を含む JSON ボディを持つリクエスト（ボディ省略可）
+ * @returns 成功時は作成された会話の JSON（ステータス 201）。JSON 構文・形・型の不正と title 長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
-  let body: { title?: string };
-
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
+  const raw = await readJsonBody(request, { allowEmpty: true });
+  const parsed = raw.ok ? parseCreateConversationBody(raw.value) : raw;
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const title = body.title?.trim() || '新しい会話';
-
-  if (title.length > MAX_TITLE_LENGTH) {
-    return NextResponse.json(
-      { error: `タイトルは${MAX_TITLE_LENGTH}文字以内で入力してください` },
-      { status: 400 }
-    );
-  }
+  const { title } = parsed.value;
 
   try {
     const conversation = await prisma.conversation.create({

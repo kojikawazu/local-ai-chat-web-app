@@ -126,6 +126,8 @@ front/src/
 │   ├── ollama.ts              #   Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   ├── prisma.ts              #   Prismaクライアントインスタンス
 │   ├── validation.ts          #   バリデーションユーティリティ
+│   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
+│   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御）
 │   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
 │   ├── message-metadata.ts    #   メッセージ metadata の組み立て・取得時の実行時検証

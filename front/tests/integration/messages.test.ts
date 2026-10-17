@@ -206,6 +206,20 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(res.status).toBe(400);
     });
 
+    // JSON としては正しいが API の形に合わないボディ。以前は分割代入や Prisma が例外を投げて 500 になっていた（#95）
+    it.each([
+      ['ボディが null', null],
+      ['ボディが配列', [{ role: 'user', content: 'x' }]],
+      ['content が数値', { role: 'user', content: 123 }],
+      ['role が数値', { role: 1, content: 'x' }],
+    ])('%sなら 400（DB には保存されない）', async (_label, body) => {
+      const id = await createConversation();
+      const res = await POST(jsonRequest(URL, 'POST', body), routeContext(id));
+      expect(res.status).toBe(400);
+      expect(typeof (await res.json()).error).toBe('string');
+      expect(await prisma.message.count()).toBe(0);
+    });
+
     it('content 欠落は 400', async () => {
       const id = await createConversation();
       const res = await POST(

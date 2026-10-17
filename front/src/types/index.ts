@@ -54,6 +54,9 @@ export type Message = {
   saveState?: MessageSaveState;
 };
 
+/** LLM へ渡す会話履歴の 1 件（`/api/chat` の `conversationHistory` の要素）。 */
+export type HistoryEntry = Pick<Message, 'role' | 'content'>;
+
 /**
  * 会話（メッセージのまとまり）のメタ情報。サイドバーの履歴表示に用いる。
  */

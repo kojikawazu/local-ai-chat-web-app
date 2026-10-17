@@ -21,5 +21,29 @@ export const MAX_MESSAGE_LENGTH = 10000;
  * ため、通常の応答が十分収まる 100,000 文字を安全弁とする。
  */
 export const MAX_ASSISTANT_MESSAGE_LENGTH = 100_000;
+/**
+ * role ごとのメッセージ本文の上限文字数を返す。保存 API と会話履歴の検証で同じ上限を使う。
+ *
+ * @param role - メッセージの発話主体
+ * @returns user は {@link MAX_MESSAGE_LENGTH}、assistant は {@link MAX_ASSISTANT_MESSAGE_LENGTH}
+ */
+export function getMaxMessageLength(role: 'user' | 'assistant'): number {
+  return role === 'assistant'
+    ? MAX_ASSISTANT_MESSAGE_LENGTH
+    : MAX_MESSAGE_LENGTH;
+}
 /** 会話タイトルの最大文字数（自動生成・手動入力とも上限として使う）。 */
 export const MAX_TITLE_LENGTH = 100;
+/**
+ * `/api/chat` の `conversationHistory` に含められる最大件数。
+ *
+ * クライアントは会話の全履歴を毎回送るため、厳しくすると長い会話を続けられなくなる。
+ * 個人利用で届かない 1,000 件を、際限なく大きいボディを受け入れないための安全弁とする。
+ */
+export const MAX_HISTORY_MESSAGES = 1_000;
+/**
+ * `/api/chat` の `systemPrompt` の最大文字数。
+ *
+ * 既存のエージェントプリセットは約 1,000 文字のため、ユーザー入力と同じ 10,000 文字で十分収まる。
+ */
+export const MAX_SYSTEM_PROMPT_LENGTH = 10_000;

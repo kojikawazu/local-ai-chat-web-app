@@ -51,8 +51,8 @@ describe('POST /api/conversations（作成）', () => {
       expect((await res.json()).title).toBe('新しい会話');
     });
 
-    it('不正な JSON ボディでも既定タイトルで作成する（body 解析失敗は握りつぶす契約）', async () => {
-      const res = await POST(jsonRequest(URL, 'POST', 'not-json'));
+    it('ボディを省略すると既定タイトルで作成する', async () => {
+      const res = await POST(jsonRequest(URL, 'POST'));
       expect(res.status).toBe(201);
       expect((await res.json()).title).toBe('新しい会話');
     });
@@ -71,6 +71,20 @@ describe('POST /api/conversations（作成）', () => {
         jsonRequest(URL, 'POST', { title: 'あ'.repeat(MAX_TITLE_LENGTH + 1) })
       );
       expect(res.status).toBe(400);
+      expect(await prisma.conversation.count()).toBe(0);
+    });
+
+    // 以前は構文エラーを握りつぶして既定タイトルで作成し、null や数値の title は 500 になっていた（#95）。
+    // 空のボディだけを「省略」とみなし、中身があるのに形が合わないものは 400 にそろえる
+    it.each([
+      ['構文が不正な JSON', 'not-json'],
+      ['ボディが null', null],
+      ['ボディが配列', []],
+      ['title が数値', { title: 123 }],
+    ])('%sなら 400（DB には保存されない）', async (_label, body) => {
+      const res = await POST(jsonRequest(URL, 'POST', body));
+      expect(res.status).toBe(400);
+      expect(typeof (await res.json()).error).toBe('string');
       expect(await prisma.conversation.count()).toBe(0);
     });
   });

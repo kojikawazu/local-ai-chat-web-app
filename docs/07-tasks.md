@@ -761,7 +761,13 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 
 ### 26-2: P2 — API 契約・永続化の不整合
 
-- [ ] Route Handler の JSON ボディを実行時検証し、不正な型を 400 で拒否する — #95
+- [x] Route Handler の JSON ボディを実行時検証し、不正な型を 400 で拒否する — #95
+  - [x] `lib/request-body.ts` に `readJsonBody` と route ごとの検証関数（`parseChatBody` 等）を追加し、4 つの POST route でボディを `unknown` で受けて検証する
+  - [x] 会話履歴の role を `user` / `assistant` に限り、`role` と `content` だけに詰め直して Ollama へ渡す
+  - [x] 上限 `MAX_HISTORY_MESSAGES`（1,000 件）・`MAX_SYSTEM_PROMPT_LENGTH`（10,000 文字）を追加。履歴の各 content は保存上限と同じ
+  - [x] `POST /api/conversations` は空のボディだけを省略とみなし、構文が不正な JSON・非オブジェクトは 400 にする（従来は構文エラーを握りつぶしていた）
+  - [x] クライアントの履歴組み立てを `lib/conversation-history.ts` に切り出し、件数（新しい方から 1,000 件）と role 別の本文長をサーバーの上限内に収める（保存上限を超えて保存に失敗した assistant 応答が画面に残っても、次の送信が 400 にならない）
+  - [x] UT `request-body.test.ts`・`conversation-history.test.ts`、IT（4 route の `null`／配列／型不正で 400、DB・Ollama に届かないこと）を追加
 - [ ] 存在しない会話の DELETE を 500 ではなく 404 で返す — #97
 - [x] `thinkingText` とエージェント実行統計を `Message.metadata` に永続化する — #94
   - [x] `lib/message-metadata.ts` に metadata の組み立て（`buildMessageMetadata`）と取得時の実行時検証（`parseMessageMetadata`）を追加

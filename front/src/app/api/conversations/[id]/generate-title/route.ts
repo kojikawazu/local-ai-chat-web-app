@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isValidUUID, MAX_TITLE_LENGTH } from '@/lib/validation';
 import { chatOnce } from '@/lib/ollama';
+import { parseGenerateTitleBody, readJsonBody } from '@/lib/request-body';
 
 /** タイトル生成時に LLM へ渡すメッセージの最大文字数。全文は不要なため先頭のみ使う。 */
 const TITLE_SOURCE_MAX_CHARS = 500;
@@ -18,7 +19,7 @@ const TITLE_SOURCE_MAX_CHARS = 500;
  *
  * @param request - タイトル生成の元となる `message`（必須）と任意の `model` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は生成タイトルを含む JSON（`{ title }`）。ID 不正・メッセージ空は 400、生成失敗・DB 更新失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は生成タイトルを含む JSON（`{ title }`）。ID 不正・JSON 構文不正・ボディが非オブジェクト・メッセージ空・model 非文字列は 400、生成失敗・DB 更新失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(
   request: NextRequest,
@@ -30,20 +31,13 @@ export async function POST(
     return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
   }
 
-  let body: { message?: string; model?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'リクエストボディのJSON形式が不正です' },
-      { status: 400 }
-    );
+  const raw = await readJsonBody(request);
+  const parsed = raw.ok ? parseGenerateTitleBody(raw.value) : raw;
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { message, model } = body;
-  if (!message || typeof message !== 'string' || !message.trim()) {
-    return NextResponse.json({ error: 'メッセージが空です' }, { status: 400 });
-  }
+  const { message, model } = parsed.value;
 
   try {
     const content = await chatOnce(
