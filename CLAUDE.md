@@ -142,7 +142,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 - **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
-- **`docs/`** — プロジェクトドキュメント
+- **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
 - **`docker-compose.yml`** — PostgreSQLコンテナ定義（プロジェクトルート）
@@ -199,6 +199,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/08-ci-e2e-bug-report.md` | CI E2Eテスト バグレポート |
 | `docs/09-agent-architecture.md` | エージェント機能 設計書 |
 | `docs/10-roadmap.md` | 開発ロードマップ |
+| `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
 新規ドキュメント追加時は次の連番（`11-`〜）を付与する。

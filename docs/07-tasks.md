@@ -807,4 +807,5 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] Ollama を 0.40.5 に更新し、`qwen3.8:27b` で通常チャット・エージェント（ツール呼び出し）が動くことを確認（読み込み時 約 17GB。旧既定は約 58GB）
   - [x] 既定モデルを `qwen3.8:27b` に切り替え、転記箇所（`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`〜`03`・`docs/06`・`docs/09`・`front/.env.example`・`manuals/setup-guide-macos.md`）を同期
   - [x] CI への影響なし（E2E は `E2E_OLLAMA_MODEL=qwen2.5:0.5b` で Ollama 0.30.7 固定のまま。アプリ既定は使わない）
+- [x] 使用モデル 3 つの特徴を評価レポート（`docs/models/`）にまとめる — #120
 - [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113
