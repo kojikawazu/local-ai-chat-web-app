@@ -3,7 +3,22 @@ import {
   cleanupAllConversations,
   createConversation,
   createMessage,
+  deleteConversation,
 } from './helpers/test-data';
+import type { Page } from '@playwright/test';
+
+/**
+ * サイドバーの会話行の削除ボタンを押す。
+ *
+ * @param page - 対象のページ
+ * @param title - 削除する会話のタイトル
+ */
+async function clickDeleteButton(page: Page, title: string): Promise<void> {
+  // 会話行をホバーして削除ボタンを表示し、2 番目の button（Trash2 アイコン）を押す
+  const convRow = page.locator('[class*="group"]', { hasText: title }).first();
+  await convRow.hover();
+  await convRow.locator('button').nth(1).click();
+}
 
 test.describe('サイドバー操作', () => {
   test.beforeAll(async ({ request }) => {
@@ -77,14 +92,7 @@ test.describe('サイドバー操作', () => {
         timeout: 10000,
       });
 
-      // 会話行をホバーして削除ボタンを表示
-      const convRow = page
-        .locator('[class*="group"]', { hasText: '削除対象の会話' })
-        .first();
-      await convRow.hover();
-
-      // 削除ボタンをクリック（2番目のbutton = Trash2アイコン）
-      await convRow.locator('button').nth(1).click();
+      await clickDeleteButton(page, '削除対象の会話');
 
       // 会話が一覧から消える
       await expect(page.getByText('削除対象の会話')).toHaveCount(0, {
@@ -104,6 +112,34 @@ test.describe('サイドバー操作', () => {
 
       // ウェルカムメッセージが表示される
       await expect(page.getByText('Nordic Chat へようこそ')).toBeVisible();
+    });
+
+    test('別タブ等で既に削除された会話を削除すると、404 でも一覧から消える', async ({
+      page,
+      request,
+    }) => {
+      await cleanupAllConversations(request);
+      const conv = await createConversation(request, '削除済みの会話');
+      await page.goto('/');
+      await expect(page.getByText('削除済みの会話')).toBeVisible({
+        timeout: 10000,
+      });
+
+      // 画面を開いたまま API で先に消し、削除 API が 404 を返す状態にする（#97）
+      await deleteConversation(request, conv.id);
+
+      const deleteResponse = page.waitForResponse(
+        (res) =>
+          res.url().endsWith(`/api/conversations/${conv.id}`) &&
+          res.request().method() === 'DELETE'
+      );
+      await clickDeleteButton(page, '削除済みの会話');
+      expect((await deleteResponse).status()).toBe(404);
+
+      // 一覧に残すと、押しても消えない項目になる
+      await expect(page.getByText('削除済みの会話')).toHaveCount(0, {
+        timeout: 10000,
+      });
     });
   });
 
@@ -127,6 +163,41 @@ test.describe('サイドバー操作', () => {
       // ページがクラッシュせず表示される
       await expect(page.locator('header')).toBeVisible();
       await expect(page.locator('textarea')).toBeVisible();
+    });
+
+    test('削除 API がサーバーエラーを返すと、会話を一覧に残す', async ({
+      page,
+      request,
+    }) => {
+      await cleanupAllConversations(request);
+      await createConversation(request, '削除に失敗する会話');
+
+      // 実 DB を安定して壊せないため、境界（削除 API）で障害を注入する。
+      // 404（既に削除済み）と違い、500 では会話が DB に残っているので一覧からも消さない
+      await page.route('**/api/conversations/*', (route) => {
+        if (route.request().method() === 'DELETE') {
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: '会話の削除に失敗しました' }),
+          });
+        } else {
+          route.continue();
+        }
+      });
+
+      await page.goto('/');
+      await expect(page.getByText('削除に失敗する会話')).toBeVisible({
+        timeout: 10000,
+      });
+
+      const deleteResponse = page.waitForResponse(
+        (res) => res.request().method() === 'DELETE'
+      );
+      await clickDeleteButton(page, '削除に失敗する会話');
+      expect((await deleteResponse).status()).toBe(500);
+
+      await expect(page.getByText('削除に失敗する会話')).toBeVisible();
     });
   });
 });

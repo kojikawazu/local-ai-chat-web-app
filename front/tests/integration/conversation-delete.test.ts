@@ -4,8 +4,8 @@ import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
 
 /**
  * `DELETE /api/conversations/[id]` の IT。
- * カスケード削除（Conversation→Message）・UUID バリデーション・存在しない ID の
- * エラー挙動を実 DB に対して検証する。
+ * カスケード削除（Conversation→Message）・UUID バリデーション・存在しない ID の 404・
+ * DB 障害の 500 を実 DB に対して検証する（400 / 404 / 500 を区別する契約。#97）。
  */
 const URL = 'http://localhost/api/conversations/x';
 
@@ -69,12 +69,56 @@ describe('DELETE /api/conversations/[id]', () => {
       expect(res.status).toBe(400);
     });
 
-    it('存在しない（が UUID 形式の）ID の削除は 500 を返す', async () => {
+    it('存在しない（が UUID 形式の）ID の削除は 404 を返す（DB 障害の 500 と区別する）', async () => {
       const res = await DELETE(
         jsonRequest(URL, 'DELETE'),
         routeContext('00000000-0000-0000-0000-000000000000')
       );
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: '会話が見つかりません' });
+    });
+
+    it('同じ会話を 2 回削除すると、2 回目は 404 を返す（既に削除済みの競合）', async () => {
+      const conv = await prisma.conversation.create({
+        data: { title: '二重削除' },
+      });
+      await DELETE(jsonRequest(URL, 'DELETE'), routeContext(conv.id));
+
+      const res = await DELETE(
+        jsonRequest(URL, 'DELETE'),
+        routeContext(conv.id)
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it('DB 側で削除に失敗すると 500 を返し、会話は残る', async () => {
+      const conv = await prisma.conversation.create({
+        data: { title: '削除失敗' },
+      });
+      // Prisma をモックせず、実 DB 側に障害を注入する: Conversation の DELETE だけを失敗させるトリガー
+      await prisma.$executeRaw`
+        CREATE FUNCTION fail_conversation_delete() RETURNS trigger AS $$
+        BEGIN
+          RAISE EXCEPTION 'injected failure';
+        END;
+        $$ LANGUAGE plpgsql`;
+      await prisma.$executeRaw`
+        CREATE TRIGGER fail_conversation_delete
+        BEFORE DELETE ON "Conversation"
+        FOR EACH ROW EXECUTE FUNCTION fail_conversation_delete()`;
+      try {
+        const res = await DELETE(
+          jsonRequest(URL, 'DELETE'),
+          routeContext(conv.id)
+        );
+        expect(res.status).toBe(500);
+        expect(
+          await prisma.conversation.findUnique({ where: { id: conv.id } })
+        ).not.toBeNull();
+      } finally {
+        await prisma.$executeRaw`DROP TRIGGER fail_conversation_delete ON "Conversation"`;
+        await prisma.$executeRaw`DROP FUNCTION fail_conversation_delete()`;
+      }
     });
   });
 });
