@@ -31,7 +31,7 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
 | Markdown表示 | react-markdown + remark-gfm |
 | パッケージマネージャー | pnpm |
 | LLMバックエンド | Ollama |
-| LLMモデル | qwen3-coder-next:latest（動的にモデル切替可能） |
+| LLMモデル | qwen3.8:27b（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
 | ORM | Prisma 7 |
 | E2Eテスト | Playwright |

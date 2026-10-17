@@ -314,12 +314,12 @@ describe('機能名', () => {
 
 ### E2E のモデル
 
-E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行する（#110）。アプリ既定の `qwen3-coder-next`（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫し、他のアプリ（ブラウザの音声再生など）に影響が出たため。
+E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行する（#110）。以前のアプリ既定 `qwen3-coder-next`（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫し、他のアプリ（ブラウザの音声再生など）に影響が出たため。現在の既定 `qwen3.8:27b`（約 17GB、#111）でも E2E のたびに読み込むには重いため、軽量モデルのままとする。
 
 | 項目 | 内容 |
 |------|------|
 | 定義 | `tests/e2e/helpers/model.ts`（`E2E_OLLAMA_MODEL` / `E2E_LIGHT_MODEL` / `IS_LIGHT_MODEL`） |
-| 上書き | `E2E_OLLAMA_MODEL=qwen3-coder-next:latest pnpm test:e2e`（大モデルで全件） |
+| 上書き | `E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e`（大モデルで全件） |
 | 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される |
 | 事前準備 | `ollama pull qwen2.5:0.5b` |
 | 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略） |

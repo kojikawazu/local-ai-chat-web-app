@@ -803,5 +803,8 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] エージェントで `message.thinking` を 1 回の応答ごとにまとめて `thinking` イベントにする（`<think>` タグの解析は残す）
   - [x] 通常チャットとタイトル生成は `think: false`（`qwen3.8:27b` で最初の文字まで約 5.7 秒 → 約 0.4 秒）
   - [x] ラウンドごとの思考過程を空行で区切って表示する
-- [ ] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111
+- [x] Ollama を 0.32 系へ更新し、既定モデルを Qwen3.8-27B へ移行できるか検証する — #111
+  - [x] Ollama を 0.40.5 に更新し、`qwen3.8:27b` で通常チャット・エージェント（ツール呼び出し）が動くことを確認（読み込み時 約 17GB。旧既定は約 58GB）
+  - [x] 既定モデルを `qwen3.8:27b` に切り替え、転記箇所（`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`〜`03`・`docs/06`・`docs/09`・`front/.env.example`・`manuals/setup-guide-macos.md`）を同期
+  - [x] CI への影響なし（E2E は `E2E_OLLAMA_MODEL=qwen2.5:0.5b` で Ollama 0.30.7 固定のまま。アプリ既定は使わない）
 - [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113

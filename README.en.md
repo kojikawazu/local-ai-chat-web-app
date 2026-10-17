@@ -76,7 +76,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | Name | Description | Default |
 |------|-------------|---------|
 | `OLLAMA_BASE_URL` | Ollama API endpoint | `http://localhost:11434` |
-| `OLLAMA_MODEL` | Model to use (**must match a model you pulled**) | `qwen3-coder-next:latest` |
+| `OLLAMA_MODEL` | Model to use (**must match a model you pulled**) | `qwen3.8:27b` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | Max tool-calling rounds in agent mode | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | Tool execution timeout (ms) | `30000` |

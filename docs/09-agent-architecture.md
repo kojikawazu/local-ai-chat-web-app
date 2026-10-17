@@ -96,7 +96,7 @@ Ollama のネイティブ Tool Calling API を使用し、LangChain 等のフレ
 ```json
 POST /api/chat
 {
-  "model": "qwen3-coder-next:latest",
+  "model": "qwen3.8:27b",
   "messages": [
     { "role": "user", "content": "今日の日付は？" }
   ],
@@ -131,6 +131,8 @@ POST /api/chat
 {"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"get_current_datetime","arguments":{"timezone":"Asia/Tokyo"}}}]},"done":false}
 {"model":"qwen3-coder-next:latest","message":{"role":"assistant","content":""},"done":true}
 ```
+
+上記は `qwen3-coder-next:latest` での観測。`qwen3.8:27b` では tool_calls が **1 件ずつ別チャンク**（`id` 付き）で届き、思考過程は `message.thinking` で返る（#111・#116）。`readOllamaResponse` はチャンクごとに tool_calls を収集するため、どちらの返し方でも動作する。
 
 ### ツール結果の返送
 
@@ -823,6 +825,17 @@ CI では `qwen2.5:0.5b`（軽量モデル）を使用しているが、この�
 | ストリーミング + tool calling | OK（tool_calls は1チャンクで返却） |
 | `role: "tool"` による結果返送 | OK |
 | 応答速度 | ツール判断1-2秒、最終回答1-2秒 |
+
+モデル: `qwen3.8:27b`（現在の既定。Ollama 0.40.5）で検証済み（#111）。
+
+| 検証項目 | 結果 |
+|---------|------|
+| 単一ツール呼び出し・マルチターン | OK（2 ラウンドで最終回答） |
+| ストリーミング + tool calling | OK（tool_calls は 1 件ずつ別チャンク・`id` 付き） |
+| 思考過程 | `message.thinking` で返る（エージェントは thinking イベントとして表示。#116） |
+| 読み込み時のメモリ | 約 17GB（`qwen3-coder-next` は約 58GB） |
+| 応答速度 | 通常チャット（`think: false`）は最初の文字まで約 0.4 秒。エージェントは思考込みで 1 ラウンド数秒 |
+| E2E（`E2E_OLLAMA_MODEL=qwen3.8:27b`） | エージェント系・ストリーミング系 37 件成功（#115） |
 
 ### 設計上の重要ポイント
 
