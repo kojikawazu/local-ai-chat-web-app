@@ -1,6 +1,7 @@
 import type { APIResponse } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import { cleanupAllConversations } from './helpers/test-data';
+import { E2E_OLLAMA_MODEL } from './helpers/model';
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -83,7 +84,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'DuckDuckGo とは何か一言で教えてください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -104,7 +105,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'https://example.com の内容を教えてください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -123,7 +124,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'http://192.168.1.1 の内容を取得してください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -140,7 +141,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'http://localhost:3000 の内容を取得してください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -156,7 +157,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'file:///etc/passwd の内容を取得してください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -174,7 +175,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: '',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -191,7 +192,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'not-a-url という URL の内容を取得してください',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -208,7 +209,7 @@ test.describe('エージェント Phase B — 調査系ツール', () => {
         data: {
           message: 'あ'.repeat(10001),
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });

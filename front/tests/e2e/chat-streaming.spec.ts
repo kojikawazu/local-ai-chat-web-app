@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import {
   cleanupAllConversations,
-  fillTextarea,
   sendMessage,
+  waitForResponseComplete,
 } from './helpers/test-data';
 
 test.describe('ストリーミング表示', () => {
@@ -46,9 +46,8 @@ test.describe('ストリーミング表示', () => {
       const aiMessage = page.locator('[class*="bg-nord-2"]').first();
       await expect(aiMessage).toBeVisible({ timeout: 120000 });
 
-      // ストリーミング完了を待つ（送信ボタンが再度有効化される）
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      // ストリーミング完了を待つ
+      await waitForResponseComplete(page);
 
       // AI応答にテキストが含まれる
       const aiContent = await aiMessage.textContent();
@@ -67,8 +66,7 @@ test.describe('ストリーミング表示', () => {
       await sendMessage(page, '1+1=?');
 
       // ストリーミング完了を待つ
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      await waitForResponseComplete(page);
 
       // ユーザーとAIの両方のメッセージが存在
       const userMessages = page.locator('[class*="bg-nord-frost-2"]');
@@ -92,8 +90,7 @@ test.describe('ストリーミング表示', () => {
       await sendMessage(page, 'Reply with just: OK');
 
       // ストリーミング完了を待つ
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      await waitForResponseComplete(page);
 
       // AI応答が表示されている
       const aiMessage = page.locator('[class*="bg-nord-2"]').first();
@@ -114,8 +111,7 @@ test.describe('ストリーミング表示', () => {
       );
 
       // ストリーミング完了を待つ
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      await waitForResponseComplete(page);
 
       // AI応答が表示されている
       const aiMessage = page.locator('[class*="bg-nord-2"]').first();

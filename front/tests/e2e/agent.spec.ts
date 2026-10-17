@@ -1,6 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { cleanupAllConversations, sendMessage } from './helpers/test-data';
-import { E2E_LIGHT_MODEL, IS_LIGHT_MODEL } from './helpers/model';
+import {
+  cleanupAllConversations,
+  sendMessage,
+  waitForResponseComplete,
+} from './helpers/test-data';
+import {
+  E2E_LIGHT_MODEL,
+  E2E_OLLAMA_MODEL,
+  IS_LIGHT_MODEL,
+} from './helpers/model';
 
 // エージェント設定のON/OFFを切り替えるヘルパー
 async function openSettings(page: Parameters<typeof sendMessage>[0]) {
@@ -171,9 +179,8 @@ test.describe('エージェント機能', () => {
 
       await sendMessage(page, '今の日時を教えてください');
 
-      // 送信完了まで待機（ボタンが再度有効化）
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      // 応答の完了を待つ
+      await waitForResponseComplete(page);
 
       // ツール呼び出し完了インジケーター（✅）が表示される
       const toolResult = page.locator('text=✅').first();
@@ -191,9 +198,8 @@ test.describe('エージェント機能', () => {
 
       await sendMessage(page, '今の日時を教えてください');
 
-      // 送信完了まで待機
-      const sendButton = page.locator('button[type="submit"]');
-      await expect(sendButton).toBeEnabled({ timeout: 120000 });
+      // 応答の完了を待つ
+      await waitForResponseComplete(page);
 
       // ✅ ボタンをクリックして展開
       const toolResultButton = page
@@ -260,7 +266,7 @@ test.describe('エージェント機能', () => {
         data: {
           message: '',
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });
@@ -274,7 +280,7 @@ test.describe('エージェント機能', () => {
         data: {
           message: 'あ'.repeat(10001),
           conversationHistory: [],
-          model: 'qwen3-coder:latest',
+          model: E2E_OLLAMA_MODEL,
           enableTools: true,
         },
       });

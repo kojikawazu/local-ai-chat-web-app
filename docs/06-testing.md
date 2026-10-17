@@ -276,8 +276,10 @@ describe('機能名', () => {
 
 ### 運用ルール
 
-- ベースラインスクリーンショットは `front/tests/e2e/__screenshots__/` に保存
-- デザイン変更時はベースラインを更新する（`pnpm test:e2e --update-snapshots`）
+- ベースラインスクリーンショットは `front/tests/e2e/screenshot.spec.ts-snapshots/` に保存（macOS 用。CI では実行しない）
+- デザイン変更時はベースラインを更新する（`pnpm test:e2e tests/e2e/screenshot.spec.ts --update-snapshots=all`）
+  - 既定の `--update-snapshots`（`changed`）は許容差（`maxDiffPixelRatio: 0.05`）内の差分では更新しない。文言の変更程度では基準画像が古いまま成功し続けるため、デザインを変えたら `=all` で更新する
+- 実行時刻で変わる表示（メッセージの送信時刻）は `mask` で隠す。AI の応答は使わず、DB に投入したメッセージや `page.route` で作ったエラーを撮る
 
 ## テストデータ管理
 
@@ -322,6 +324,7 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 | 事前準備 | `ollama pull qwen2.5:0.5b` |
 | 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略） |
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
+| 応答の完了待ち | `waitForResponseComplete`（`helpers/test-data.ts`）を使う。送信ボタンは入力欄が空だと有効にならないため、1 文字入力してから有効化を待つ（#115）。ローディング表示は最初のチャンクまでしか出ないので完了の判定には使えない |
 | 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
 
 ## テストファイル構成

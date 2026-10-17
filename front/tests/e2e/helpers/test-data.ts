@@ -1,4 +1,5 @@
 import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -59,6 +60,28 @@ export async function sendMessage(page: Page, text: string) {
   // fillTextarea後、Reactのstate更新が反映されるのを待つ
   await page.waitForTimeout(100);
   await page.locator('textarea').press('Enter');
+}
+
+/** 完了待ちのために入力する文字。1 文字なので、`waitForResponseComplete` の最後の Backspace 1 回で消える */
+const PROBE_TEXT = '.';
+
+/**
+ * AI 応答の生成が終わるまで待つ。送信の直後に呼ぶ。
+ *
+ * 送信ボタンは「入力欄が空でない」かつ「生成中でない」ときだけ有効になる（`ChatBar` の `canSend`）。
+ * 送信すると入力欄は空になるため、そのままボタンを待っても有効にならない（#115）。
+ * そこで 1 文字入力し、ボタンが有効になる＝生成が終わった、と判定する。入力した文字は送らずに消す。
+ *
+ * 生成中インジケーター（`aria-label="応答を生成中"`）は最初のチャンクを待つ間しか出ないため、
+ * 完了の判定には使えない。
+ *
+ * @param page - 対象のページ
+ * @param timeout - 生成の完了を待つ上限（ms）。既定は 120 秒
+ */
+export async function waitForResponseComplete(page: Page, timeout = 120000) {
+  await fillTextarea(page, PROBE_TEXT);
+  await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout });
+  await page.locator('textarea').press('Backspace');
 }
 
 export async function createConversation(

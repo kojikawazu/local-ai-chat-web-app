@@ -237,7 +237,10 @@ test.describe('会話管理', () => {
       const chatRequest = page.waitForRequest('**/api/chat');
       await page.getByRole('button', { name: '再送' }).click();
       await chatRequest;
-      await expect(page.getByText('送信に失敗しました')).toHaveCount(0);
+      // dev オーバーレイの同じ文言に一致させないため、アプリの表示に絞る（下の AI 応答のテストと同じ）
+      await expect(
+        page.getByRole('status').filter({ hasText: '送信に失敗しました' })
+      ).toHaveCount(0);
 
       const [conv] = await fetchConversations(request);
       const messages = await fetchMessages(request, conv.id);
@@ -271,12 +274,14 @@ test.describe('会話管理', () => {
       const displayed = (await aiMessage.textContent()) ?? '';
       expect(displayed.length).toBeGreaterThan(0);
 
-      // 保存 API を復旧して再試行すると、失敗表示が消えて DB に保存される
+      // 保存 API を復旧して再試行すると、失敗表示が消えて DB に保存される。
+      // 画面全体の getByText だと、保存 API の失敗を表示する Next.js の dev オーバーレイ
+      // （エラーメッセージに同じ文言を含む）にも一致して 0 件にならないため、アプリの表示に絞る
       await page.unroute(MESSAGES_API, failAssistantSave);
       await page.getByRole('button', { name: '再試行' }).click();
-      await expect(page.getByText('保存に失敗しました')).toHaveCount(0, {
-        timeout: 10000,
-      });
+      await expect(
+        page.getByRole('status').filter({ hasText: '保存に失敗しました' })
+      ).toHaveCount(0, { timeout: 10000 });
 
       const [conv] = await fetchConversations(request);
       const messages = await fetchMessages(request, conv.id);
