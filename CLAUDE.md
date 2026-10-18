@@ -100,7 +100,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 ## 開発手法
 
 - **タスク駆動開発**: `docs/07-tasks.md` のチェックリストを1つずつ消化する
-- **feature branch運用**: `feature/<機能名>` でブランチを切り、mainにマージ
+- **feature branch運用**: `<種別>/<名前>`（種別: `feature` / `fix` / `chore` / `docs` / `test`）でブランチを切り、mainにマージ。種別の使い分けは `docs/04-development-rules.md` を参照
 - **コミットメッセージは日本語**で記述する
 
 ## アーキテクチャ

@@ -51,5 +51,6 @@ globs:
 | 環境変数一覧 | `front/.env.example` | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`manuals/setup-guide-macos.md` |
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
+| ブランチ命名規約の種別一覧 | `docs/04-development-rules.md`（Git運用） | `CLAUDE.md`（開発手法） |
 
 各 `docs/` ファイル冒頭には `> 最終更新: YYYY-MM-DD` を記載し、変更時に更新する。
