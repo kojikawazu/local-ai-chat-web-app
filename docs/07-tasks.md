@@ -825,3 +825,5 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] レポート配下の JS が lint 対象外になることを確認（`pnpm lint` はソース由来の指摘のみ）
 - [x] `.gitignore` 済みなのに追跡されている `front/test-results/.last-run.json` を追跡から外す — #126
   - [x] `git rm --cached` で追跡のみ解除（ローカルのファイルは残す）。`git ls-files --ignored --cached --exclude-standard` が空になることを確認
+- [x] ブランチ命名規約を運用の実態（`<種別>/<名前>`）に合わせる — #128
+  - [x] 種別（`feature` / `fix` / `chore` / `docs` / `test`）の使い分けを `docs/04-development-rules.md` に定義し、`CLAUDE.md`・`.claude/rules/github-issue.md` は同ファイルを参照する形に揃える

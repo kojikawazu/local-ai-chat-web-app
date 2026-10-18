@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-18
 
 ## 目次
 
@@ -41,7 +41,15 @@
 ## Git運用
 
 - **feature branch** 方式で運用する
-- ブランチ名: `feature/<機能名>` または `docs/<ドキュメント名>`（例: `feature/chat-streaming`, `docs/setup-guide-macos`）
+- ブランチ名: `<種別>/<名前>`（例: `feature/chat-streaming`, `fix/validate-json-body`, `docs/setup-guide-macos`）。種別は変更の主目的で選ぶ:
+
+  | 種別 | 用途 |
+  |---|---|
+  | `feature` | 機能の追加・改善 |
+  | `fix` | バグ修正 |
+  | `chore` | ビルド・設定・依存関係・CI・リポジトリ管理 |
+  | `docs` | ドキュメントのみの変更 |
+  | `test` | テストのみの追加・修正 |
 - mainブランチに直接コミットしない（初回セットアップ時を除く）
 - **コミットメッセージは日本語**で記述する
 - PRはGitHub Actionsの自動テスト通過後にマージ
