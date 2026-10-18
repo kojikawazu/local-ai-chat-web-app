@@ -823,3 +823,5 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 - [x] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113
   - [x] `front/eslint.config.mjs` の `globalIgnores` に `playwright-report/**`・`test-results/**`・`blob-report/**`・`src/generated/**` を追加
   - [x] レポート配下の JS が lint 対象外になることを確認（`pnpm lint` はソース由来の指摘のみ）
+- [x] `.gitignore` 済みなのに追跡されている `front/test-results/.last-run.json` を追跡から外す — #126
+  - [x] `git rm --cached` で追跡のみ解除（ローカルのファイルは残す）。`git ls-files --ignored --cached --exclude-standard` が空になることを確認
