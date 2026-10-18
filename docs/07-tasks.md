@@ -787,7 +787,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
 - [x] 4 ワークフローの `pnpm install` に `--frozen-lockfile` を付け、lockfile のずれを CI で検出する — #98
   - [x] 現行 lockfile が `package.json` と整合していることを確認（frozen install が成功）
   - [x] `package.json` だけを変更した状態で `ERR_PNPM_OUTDATED_LOCKFILE` により失敗することを確認
-- [ ] 4 ワークフローの衛生（permissions / concurrency / paths-ignore 重複）を是正し、actionlint を導入する — #99
+- [x] 4 ワークフローの衛生（permissions / concurrency / paths-ignore 重複）を是正し、actionlint を導入する — #99
+  - [x] 4 本に `permissions: contents: read` と `concurrency`（PR のときだけ古い実行をキャンセル。main は毎回最後まで実行）を追加
+  - [x] `workflow-lint.yml` を新設（常時実行）。actionlint（公式 Docker イメージ 1.7.12・shellcheck 込み）と、4 本の `on:` の一致検査（`yq`）を実行
+  - [x] `paths-ignore` の重複は許容（案 A）し、一致を機械検査で担保。required status check を入れる場合は変更判定ジョブ + `if:`（案 C）へ移す方針を明記
+  - [x] `.claude/rules/github-actions.md` を追加し、`CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`testing.md`・`documentation.md` を同期
 - [ ] 鍵・`.env` の Git 混入を検出する Secret scan ジョブを追加する — #100
 - [ ] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
 

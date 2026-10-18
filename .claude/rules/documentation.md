@@ -27,7 +27,7 @@ globs:
 | 開発ルール・指示ルールの変更 | `docs/04-development-rules.md`、`CLAUDE.md`、該当する `.claude/rules/*.md` |
 | セキュリティ要件の変更 | `docs/05-security.md`、`.claude/rules/security.md` |
 | テスト方針・テスト構成の変更 | `docs/06-testing.md`、`.claude/rules/testing.md` |
-| CI / E2E の変更・バグ記録 | `docs/08-ci-e2e-bug-report.md`、`.github/workflows/` |
+| CI / E2E の変更・バグ記録 | `docs/08-ci-e2e-bug-report.md`、`.github/workflows/`、`.claude/rules/github-actions.md`（ワークフロー規約・一覧） |
 | エージェント機能・ツールの変更 | `docs/09-agent-architecture.md` |
 | ロードマップ・今後の方針の変更 | `docs/10-roadmap.md` |
 | 使用モデルの追加・変更、モデルの挙動の新しい知見 | `docs/models/`（`README.md` の一覧・比較とモデルごとのファイル） |
@@ -51,6 +51,7 @@ globs:
 | 環境変数一覧 | `front/.env.example` | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`manuals/setup-guide-macos.md` |
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
+| CI のトリガー定義（`on:` / `paths-ignore`） | `.github/workflows/quality.yml` | `unit-test.yml`・`integration-test.yml`・`e2e-test.yml`（**`workflow-lint.yml` が一致を機械検査**） |
 | ブランチ命名規約の種別一覧 | `docs/04-development-rules.md`（Git運用） | `CLAUDE.md`（開発手法） |
 
 各 `docs/` ファイル冒頭には `> 最終更新: YYYY-MM-DD` を記載し、変更時に更新する。

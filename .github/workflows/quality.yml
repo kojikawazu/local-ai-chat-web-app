@@ -7,6 +7,10 @@ name: Quality Checks
 # 注意: main に branch protection を設定して本ワークフローを required status check
 # に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。
 # その際は paths-ignore を外すか、同名 job を success させる別ワークフローを用意する。
+#
+# on:（paths-ignore を含むトリガー定義）は quality / unit-test / integration-test / e2e-test の
+# 4 本で同一に保つ。GitHub Actions にはトリガーだけを共有する仕組みが無いため重複させ、
+# 一致していることを workflow-lint.yml が検査する（.claude/rules/github-actions.md）。
 on:
   push:
     branches: [main]
@@ -24,6 +28,16 @@ on:
       - '**.md'
       - '.claude/**'
       - 'LICENSE'
+
+# 最小権限（.claude/rules/github-actions.md）。チェックアウトと検査のみで書き込みは不要
+permissions:
+  contents: read
+
+# 同じ PR への連続 push では古い実行を止める。main への push は止めず、
+# マージコミットごとに結果を残す（どのマージで壊れたかを追えるようにする）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:

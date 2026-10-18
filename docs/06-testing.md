@@ -42,7 +42,7 @@
   - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
 - **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入（`page.route`）を唯一の許容mock例外とする。
 - **ブラウザ**（E2E）: Chromiumのみ。
-- **CI**: GitHub Actionsで自動実行（品質チェック・UT・IT・E2Eは独立ジョブ）。
+- **CI**: GitHub Actionsで自動実行（品質チェック・UT・IT・E2Eは独立ジョブ。ワークフロー定義は Workflow Lint が常時検査）。
 
 ### ユニットテスト（Vitest）
 
@@ -402,7 +402,7 @@ front/tests/
 
 #### 発火除外（paths-ignore）
 
-**ドキュメントのみの変更では 3 ジョブとも発火しない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すコストを避けるため。
+**ドキュメントのみの変更では Quality / UT / IT / E2E の 4 本とも発火しない。**（Workflow Lint は除外せず常時実行する。4 本の `on:` は同一に保ち、一致を Workflow Lint が検査する） コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すコストを避けるため。
 
 | 除外パターン | 対象 |
 |---|---|
@@ -418,10 +418,13 @@ front/tests/
 
 > **注意**: main に branch protection を設定してこれらを required status check に指定する場合、スキップされたジョブは「報告なし」となり PR がマージ不能になる。詳細は `.claude/rules/testing.md`「CI の発火条件」を参照。
 
-### ワークフロー構成（4ジョブ）
+### ワークフロー構成（5 本）
+
+全ワークフローに最小権限の `permissions`（`contents: read`）と `concurrency`（PR のときだけ古い実行をキャンセル、main は毎回最後まで実行）を置く。規約は `.claude/rules/github-actions.md`。
 
 | ワークフロー | ファイル | 内容 | 依存 |
 |---|---|---|---|
+| Workflow Lint | `.github/workflows/workflow-lint.yml` | actionlint（公式 Docker イメージ・shellcheck 込み）→ 4 本の `on:` の一致検査 | Docker のみ・数秒。**パスの絞り込みなしで常時実行** |
 | Quality Checks | `.github/workflows/quality.yml` | `pnpm lint` → `pnpm format:check` → `pnpm typecheck` | `prisma generate` のみ（tsc が生成クライアントを解決するため）。Ollama / DB 不要 |
 | Unit Tests | `.github/workflows/unit-test.yml` | `pnpm test:unit`（Vitest） | Ollama / DB 不要・数十秒 |
 | Integration Tests | `.github/workflows/integration-test.yml` | `pnpm test:integration`（Vitest + Testcontainers） | Docker のみ（Testcontainers が PostgreSQL を起動）。Ollama 不要 |
