@@ -47,8 +47,12 @@ Next.js Route Handlers (API層)
 ```
 local-ai-chat-web-app/
 ├── .github/
-│   └── workflows/
-│       └── e2e-test.yml       # GitHub Actions E2Eテストワークフロー
+│   └── workflows/             # GitHub Actions（規約は .claude/rules/github-actions.md）
+│       ├── quality.yml        #   lint / format:check / typecheck
+│       ├── unit-test.yml      #   UT
+│       ├── integration-test.yml # IT（Testcontainers）
+│       ├── e2e-test.yml       #   E2E（Ollama + PostgreSQL）
+│       └── workflow-lint.yml  #   actionlint・トリガー定義の一致検査（常時実行）
 ├── base/                      # UIデザインリファレンス（読み取り専用・編集禁止）
 ├── docs/                      # プロジェクトドキュメント
 ├── manuals/                   # セットアップガイド等のマニュアル

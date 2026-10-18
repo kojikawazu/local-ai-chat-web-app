@@ -21,9 +21,9 @@ globs: "front/tests/**"
 
 ## CI の発火条件（paths-ignore）
 
-**ドキュメントのみの変更では CI（`unit-test` / `integration-test` / `e2e-test` の 3 ジョブすべて）を発火させない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すのは無駄なため。
+**ドキュメントのみの変更では CI（`quality` / `unit-test` / `integration-test` / `e2e-test` の 4 本すべて）を発火させない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すのは無駄なため。ワークフロー検査の `workflow-lint` は除外せず常時実行する（`github-actions.md`「常時実行のワークフロー」）。
 
-`.github/workflows/*.yml` の `paths-ignore` が唯一の真実。除外対象:
+`.github/workflows/*.yml` の `paths-ignore` が唯一の真実。4 本の `on:` は同一に保ち、一致を `workflow-lint` が機械検査する（`github-actions.md`「トリガー定義の同期」）。除外対象:
 
 | パターン | 対象 |
 |---|---|
@@ -38,7 +38,7 @@ globs: "front/tests/**"
 ### 挙動の注意
 
 - `paths-ignore` は「**変更ファイルが全て該当した場合のみスキップ**」。コードとドキュメントが混在する PR では通常どおり実行される。
-- **main に branch protection を設定し、これらを required status check に指定する場合は要注意**。スキップされたジョブは "skipped" ではなく「**報告なし**」になるため、チェックが永久に完了せず PR がマージ不能になる。その場合は `paths-ignore` を外すか、同名 job を success させる別ワークフローを用意する。現状 main は branch protection 未設定のため問題ない。
+- **main に branch protection を設定し、これらを required status check に指定する場合は要注意**。スキップされたジョブは "skipped" ではなく「**報告なし**」になるため、チェックが永久に完了せず PR がマージ不能になる。その場合は変更判定ジョブ + ジョブレベルの `if:` に構成を移す（`github-actions.md`「将来 required status check を入れる場合」）。現状 main は branch protection 未設定のため問題ない。
 
 ## テストツール
 

@@ -1,0 +1,61 @@
+name: Workflow Lint
+
+# ワークフロー定義の静的検査。パスの絞り込み（paths / paths-ignore）は付けず、全 PR と
+# main への push で常に実行する。数秒で終わるうえ、required status check に指定した場合に
+# パスの絞り込みがあると「報告なし」のまま PR がマージ不能になるため
+# （.claude/rules/github-actions.md「常時実行のワークフロー」参照）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 最小権限（.claude/rules/github-actions.md）。チェックアウトと検査のみで書き込みは不要
+permissions:
+  contents: read
+
+# 同じ PR への連続 push では古い実行を止める。main への push は止めず、
+# マージコミットごとに結果を残す（どのマージで壊れたかを追えるようにする）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 公式 Docker イメージをタグで固定して使う。shellcheck / pyflakes が同梱されており、
+      # run: のシェルも検査される（バイナリ単体や brew 版では shellcheck が無いと run: の検査が
+      # 警告も出さずにスキップされ、終了コードは 0 のままになる）。
+      - name: Run actionlint
+        run: docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.12 -color
+
+      # quality / unit-test / integration-test / e2e-test の on:（paths-ignore を含む）は
+      # トリガーを共有する仕組みが無いため 4 本に重複している。1 本だけ直し漏れても各ワークフローは
+      # 緑のまま動くため、ここで一致を検査する。yq は ubuntu-latest のランナーに同梱されている。
+      - name: Check trigger consistency
+        run: |
+          base=quality
+          expected="$(yq -o=json '.on' ".github/workflows/${base}.yml")"
+          # 読み取りに失敗して全ファイルが null になると「一致」と誤判定するため、先に弾く
+          if [ "$expected" = "null" ]; then
+            echo "::error file=.github/workflows/${base}.yml::on: を読み取れませんでした"
+            exit 1
+          fi
+          status=0
+          for name in unit-test integration-test e2e-test; do
+            file=".github/workflows/${name}.yml"
+            if ! diff -u <(printf '%s\n' "$expected") <(yq -o=json '.on' "$file"); then
+              echo "::error file=${file}::on: が ${base}.yml と一致しません。paths-ignore を含むトリガー定義は 4 本で揃えてください"
+              status=1
+            fi
+          done
+          if [ "$status" -eq 0 ]; then
+            echo "OK: 4 本の on: は一致しています"
+          fi
+          exit "$status"
