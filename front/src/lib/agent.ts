@@ -1,5 +1,6 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
 import { streamChat } from './ollama';
+import { parsePositiveIntEnv } from './agent-config';
 import { getAllToolDefinitions, executeTool } from './tools/index';
 import type {
   AgentStreamEvent,
@@ -7,11 +8,34 @@ import type {
   OllamaToolCall,
 } from './tools/types';
 
-const MAX_TOOL_ROUNDS = parseInt(process.env.AGENT_MAX_TOOL_ROUNDS ?? '10', 10);
-const TOOL_TIMEOUT_MS = parseInt(
-  process.env.AGENT_TOOL_TIMEOUT_MS ?? '30000',
-  10
+const DEFAULT_MAX_TOOL_ROUNDS = 10;
+// 最大ラウンド数として受け付ける上限。1 質問あたり 3〜5 ラウンドの想定（docs/09）に十分な
+// 余裕を持たせつつ、誤設定でループが実質無制限にならない値
+const MAX_TOOL_ROUNDS_LIMIT = 50;
+const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
+// ツールタイムアウトとして受け付ける上限（ミリ秒、5 分）。web_search のリトライ込みでも
+// 既定の 30 秒で足りる想定のため、これを超える値は誤設定とみなす
+const TOOL_TIMEOUT_MS_LIMIT = 300_000;
+
+const MAX_TOOL_ROUNDS = parsePositiveIntEnv(
+  'AGENT_MAX_TOOL_ROUNDS',
+  process.env.AGENT_MAX_TOOL_ROUNDS,
+  { fallback: DEFAULT_MAX_TOOL_ROUNDS, max: MAX_TOOL_ROUNDS_LIMIT }
 );
+const TOOL_TIMEOUT_MS = parsePositiveIntEnv(
+  'AGENT_TOOL_TIMEOUT_MS',
+  process.env.AGENT_TOOL_TIMEOUT_MS,
+  { fallback: DEFAULT_TOOL_TIMEOUT_MS, max: TOOL_TIMEOUT_MS_LIMIT }
+);
+
+// 最大ラウンド到達後の最終回答の前に流す注記。本文の一部として表示・保存され、
+// 回答が上限で打ち切られた調査に基づくことをユーザーに示す
+const MAX_ROUNDS_NOTICE = `> ⚠️ ツール呼び出しの上限（${MAX_TOOL_ROUNDS} 回）に達したため、ここまでに得た情報で回答します。\n\n`;
+
+// 最大ラウンド到達後の最終回答で、履歴の末尾に足す指示。会話の途中に置いた system は
+// モデルのテンプレートによって無視・破損されるため、user の発言として渡す
+const FINAL_ANSWER_INSTRUCTION =
+  'ツール呼び出しの上限に達したため、新しいツールは呼び出せません。これまでのツール実行結果だけを使って、元の質問に回答してください。情報が足りない点は、その旨を明記してください。';
 
 // NDJSON イベントを ReadableStream に書き込むヘルパー
 function encodeEvent(event: AgentStreamEvent): Uint8Array {
@@ -178,12 +202,41 @@ async function readOllamaResponse(
   return { toolCalls };
 }
 
+// 1 回分の Ollama 応答を読み、本文を text_delta・思考過程を thinking イベントとして中継する。
+// 中継した本文の有無は、最大ラウンド到達後の最終回答が空だったかの判定に使う
+async function relayOllamaResponse(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  response: Response
+): Promise<{ toolCalls: OllamaToolCall[]; hasText: boolean }> {
+  let hasText = false;
+  const { toolCalls } = await readOllamaResponse(
+    response,
+    (text) => {
+      // テキストチャンクをリアルタイムに送信（バッファなし）
+      if (text) {
+        if (text.trim()) hasText = true;
+        controller.enqueue(encodeEvent({ type: 'text_delta', content: text }));
+      }
+    },
+    (thinking) => {
+      if (thinking.trim()) {
+        controller.enqueue(
+          encodeEvent({ type: 'thinking', content: thinking.trim() })
+        );
+      }
+    }
+  );
+  return { toolCalls, hasText };
+}
+
 /**
  * エージェントループを実行し、進捗を NDJSON イベントとして流す ReadableStream を返す。
  *
  * ツール呼び出しが無くなるまで最大 `MAX_TOOL_ROUNDS` 回、Ollama への問い合わせと
  * ツール実行を繰り返す。テキストは逐次 `text_delta` で中継し、思考過程（`<think>` ブロック、
  * または `message.thinking` フィールド）は `thinking` イベントとして分離する。
+ * 最大ラウンドに達してもツール呼び出しが続く場合は、ツールを渡さずにもう 1 回問い合わせ、
+ * 取得済みのツール結果で最終回答を作らせる（上限到達の注記を先頭に付ける）。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * @param messages - 会話履歴（user / assistant / tool を時系列で並べる）
@@ -208,6 +261,22 @@ export function runAgentLoop(
       const history: OllamaChatMessage[] = [...systemMessages, ...messages];
       const loopStartTime = Date.now();
 
+      // 完了イベント（ツール呼び出し記録・実行統計付き）を送ってストリームを閉じる。
+      // agentRounds は Ollama への問い合わせ回数（最終回答の問い合わせを含む）
+      const finish = (agentRounds: number) => {
+        controller.enqueue(
+          encodeEvent({
+            type: 'done',
+            metadata: {
+              toolCalls: toolCallRecords,
+              agentRounds,
+              agentDurationMs: Date.now() - loopStartTime,
+            },
+          })
+        );
+        controller.close();
+      };
+
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           let ollamaResponse: Response;
@@ -225,39 +294,14 @@ export function runAgentLoop(
             return;
           }
 
-          const { toolCalls } = await readOllamaResponse(
-            ollamaResponse,
-            (text) => {
-              // テキストチャンクをリアルタイムに送信（バッファなし）
-              if (text) {
-                controller.enqueue(
-                  encodeEvent({ type: 'text_delta', content: text })
-                );
-              }
-            },
-            (thinking) => {
-              if (thinking.trim()) {
-                controller.enqueue(
-                  encodeEvent({ type: 'thinking', content: thinking.trim() })
-                );
-              }
-            }
+          const { toolCalls } = await relayOllamaResponse(
+            controller,
+            ollamaResponse
           );
 
-          // ツール呼び出しなし → テキスト応答のストリーミングは上記コールバックで完了済み
+          // ツール呼び出しなし → テキスト応答のストリーミングは中継時に完了済み
           if (toolCalls.length === 0) {
-            // 完了イベント（ツール呼び出し記録・実行統計付き）
-            controller.enqueue(
-              encodeEvent({
-                type: 'done',
-                metadata: {
-                  toolCalls: toolCallRecords,
-                  agentRounds: round + 1,
-                  agentDurationMs: Date.now() - loopStartTime,
-                },
-              })
-            );
-            controller.close();
+            finish(round + 1);
             return;
           }
 
@@ -312,14 +356,34 @@ export function runAgentLoop(
           }
         }
 
-        // 最大ラウンド数超過
+        // 最大ラウンド数に到達してもツール呼び出しが続いた（#96）。
+        // 取得済みの結果を捨てないよう、ツールを渡さずにもう 1 回問い合わせて最終回答を作らせる。
+        // ツール定義が無ければモデルはツールを呼べず、テキストで答えるしかない
         controller.enqueue(
-          encodeEvent({
-            type: 'error',
-            message: `ツール呼び出しが最大ラウンド数(${MAX_TOOL_ROUNDS})を超えました`,
-          })
+          encodeEvent({ type: 'text_delta', content: MAX_ROUNDS_NOTICE })
         );
-        controller.close();
+        history.push({ role: 'user', content: FINAL_ANSWER_INSTRUCTION });
+        try {
+          const finalResponse = await streamChat(history, model);
+          const { hasText } = await relayOllamaResponse(
+            controller,
+            finalResponse
+          );
+          if (!hasText) throw new Error('応答が空でした');
+        } catch (e) {
+          // 最終回答だけが失敗した場合も error にはしない。error を受けたクライアントは
+          // 作成中のメッセージを破棄するため、取得済みのツール結果まで失われる。
+          // 失敗を本文で伝え、ツール結果は done の metadata として表示・保存させる
+          console.error('Final answer after max tool rounds failed:', e);
+          const msg = e instanceof Error ? e.message : String(e);
+          controller.enqueue(
+            encodeEvent({
+              type: 'text_delta',
+              content: `\n\n最終回答の生成に失敗しました: ${msg}`,
+            })
+          );
+        }
+        finish(MAX_TOOL_ROUNDS + 1);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         controller.enqueue(encodeEvent({ type: 'error', message: msg }));
