@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-18
 
 ## 目次
 
@@ -128,7 +128,8 @@ front/src/
 │   ├── validation.ts          #   バリデーションユーティリティ
 │   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
-│   ├── agent.ts               #   エージェントループ（ツール呼び出し制御）
+│   ├── agent.ts               #   エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
+│   ├── agent-config.ts        #   エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
 │   ├── message-metadata.ts    #   メッセージ metadata の組み立て・取得時の実行時検証
 │   └── tools/                 #   ツール実装

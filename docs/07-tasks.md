@@ -776,7 +776,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `lib/message-metadata.ts` に metadata の組み立て（`buildMessageMetadata`）と取得時の実行時検証（`parseMessageMetadata`）を追加
   - [x] `useChat` の表示と保存で同じ組み立て関数を使い、`thinkingText`・`agentRounds`・`agentDurationMs` も保存する
   - [x] UT・IT・E2E（`agent-metadata.spec.ts`）を追加
-- [ ] エージェント最大ラウンド到達時に途中結果を捨てず最終回答へフォールバックする — #96
+- [x] エージェント最大ラウンド到達時に途中結果を捨てず最終回答へフォールバックする — #96
+  - [x] 上限到達後、ツールを渡さない問い合わせで取得済みのツール結果から最終回答を生成する（上限到達の注記を本文の先頭に流す）
+  - [x] 最終回答の生成が失敗・空でも `error` にせず、失敗を本文で伝えて `done` で閉じる（クライアントがツール結果ごとメッセージを破棄しないため）
+  - [x] `AGENT_MAX_TOOL_ROUNDS`（1〜50）・`AGENT_TOOL_TIMEOUT_MS`（1〜300000）を `lib/agent-config.ts` で検証し、不正・範囲外は既定値へ戻す
+  - [x] UT `agent-config.test.ts`・IT `chat-agent-max-rounds.test.ts` を追加。E2E はクライアントの変更が無く、実 LLM で上限到達を決定的に起こせないため追加しない
 
 ### 26-3: CI 衛生
 

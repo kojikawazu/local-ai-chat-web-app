@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-18
 
 ## 目次
 
@@ -346,6 +346,7 @@ front/tests/
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
+│   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
 │   └── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
@@ -357,6 +358,7 @@ front/tests/
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止）
+│   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/
