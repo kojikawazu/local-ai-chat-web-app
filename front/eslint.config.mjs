@@ -63,7 +63,19 @@ const eslintConfig = defineConfig([
   },
   // Prettier と競合する整形系ルールを無効化する。上のルールを上書きするため最後に置く。
   prettier,
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  // `.prettierignore` の除外のうち、JS/TS を含みうる生成物・テスト成果物は ESLint でも除外する
+  // （画像・ロックファイル等の ESLint が元々対象にしないものは載せない）。
+  // 特に E2E の HTML レポートは trace/ に JS を同梱し、lint 結果を数千件のノイズで埋めるため除外必須。
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
+    'src/generated/**',
+    'playwright-report/**',
+    'test-results/**',
+    'blob-report/**',
+  ]),
 ]);
 
 export default eslintConfig;

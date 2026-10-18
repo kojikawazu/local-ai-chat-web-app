@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-18
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -820,4 +820,6 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] 既定モデルを `qwen3.8:27b` に切り替え、転記箇所（`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`〜`03`・`docs/06`・`docs/09`・`front/.env.example`・`manuals/setup-guide-macos.md`）を同期
   - [x] CI への影響なし（E2E は `E2E_OLLAMA_MODEL=qwen2.5:0.5b` で Ollama 0.30.7 固定のまま。アプリ既定は使わない）
 - [x] 使用モデル 3 つの特徴を評価レポート（`docs/models/`）にまとめる — #120
-- [ ] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113
+- [x] ESLint の除外にテスト成果物（`playwright-report` 等）を追加し、`.prettierignore` と範囲を揃える — #113
+  - [x] `front/eslint.config.mjs` の `globalIgnores` に `playwright-report/**`・`test-results/**`・`blob-report/**`・`src/generated/**` を追加
+  - [x] レポート配下の JS が lint 対象外になることを確認（`pnpm lint` はソース由来の指摘のみ）
