@@ -140,7 +140,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 ### プロジェクト全体
 
-- **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない。加えて Workflow Lint を常時実行）
+- **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない。加えて Workflow Lint・Secret scan を常時実行）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
 - **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
 - **`manuals/`** — セットアップガイド等のマニュアル
@@ -175,8 +175,8 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **IT**: route handler をブラウザ抜きで実PostgreSQL（Testcontainers）相手に検証。実依存（DB）は使い、mockは真の外部（Ollama/Web）のみ。配置: `front/tests/integration/`
 - **E2Eテスト必須**（Playwright）。実際のOllama + PostgreSQLに接続。配置: `front/tests/e2e/`
 - **3分類必須**: UT・IT・E2Eとも正常系・準正常系・異常系に分割。
-- **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。E2Eモデル: `qwen2.5:0.5b`（ローカル・CI 共通。`E2E_OLLAMA_MODEL` で上書き）。ワークフロー定義は Workflow Lint（`workflow-lint.yml`: actionlint・4 本の `on:` の一致検査）が常時検査
-- **CI 発火除外**: ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 4 本とも発火しない（`paths-ignore`。Workflow Lint は常時実行）
+- **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。E2Eモデル: `qwen2.5:0.5b`（ローカル・CI 共通。`E2E_OLLAMA_MODEL` で上書き）。ワークフロー定義は Workflow Lint（`workflow-lint.yml`: actionlint・4 本の `on:` の一致検査）が、秘匿ファイルの追跡は Secret scan（`secret-scan.yml`）が常時検査
+- **CI 発火除外**: ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 4 本とも発火しない（`paths-ignore`。Workflow Lint・Secret scan は常時実行）
 - 詳細は `.claude/rules/testing.md`・`docs/06-testing.md` を参照
 
 ## テーマ・セキュリティ
@@ -251,4 +251,4 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `database.md` | `front/prisma/**` 等 | Prisma 命名規約・スキーマ・マイグレーション・クエリルール |
 | `documentation.md` | 全体 | ドキュメント乖離防止・影響マップ（変更種別→更新必須ドキュメント）・opt-out 完了条件 |
 | `github-issue.md` | 全体 | GitHub issue 運用・ブランチと対で起票・`Closes #N` で自動クローズ・サブ issue |
-| `github-actions.md` | `.github/workflows/**` | ワークフロー規約・最小権限・concurrency・4 本の `on:` の同期（Workflow Lint で検査）・actionlint |
+| `github-actions.md` | `.github/workflows/**` | ワークフロー規約・最小権限・concurrency・4 本の `on:` の同期（Workflow Lint で検査）・actionlint・常時実行の検査（Secret scan） |

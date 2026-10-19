@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-18
+> 最終更新: 2026-10-20
 
 ## 目次
 
@@ -52,7 +52,8 @@ local-ai-chat-web-app/
 │       ├── unit-test.yml      #   UT
 │       ├── integration-test.yml # IT（Testcontainers）
 │       ├── e2e-test.yml       #   E2E（Ollama + PostgreSQL）
-│       └── workflow-lint.yml  #   actionlint・トリガー定義の一致検査（常時実行）
+│       ├── workflow-lint.yml  #   actionlint・トリガー定義の一致検査（常時実行）
+│       └── secret-scan.yml    #   鍵・.env の追跡を検出（常時実行）
 ├── base/                      # UIデザインリファレンス（読み取り専用・編集禁止）
 ├── docs/                      # プロジェクトドキュメント
 ├── manuals/                   # セットアップガイド等のマニュアル

@@ -19,3 +19,6 @@ globs:
 
 - ローカル環境: `front/.env.local`（`.gitignore` に追加済み）
 - シークレット・認証情報をコードにハードコードしない
+- **`.gitignore` だけに頼らない**: `.gitignore` は未追跡ファイルにしか効かない。追跡された秘匿ファイルは CI の Secret scan（`.github/workflows/secret-scan.yml`）で検出して落とす。検出対象・除外は同ワークフローが唯一の真実
+- **混入したらローテーション**: push 済みのファイルは追跡を外しても履歴に残るため、含まれる鍵・トークンを必ずローテーションする（履歴の書き換えでは対処にならない）
+- テンプレート（`.env.example` 等）を追加する場合は、Secret scan の除外に当たる名前（`.example` / `.sample` / `.template` / `.dist`）にする

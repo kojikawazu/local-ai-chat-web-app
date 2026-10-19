@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-18
+> 最終更新: 2026-10-20
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -792,7 +792,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `workflow-lint.yml` を新設（常時実行）。actionlint（公式 Docker イメージ 1.7.12・shellcheck 込み）と、4 本の `on:` の一致検査（`yq`）を実行
   - [x] `paths-ignore` の重複は許容（案 A）し、一致を機械検査で担保。required status check を入れる場合は変更判定ジョブ + `if:`（案 C）へ移す方針を明記
   - [x] `.claude/rules/github-actions.md` を追加し、`CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`testing.md`・`documentation.md` を同期
-- [ ] 鍵・`.env` の Git 混入を検出する Secret scan ジョブを追加する — #100
+- [x] 鍵・`.env` の Git 混入を検出する Secret scan ジョブを追加する — #100
+  - [x] `secret-scan.yml` を新設（常時実行）。`git ls-files` から鍵・`.env` 系を検出し、テンプレート（`.example` 等）と `env.d.ts` は除外
+  - [x] issue 案の不具合を修正: grep の該当なし（終了コード 1）で `bash -e` が正常時もジョブを落とす点を `|| true` で吸収、非 ASCII パスが引用符付きで出力され素通りする点を `core.quotePath=false` で解消
+  - [x] Ubuntu コンテナで代表 18 パス（検出 10・素通り 8）と現リポジトリを検証、actionlint 指摘なし
+  - [x] `docs/05`・`security.md` に `.gitignore` の限界とローテーションの方針を追記し、`CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`testing.md`・`github-actions.md` を同期
 - [ ] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
 
 ### 26-4: 依存パッケージの脆弱性解消

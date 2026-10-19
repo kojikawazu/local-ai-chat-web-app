@@ -52,6 +52,7 @@ globs:
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
 | CI のトリガー定義（`on:` / `paths-ignore`） | `.github/workflows/quality.yml` | `unit-test.yml`・`integration-test.yml`・`e2e-test.yml`（**`workflow-lint.yml` が一致を機械検査**） |
+| Secret scan の検出対象・除外パターン | `.github/workflows/secret-scan.yml`（`SECRET_PATTERN` / `ALLOW_PATTERN`） | `docs/05-security.md`（秘匿ファイルの混入検出の表） |
 | ブランチ命名規約の種別一覧 | `docs/04-development-rules.md`（Git運用） | `CLAUDE.md`（開発手法） |
 
 各 `docs/` ファイル冒頭には `> 最終更新: YYYY-MM-DD` を記載し、変更時に更新する。
