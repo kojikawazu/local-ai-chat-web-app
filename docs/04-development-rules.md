@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-10-18
+> 最終更新: 2026-10-20
 
 ## 目次
 
@@ -95,6 +95,7 @@ front/tests/
 - `push` to main / `pull_request` to main で自動実行
 - **ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では Quality / UT / IT / E2E の 4 本とも発火しない**（`paths-ignore`）。コードとドキュメントが混在する変更では通常どおり実行される。詳細は `.claude/rules/testing.md`「CI の発火条件」を参照
 - **Workflow Lint**（`workflow-lint.yml`）は常時実行し、actionlint（shellcheck 込み）でワークフローを検査するとともに、上記 4 本の `on:` が一致していることを検査する
+- **Secret scan**（`secret-scan.yml`）は常時実行し、鍵・`.env` 系の秘匿ファイルが Git の追跡対象に入っていないことを検査する（`.example` 等のテンプレートと `env.d.ts` は除外）
 - ワークフローは最小権限の `permissions` と `concurrency`（PR のときだけ古い実行をキャンセル）を必ず置く。規約は `.claude/rules/github-actions.md` を参照
 - CI環境: Ubuntu + PostgreSQL (service container) + Ollama (`qwen2.5:0.5b`)
 - CIではストリーミング完了テスト・スクリーンショットテストをスキップ

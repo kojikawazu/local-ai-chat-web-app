@@ -21,7 +21,7 @@ globs: "front/tests/**"
 
 ## CI の発火条件（paths-ignore）
 
-**ドキュメントのみの変更では CI（`quality` / `unit-test` / `integration-test` / `e2e-test` の 4 本すべて）を発火させない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すのは無駄なため。ワークフロー検査の `workflow-lint` は除外せず常時実行する（`github-actions.md`「常時実行のワークフロー」）。
+**ドキュメントのみの変更では CI（`quality` / `unit-test` / `integration-test` / `e2e-test` の 4 本すべて）を発火させない。** コードの動作に影響しない変更で E2E（1 回 3〜5 分）を回すのは無駄なため。ワークフロー検査の `workflow-lint` と秘匿ファイル検査の `secret-scan` は除外せず常時実行する（`github-actions.md`「常時実行のワークフロー」）。
 
 `.github/workflows/*.yml` の `paths-ignore` が唯一の真実。4 本の `on:` は同一に保ち、一致を `workflow-lint` が機械検査する（`github-actions.md`「トリガー定義の同期」）。除外対象:
 

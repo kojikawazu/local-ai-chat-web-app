@@ -16,6 +16,7 @@ globs: ".github/workflows/**"
 | `integration-test.yml` | IT（Testcontainers） | 同上 |
 | `e2e-test.yml` | E2E（Ollama + PostgreSQL） | 同上 |
 | `workflow-lint.yml` | actionlint・トリガー定義の一致検査 | **常時実行**（パスの絞り込みなし） |
+| `secret-scan.yml` | 鍵・`.env` 系の秘匿ファイルの追跡を検出 | **常時実行**（パスの絞り込みなし） |
 
 ## 必須設定
 
@@ -42,7 +43,7 @@ globs: ".github/workflows/**"
 
 ## 常時実行のワークフロー
 
-- 秒単位で終わる検査（`workflow-lint.yml`、今後の Secret scan 等）には**パスの絞り込み（`paths` / `paths-ignore`）を付けない**。
+- 秒単位で終わる検査（`workflow-lint.yml`・`secret-scan.yml` 等）には**パスの絞り込み（`paths` / `paths-ignore`）を付けない**。
   - どの変更でも検査対象になりうるうえ、required status check に指定した場合にパスの絞り込みがあると「報告なし」のまま PR がマージ不能になるため。
 
 ## actionlint
