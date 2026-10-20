@@ -47,6 +47,7 @@ Next.js Route Handlers (API層)
 ```
 local-ai-chat-web-app/
 ├── .github/
+│   ├── dependabot.yml         # Dependabot（GitHub Actions の版更新・週次）
 │   └── workflows/             # GitHub Actions（規約は .claude/rules/github-actions.md）
 │       ├── quality.yml        #   lint / format:check / typecheck
 │       ├── unit-test.yml      #   UT

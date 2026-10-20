@@ -1,0 +1,24 @@
+# GitHub Actions（uses: に書いたアクション）の版更新を Dependabot に任せる（#101）。
+# 手で一括置換すると更新漏れ・追従忘れが起きるため、以後の更新もここから来る PR で行う。
+# run: の中に直接書いた Docker イメージ（rhysd/actionlint 等）は対象外なので手動で更新する
+# （.claude/rules/github-actions.md「バージョンの固定」参照）。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # 公開直後の版は採用しない。侵害されたリリース（タグの付け替え等）は数日以内に発覚・
+    # 取り下げられることが多いため、7 日待ってから PR を作らせる
+    cooldown:
+      default-days: 7
+    # 既存のコミット慣習（ci: ...）に揃える
+    commit-message:
+      prefix: ci
+    # マイナー・パッチは 1 PR にまとめる。メジャーは破壊的変更をアクション単位で
+    # 切り分けられるよう、グループに含めず個別の PR にする
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch

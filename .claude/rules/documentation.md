@@ -27,7 +27,7 @@ globs:
 | 開発ルール・指示ルールの変更 | `docs/04-development-rules.md`、`CLAUDE.md`、該当する `.claude/rules/*.md` |
 | セキュリティ要件の変更 | `docs/05-security.md`、`.claude/rules/security.md` |
 | テスト方針・テスト構成の変更 | `docs/06-testing.md`、`.claude/rules/testing.md` |
-| CI / E2E の変更・バグ記録 | `docs/08-ci-e2e-bug-report.md`、`.github/workflows/`、`.claude/rules/github-actions.md`（ワークフロー規約・一覧） |
+| CI / E2E の変更・バグ記録 | `docs/08-ci-e2e-bug-report.md`、`.github/workflows/`、`.github/dependabot.yml`、`.claude/rules/github-actions.md`（ワークフロー規約・一覧） |
 | エージェント機能・ツールの変更 | `docs/09-agent-architecture.md` |
 | ロードマップ・今後の方針の変更 | `docs/10-roadmap.md` |
 | 使用モデルの追加・変更、モデルの挙動の新しい知見 | `docs/models/`（`README.md` の一覧・比較とモデルごとのファイル） |

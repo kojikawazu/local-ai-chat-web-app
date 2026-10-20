@@ -97,6 +97,7 @@ front/tests/
 - **Workflow Lint**（`workflow-lint.yml`）は常時実行し、actionlint（shellcheck 込み）でワークフローを検査するとともに、上記 4 本の `on:` が一致していることを検査する
 - **Secret scan**（`secret-scan.yml`）は常時実行し、鍵・`.env` 系の秘匿ファイルが Git の追跡対象に入っていないことを検査する（`.example` 等のテンプレートと `env.d.ts` は除外）
 - ワークフローは最小権限の `permissions` と `concurrency`（PR のときだけ古い実行をキャンセル）を必ず置く。規約は `.claude/rules/github-actions.md` を参照
+- `uses:` のアクションの版は **Dependabot**（`.github/dependabot.yml`、週次）が更新する。手で一括置換せず、Dependabot の PR をリリースノートで確認してマージする
 - CI環境: Ubuntu + PostgreSQL (service container) + Ollama (`qwen2.5:0.5b`)
 - CIではストリーミング完了テスト・スクリーンショットテストをスキップ
 - 詳細は `docs/08-ci-e2e-bug-report.md` を参照

@@ -798,6 +798,11 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] Ubuntu コンテナで代表 18 パス（検出 10・素通り 8）と現リポジトリを検証、actionlint 指摘なし
   - [x] `docs/05`・`security.md` に `.gitignore` の限界とローテーションの方針を追記し、`CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`testing.md`・`github-actions.md` を同期
 - [ ] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
+  - [x] `.github/dependabot.yml` を追加（github-actions・週次・`cooldown` 7 日・コミット接頭辞 `ci`・マイナー/パッチはグループ化、メジャーは個別 PR）
+  - [x] 各アクションのメジャー版（checkout v7・setup-node v7・upload-artifact v7・pnpm/action-setup v6）のリリースノートを確認し、現行の `with:` に影響する破壊的変更が無いことを確認
+  - [x] `github-actions.md` に Dependabot 運用（手で一括置換しない・`run:` 内の Docker イメージは対象外）を追記し、`CLAUDE.md`・`docs/02`・`docs/04`・`documentation.md` を同期
+  - [ ] Dependabot が作る更新 PR（初回はメジャー 4 本の見込み）をレビュー・マージする
+  - [ ] CI の注記に Node 20 非推奨のメッセージが出ないことを確認し、#101 を手動でクローズする
 
 ### 26-4: 依存パッケージの脆弱性解消
 
