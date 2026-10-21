@@ -156,11 +156,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
 - **`components/`** — 共通UIコンポーネント（SettingsModal等、複数機能で再利用）
 - **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
-  - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat / constants: toolLabels.ts）
+  - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent / hooks: useConversations, useDrawerDialog）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — 共通カスタムフック（useTheme等）
-- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts）
+- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
   - `lib/tools/` — ツール実装（types.ts, index.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
 - **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
 

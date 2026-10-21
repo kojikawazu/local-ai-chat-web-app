@@ -69,7 +69,9 @@ globs: "front/tests/**"
 エラー系は「契約」と「見た目」で層を分ける（E2E で自前ロジックを mock しないため）。
 
 - **API のエラー契約**（Ollama ダウン→502、DB/バリデーション→4xx/5xx）→ **IT**（fetch スタブで決定的に検証）。
-- **エラー時の UI 描画・耐性**（エラーメッセージ表示・クラッシュしない・エラー状態のスクショ）→ **E2E**。ブラウザ必須かつ実バックエンドを安定的に壊せないため、**境界の障害注入（`page.route`）を唯一の許容例外**とする。
+- **エラー時の UI 描画・耐性**（エラーメッセージ表示・クラッシュしない・エラー状態のスクショ）→ **E2E**。ブラウザ必須かつ実バックエンドを安定的に壊せないため、**境界の障害注入を唯一の許容例外**とする。
+  - 対象は**通信の境界**（`page.route`）と、実ブラウザで安定して起こせない**ブラウザ API の境界**（`page.addInitScript` で `navigator.clipboard` / `document.execCommand` を差し替える等。例: `copy.spec.ts` の非 secure context・コピー失敗）。
+  - アプリ側のロジック（フック・`lib/`）は差し替えない。分岐のロジックは UT で偽の境界を渡して検証し、E2E では UI の描画・耐性だけを見る。
 - **呼び出し**: handler を関数として import し、`NextRequest` を組んで直接実行（ブラウザ・Next サーバー起動なし）。
 - **隔離**: 各テスト `beforeEach` で会話を全削除（Message は cascade）。`fileParallelism: false` で DB 競合を回避。
 - **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker のみ必要、Ollama 不要）。
