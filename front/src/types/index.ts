@@ -46,6 +46,8 @@ export type Message = {
     agentRounds?: number;
     /** エージェント処理全体にかかった時間（ミリ秒） */
     agentDurationMs?: number;
+    /** ユーザーが生成を停止した応答なら true（本文は停止までの途中のもの） */
+    interrupted?: boolean;
   } | null;
   /**
    * 保存に失敗したときだけ付く状態（{@link MessageSaveState}）。省略時は保存済み。

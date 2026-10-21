@@ -39,3 +39,5 @@ front/src/app/api/
 - Ollama からのレスポンスは `ReadableStream` でリアルタイム中継する。
 - NDJSON 形式（改行区切り JSON）でイベントをクライアントに送信する。
 - エージェントモード時は `AgentStreamEvent` 型のイベント（text / tool_call / tool_result / thinking / done / error）を送信する。
+- **停止・切断を上流へ伝える。** 返すストリームには `cancel()` を実装し、`request.signal` と合わせて Ollama への `fetch`（`streamChat` の `signal`）とツールに伝える（#8）。伝えないと、ブラウザが去った後も生成とツール実行が続き、Ollama を占有して次のリクエストを待たせる。停止はエラーとして記録・通知しない。
+- **非ストリーミングの短い生成（タイトル等）には `maxTokens`（`num_predict`）で上限を付ける。** 中断する相手がいないため、小さいモデルが指示を外れると数分間 Ollama を占有する。

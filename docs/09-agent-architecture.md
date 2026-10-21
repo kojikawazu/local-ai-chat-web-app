@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-18
+> 最終更新: 2026-10-22
 
 ## 目次
 
@@ -275,6 +275,12 @@ response = ollama.chat(messages, tools=なし, stream=true)   # ツールを渡�
 stream text response to client（失敗・空なら「最終回答の生成に失敗しました」を流す）
 send done（toolCalls と agentRounds = N + 1）
 ```
+
+**停止・切断（#8）**: `runAgentLoop` は、Route Handler の `request.signal` と自身のストリームの cancel をまとめた中断の信号（`AbortSignal.any`）を持つ。この信号を Ollama への `fetch`（`streamChat` の `signal`）と各ツール（ツールごとのタイムアウトの信号と合成）に渡し、abort されたら次の点を守る。
+
+- 実行中の問い合わせ・ツールを中断し、次のラウンドへ進まない（ツール実行の後にも中断を確認する）
+- 以降はイベントを書き込まず（`send` が中断後は何もしない）、`error` も送らずにストリームを閉じる。クライアントは `error` を受けると作成中の応答を破棄するため、停止までの本文を残せなくなる
+- 閉じたストリームへの `enqueue` は例外になる。以前はこれを `readOllamaResponse` の JSON 解析の `catch` が握りつぶし、ツール実行は `allSettled` が吸収していたため、接続が切れてもループが最後まで回り続けていた
 
 ### Phase C での拡張（自律エージェント）
 

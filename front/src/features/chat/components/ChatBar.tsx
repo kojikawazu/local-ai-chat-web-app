@@ -7,7 +7,7 @@ import {
   useImperativeHandle,
   forwardRef,
 } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Square } from 'lucide-react';
 import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
@@ -22,20 +22,26 @@ interface ChatBarProps {
   onSendMessage: (content: string) => void;
   /** 送信を無効化するか（応答生成中など）。省略時は有効。 */
   disabled?: boolean;
+  /** 応答の生成中か。true の間は送信ボタンの代わりに停止ボタンを出し、Escape でも停止できる。 */
+  isGenerating?: boolean;
+  /** 停止ボタン・Escape で呼ばれるコールバック。 */
+  onStop?: () => void;
 }
 
 /**
  * メッセージ入力バー。textarea への入力・自動高さ調整・送信を担う。
  *
  * Enter で送信、Shift+Enter で改行。IME 変換確定中の Enter は送信しない。
+ * 応答の生成中は送信ボタンが停止ボタンに替わり、入力欄での Escape でも停止できる
+ * （IME の変換中の Escape は変換の取り消しなので停止しない）。
  * 入力が {@link MAX_MESSAGE_LENGTH} を超えると送信不可となり警告を表示する。
  * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
  *
- * @param props - 送信コールバックと無効化フラグを持つ props
+ * @param props - 送信・停止のコールバックと、無効化・生成中のフラグを持つ props
  * @param ref - 入力欄フォーカス操作を公開する forwardRef
  */
 const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
-  { onSendMessage, disabled },
+  { onSendMessage, disabled, isGenerating, onStop },
   ref
 ) {
   const [content, setContent] = useState('');
@@ -59,6 +65,11 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && isGenerating && !isComposingRef.current) {
+      e.preventDefault();
+      onStop?.();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !isComposingRef.current) {
       e.preventDefault();
       handleSubmit();
@@ -97,17 +108,28 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
           />
 
           <div className="flex gap-2 pb-1 pl-1">
-            <button
-              type="submit"
-              disabled={!canSend}
-              className={`p-2.5 rounded-xl transition-all ${
-                canSend
-                  ? 'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 font-bold'
-                  : 'opacity-20 cursor-not-allowed text-nord-4'
-              }`}
-            >
-              <Send size={20} />
-            </button>
+            {isGenerating ? (
+              <button
+                type="button"
+                onClick={onStop}
+                aria-label="生成を停止"
+                className="p-2.5 rounded-xl transition-all bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2"
+              >
+                <Square size={20} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!canSend}
+                className={`p-2.5 rounded-xl transition-all ${
+                  canSend
+                    ? 'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 font-bold'
+                    : 'opacity-20 cursor-not-allowed text-nord-4'
+                }`}
+              >
+                <Send size={20} />
+              </button>
+            )}
           </div>
         </form>
         {isOverLimit && (

@@ -17,20 +17,24 @@ export async function resetDb(): Promise<void> {
  * @param url - リクエスト URL（絶対 URL。パス解決には使われないがダミーで必須）
  * @param method - HTTP メソッド
  * @param body - JSON 化して送るボディ（省略時は本文なし）。`raw` に文字列を渡すと不正 JSON を再現できる
+ * @param signal - リクエストの中断の信号（ブラウザの停止・切断の再現用。省略時は中断しない）
  * @returns 構築した NextRequest
  */
 export function jsonRequest(
   url: string,
   method: string,
-  body?: unknown
+  body?: unknown,
+  signal?: AbortSignal
 ): NextRequest {
   const init: {
     method: string;
     headers: Record<string, string>;
     body?: string;
+    signal?: AbortSignal;
   } = {
     method,
     headers: { 'content-type': 'application/json' },
+    signal,
   };
   if (body !== undefined) {
     init.body = typeof body === 'string' ? body : JSON.stringify(body);

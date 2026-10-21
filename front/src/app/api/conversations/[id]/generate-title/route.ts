@@ -9,6 +9,13 @@ import { parseGenerateTitleBody, readJsonBody } from '@/lib/request-body';
 const TITLE_SOURCE_MAX_CHARS = 500;
 
 /**
+ * タイトル生成で LLM に生成させるトークン数の上限。20 文字以内と指示した日本語のタイトルは
+ * 1 トークン 1〜2 文字で収まる。上限が無いと、小さいモデル（qwen2.5:0.5b で約 10%）が指示を外れて
+ * 本文の依頼（「1 から 500 まで数えて」等）に答え続け、数分間 Ollama を占有してチャットを待たせる
+ */
+const TITLE_MAX_TOKENS = 64;
+
+/**
  * メッセージ内容から LLM で会話タイトルを自動生成し、対象会話に保存する。
  *
  * Ollama に対して「20文字以内の日本語タイトルのみ出力」を指示し、生成結果を
@@ -49,7 +56,7 @@ export async function POST(
       ],
       model,
       // 短いタイトルに思考は要らず、思考に対応したモデルでは待ち時間が数秒延びるだけのため止める
-      { think: false }
+      { think: false, maxTokens: TITLE_MAX_TOKENS }
     );
 
     const generatedTitle = content.trim().slice(0, MAX_TITLE_LENGTH);

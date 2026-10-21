@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-21
+> 最終更新: 2026-10-22
 
 ## 目次
 
@@ -334,6 +334,8 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
 | 応答の完了待ち | `waitForResponseComplete`（`helpers/test-data.ts`）を使う。送信ボタンは入力欄が空だと有効にならないため、1 文字入力してから有効化を待つ（#115）。ローディング表示は最初のチャンクまでしか出ないので完了の判定には使えない |
 | 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
+| 長い応答が必要な検証 | 軽量モデルは指示どおり長く答えるとは限らない。`streaming-stop.spec.ts` は長くなりやすいプロンプト（日本の歴史を各時代について）を使い、止める前に終わったら送り直す（最大 3 回） |
+| `page.route` で遅らせたリクエスト | 遅らせた後の `route.continue()` は、ページが中断した後でもサーバーへ転送する。受け手のいない生成が Ollama を占有して後続のテストを数分待たせたため、中断させるリクエストは転送せず `route.fulfill()` で返す（#8） |
 
 ## テストファイル構成
 
@@ -360,6 +362,7 @@ front/tests/
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
+│   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/
@@ -371,6 +374,7 @@ front/tests/
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
+    ├── streaming-stop.spec.ts    # 生成の停止（Stop ボタン・Escape・本文前の停止・中断した応答の保存と保存失敗）
     ├── sidebar.spec.ts           # サイドバー操作テスト
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）

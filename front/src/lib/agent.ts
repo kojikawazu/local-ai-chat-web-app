@@ -46,12 +46,15 @@ function encodeEvent(event: AgentStreamEvent): Uint8Array {
 // タイムアウト時は race で応答を返すだけでなく signal を abort し、ツール内の
 // fetch・本文読み取り・リトライ待機を止めてバックグラウンドに処理を残さない。
 // signal を見ないツールがあっても応答が返るよう race は残す。
+// ループ全体の中断（ブラウザの停止・切断）でもツールを止めるため、loopSignal と合成して渡す。
 async function runTool(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  loopSignal: AbortSignal
 ): Promise<{ result: string; isError: boolean; durationMs: number }> {
   const start = Date.now();
   const abortController = new AbortController();
+  const toolSignal = AbortSignal.any([abortController.signal, loopSignal]);
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -66,7 +69,7 @@ async function runTool(
 
   try {
     const result = await Promise.race([
-      executeTool(name, args, abortController.signal),
+      executeTool(name, args, toolSignal),
       timeoutPromise,
     ]);
     clearTimeout(timeoutId);
@@ -205,7 +208,7 @@ async function readOllamaResponse(
 // 1 回分の Ollama 応答を読み、本文を text_delta・思考過程を thinking イベントとして中継する。
 // 中継した本文の有無は、最大ラウンド到達後の最終回答が空だったかの判定に使う
 async function relayOllamaResponse(
-  controller: ReadableStreamDefaultController<Uint8Array>,
+  send: (event: AgentStreamEvent) => void,
   response: Response
 ): Promise<{ toolCalls: OllamaToolCall[]; hasText: boolean }> {
   let hasText = false;
@@ -215,14 +218,12 @@ async function relayOllamaResponse(
       // テキストチャンクをリアルタイムに送信（バッファなし）
       if (text) {
         if (text.trim()) hasText = true;
-        controller.enqueue(encodeEvent({ type: 'text_delta', content: text }));
+        send({ type: 'text_delta', content: text });
       }
     },
     (thinking) => {
       if (thinking.trim()) {
-        controller.enqueue(
-          encodeEvent({ type: 'thinking', content: thinking.trim() })
-        );
+        send({ type: 'thinking', content: thinking.trim() });
       }
     }
   );
@@ -239,21 +240,43 @@ async function relayOllamaResponse(
  * 取得済みのツール結果で最終回答を作らせる（上限到達の注記を先頭に付ける）。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
+ * `signal` の abort、または返したストリームの cancel（ブラウザの停止・切断）でループを止める。
+ * 実行中の Ollama への問い合わせとツールを中断し、以降のラウンドもツールも実行しない。
+ *
  * @param messages - 会話履歴（user / assistant / tool を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
  * @param systemPrompt - 先頭に付与するシステムプロンプト。空・未指定なら付与しない
+ * @param signal - 中断の信号（Route Handler の `request.signal`）。未指定ならストリームの cancel でのみ止まる
  * @returns NDJSON イベント（text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
  */
 export function runAgentLoop(
   messages: OllamaChatMessage[],
   model?: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  signal?: AbortSignal
 ): ReadableStream<Uint8Array> {
   const tools = getAllToolDefinitions();
   const toolCallRecords: ToolCallRecord[] = [];
+  // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
+  const cancelController = new AbortController();
+  const loopSignal = signal
+    ? AbortSignal.any([signal, cancelController.signal])
+    : cancelController.signal;
 
   return new ReadableStream<Uint8Array>({
+    cancel(reason) {
+      cancelController.abort(reason);
+    },
     async start(controller) {
+      // 中断後は書き込まない。閉じたストリームへの enqueue は例外になり、それを
+      // readOllamaResponse の JSON 解析の catch が握りつぶすと、接続が切れたあともループが回り続ける
+      const send = (event: AgentStreamEvent) => {
+        if (!loopSignal.aborted) controller.enqueue(encodeEvent(event));
+      };
+      const close = () => {
+        if (!loopSignal.aborted) controller.close();
+      };
+
       // システムプロンプトがあれば先頭に追加
       const systemMessages: OllamaChatMessage[] = systemPrompt?.trim()
         ? [{ role: 'system' as const, content: systemPrompt.trim() }]
@@ -264,40 +287,37 @@ export function runAgentLoop(
       // 完了イベント（ツール呼び出し記録・実行統計付き）を送ってストリームを閉じる。
       // agentRounds は Ollama への問い合わせ回数（最終回答の問い合わせを含む）
       const finish = (agentRounds: number) => {
-        controller.enqueue(
-          encodeEvent({
-            type: 'done',
-            metadata: {
-              toolCalls: toolCallRecords,
-              agentRounds,
-              agentDurationMs: Date.now() - loopStartTime,
-            },
-          })
-        );
-        controller.close();
+        send({
+          type: 'done',
+          metadata: {
+            toolCalls: toolCallRecords,
+            agentRounds,
+            agentDurationMs: Date.now() - loopStartTime,
+          },
+        });
+        close();
       };
 
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           let ollamaResponse: Response;
           try {
-            ollamaResponse = await streamChat(history, model, tools);
+            ollamaResponse = await streamChat(history, model, tools, {
+              signal: loopSignal,
+            });
           } catch (e) {
+            // 停止・切断による中断は接続の失敗ではない。受け取る相手もいないため何も送らない
+            if (loopSignal.aborted) return;
             const msg = e instanceof Error ? e.message : String(e);
-            controller.enqueue(
-              encodeEvent({
-                type: 'error',
-                message: `Ollamaへの接続に失敗しました: ${msg}`,
-              })
-            );
-            controller.close();
+            send({
+              type: 'error',
+              message: `Ollamaへの接続に失敗しました: ${msg}`,
+            });
+            close();
             return;
           }
 
-          const { toolCalls } = await relayOllamaResponse(
-            controller,
-            ollamaResponse
-          );
+          const { toolCalls } = await relayOllamaResponse(send, ollamaResponse);
 
           // ツール呼び出しなし → テキスト応答のストリーミングは中継時に完了済み
           if (toolCalls.length === 0) {
@@ -319,16 +339,16 @@ export function runAgentLoop(
               const args = tc.function.arguments;
 
               // 実行開始イベント
-              controller.enqueue(
-                encodeEvent({ type: 'tool_call_start', name, arguments: args })
-              );
+              send({ type: 'tool_call_start', name, arguments: args });
 
-              const { result, isError, durationMs } = await runTool(name, args);
+              const { result, isError, durationMs } = await runTool(
+                name,
+                args,
+                loopSignal
+              );
 
               // 実行結果イベント
-              controller.enqueue(
-                encodeEvent({ type: 'tool_call_result', name, result, isError })
-              );
+              send({ type: 'tool_call_result', name, result, isError });
 
               toolCallRecords.push({
                 name,
@@ -341,6 +361,9 @@ export function runAgentLoop(
               return { name, result };
             })
           );
+
+          // ツール実行中に停止・切断された。次のラウンドへ進まない
+          if (loopSignal.aborted) return;
 
           // tool ロールのメッセージを呼び出し順で履歴に追加
           for (let i = 0; i < toolCalls.length; i++) {
@@ -359,35 +382,44 @@ export function runAgentLoop(
         // 最大ラウンド数に到達してもツール呼び出しが続いた（#96）。
         // 取得済みの結果を捨てないよう、ツールを渡さずにもう 1 回問い合わせて最終回答を作らせる。
         // ツール定義が無ければモデルはツールを呼べず、テキストで答えるしかない
-        controller.enqueue(
-          encodeEvent({ type: 'text_delta', content: MAX_ROUNDS_NOTICE })
-        );
+        send({ type: 'text_delta', content: MAX_ROUNDS_NOTICE });
         history.push({ role: 'user', content: FINAL_ANSWER_INSTRUCTION });
         try {
-          const finalResponse = await streamChat(history, model);
-          const { hasText } = await relayOllamaResponse(
-            controller,
-            finalResponse
-          );
+          const finalResponse = await streamChat(history, model, undefined, {
+            signal: loopSignal,
+          });
+          const { hasText } = await relayOllamaResponse(send, finalResponse);
           if (!hasText) throw new Error('応答が空でした');
         } catch (e) {
+          if (loopSignal.aborted) return;
           // 最終回答だけが失敗した場合も error にはしない。error を受けたクライアントは
           // 作成中のメッセージを破棄するため、取得済みのツール結果まで失われる。
           // 失敗を本文で伝え、ツール結果は done の metadata として表示・保存させる
           console.error('Final answer after max tool rounds failed:', e);
           const msg = e instanceof Error ? e.message : String(e);
-          controller.enqueue(
-            encodeEvent({
-              type: 'text_delta',
-              content: `\n\n最終回答の生成に失敗しました: ${msg}`,
-            })
-          );
+          send({
+            type: 'text_delta',
+            content: `\n\n最終回答の生成に失敗しました: ${msg}`,
+          });
         }
         finish(MAX_TOOL_ROUNDS + 1);
       } catch (e) {
+        // Ollama の応答の読み取り中に停止・切断された（読み取りが AbortError になる）
+        if (loopSignal.aborted) return;
         const msg = e instanceof Error ? e.message : String(e);
-        controller.enqueue(encodeEvent({ type: 'error', message: msg }));
-        controller.close();
+        send({ type: 'error', message: msg });
+        close();
+      } finally {
+        // 停止・切断で抜けた場合もストリームを閉じ、読み手を待たせない（request.signal だけが
+        // abort された場合、cancel されていないストリームが開いたまま残る）。
+        // cancel 済みのストリームへの close は例外になるため無視する
+        if (loopSignal.aborted) {
+          try {
+            controller.close();
+          } catch {
+            // cancel 済み
+          }
+        }
       }
     },
   });

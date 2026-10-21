@@ -48,7 +48,30 @@ export type OllamaChatOptions = {
    * 思考に対応していないモデルへ `true` を送ると Ollama がエラーを返すため、送るのは `false` に限る想定
    */
   think?: boolean;
+  /**
+   * 中断の信号。abort されると Ollama への接続を切り、Ollama 側の生成も止める（Ollama は
+   * 接続が切れると生成を止める）。ブラウザが停止・切断したときに生成を続けさせないため
+   */
+  signal?: AbortSignal;
+  /**
+   * 生成するトークン数の上限（Ollama の `options.num_predict`）。未指定なら上限なし。
+   * 短い出力しか要らない用途で、小さいモデルが指示を外れて書き続け、Ollama を数分占有して
+   * 後続の生成を待たせるのを防ぐ
+   */
+  maxTokens?: number;
 };
+
+/**
+ * {@link OllamaChatOptions} のうち、Ollama のモデルの実行オプション（`options`）に当たるものを組み立てる。
+ *
+ * @param options - リクエストのオプション
+ * @returns リクエストボディに足す `options`。指定が無ければ空オブジェクト（ボディに足さない）
+ */
+function modelOptions(options: OllamaChatOptions): Record<string, unknown> {
+  return options.maxTokens !== undefined
+    ? { options: { num_predict: options.maxTokens } }
+    : {};
+}
 
 /**
  * Ollama にインストール済みのモデル情報（`/api/tags` の 1 要素）。
@@ -97,9 +120,10 @@ export function getDefaultModel(): string {
  * @param messages - 会話履歴（system / user / assistant / tool を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
  * @param tools - エージェントに渡すツール定義。空・未指定ならツール無しで送信する
- * @param options - 思考の有無などのオプション。未指定ならモデルの既定に従う
+ * @param options - 思考の有無・中断の信号などのオプション。未指定ならモデルの既定に従い、中断しない
  * @returns ストリーミング応答の `Response`（呼び出し側でボディを逐次読み取る）
  * @throws {Error} Ollama API が非 2xx を返した場合
+ * @throws {DOMException} `options.signal` が abort された場合（`AbortError`）。応答の読み取り中に abort された場合も、読み取り側で同じ例外になる
  */
 export async function streamChat(
   messages: OllamaChatMessage[],
@@ -111,6 +135,7 @@ export async function streamChat(
     model: model || OLLAMA_DEFAULT_MODEL,
     messages,
     stream: true,
+    ...modelOptions(options),
   };
   if (tools && tools.length > 0) {
     body.tools = tools;
@@ -123,6 +148,7 @@ export async function streamChat(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -141,7 +167,7 @@ export async function streamChat(
  *
  * @param messages - 会話履歴（system / user / assistant を時系列で並べる）
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
- * @param options - 思考の有無などのオプション。未指定ならモデルの既定に従う
+ * @param options - 思考の有無・中断の信号などのオプション。未指定ならモデルの既定に従い、中断しない
  * @returns アシスタント応答の本文（思考過程は含まない）。応答が空・欠落している場合は空文字
  * @throws {Error} Ollama API が非 2xx を返した場合
  */
@@ -158,7 +184,9 @@ export async function chatOnce(
       messages,
       stream: false,
       ...(options.think !== undefined && { think: options.think }),
+      ...modelOptions(options),
     }),
+    signal: options.signal,
   });
 
   if (!response.ok) {

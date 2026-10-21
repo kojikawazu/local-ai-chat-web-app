@@ -84,7 +84,8 @@ async function saveMessage(
  * 扱う。会話 ID が未指定なら新規会話を作成し、初回応答の保存後にタイトル自動生成を
  * 要求する。保存に失敗したメッセージは `saveState` を付けて表示に残し、
  * `retrySave` で同じ内容を再送できる（user の保存失敗時は LLM を呼ばない）。
- * 中断は内部の `AbortController` で扱う。
+ * `stopGeneration` で生成を止めると、届いた分までの本文を `metadata.interrupted` 付きで
+ * 保存する（本文が空なら応答を残さない）。中断は内部の `AbortController` で扱う。
  *
  * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
  *   エージェント有効化・システムプロンプトと、会話作成／タイトル生成完了時の
@@ -92,7 +93,8 @@ async function saveMessage(
  * @returns チャット状態と操作関数。`messages` は現在のメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
  *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`sendMessage` は
- *   本文を送信して応答をストリーム受信する関数、`retrySave` は保存に失敗した
+ *   本文を送信して応答をストリーム受信する関数、`stopGeneration` は生成中の応答を
+ *   止める関数、`retrySave` は保存に失敗した
  *   メッセージを ID 指定で再送する関数、`clearMessages` はメッセージ・エラー・
  *   実行中ツールを初期化する関数、`loadMessages` は指定会話のメッセージを読み込む関数
  */
@@ -232,6 +234,35 @@ export function useChat({
       // tool_call_start で受け取った arguments を tool_call_result まで保持する
       // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
       const pendingToolArgs = new Map<string, Array<Record<string, unknown>>>();
+
+      /**
+       * 届いた応答を保存し、最初のやり取りならタイトルを生成する。
+       *
+       * @param interrupted - ユーザーが停止した応答か（中断マーク付きで保存する）
+       */
+      const saveResponse = async (interrupted: boolean) => {
+        if (!fullAiContent) return;
+        const generateTitle = isFirstExchange
+          ? () => requestTitleGeneration(activeConversationId, content)
+          : undefined;
+        // タイトル生成は応答の保存成功後に限る（未保存のまま完了扱いへ進めない）。
+        // 失敗時は再試行で保存できた時点で onSaved として実行する
+        const saved = await persist(aiMessageId, {
+          conversationId: activeConversationId,
+          role: 'assistant',
+          content: fullAiContent,
+          // 表示中の metadata と同じ内容を保存する。ツールを使わず思考だけした応答も残す（#94）
+          metadata: buildMessageMetadata({
+            toolCalls: toolCallRecords,
+            thinkingText,
+            agentRounds,
+            agentDurationMs,
+            interrupted,
+          }),
+          onSaved: generateTitle,
+        });
+        if (saved) generateTitle?.();
+      };
 
       try {
         const response = await fetch('/api/chat', {
@@ -423,29 +454,33 @@ export function useChat({
           }
         }
 
-        if (fullAiContent) {
-          const generateTitle = isFirstExchange
-            ? () => requestTitleGeneration(activeConversationId, content)
-            : undefined;
-          // タイトル生成は応答の保存成功後に限る（未保存のまま完了扱いへ進めない）。
-          // 失敗時は再試行で保存できた時点で onSaved として実行する
-          const saved = await persist(aiMessageId, {
-            conversationId: activeConversationId,
-            role: 'assistant',
-            content: fullAiContent,
-            // 表示中の metadata と同じ内容を保存する。ツールを使わず思考だけした応答も残す（#94）
-            metadata: buildMessageMetadata({
-              toolCalls: toolCallRecords,
-              thinkingText,
-              agentRounds,
-              agentDurationMs,
-            }),
-            onSaved: generateTitle,
-          });
-          if (saved) generateTitle?.();
-        }
+        await saveResponse(false);
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
+        // 停止（stopGeneration）による中断。エラーにせず、届いた分までを応答として残す（#8）
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          if (!fullAiContent) {
+            // 本文が 1 文字も届く前に止めた。空の応答は残さない
+            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
+            return;
+          }
+          // 停止までに届いた思考過程・ツール結果も含め、中断マーク付きで表示する
+          const interruptedMetadata = buildMessageMetadata({
+            toolCalls: [...toolCallRecords],
+            thinkingText,
+            agentRounds,
+            agentDurationMs,
+            interrupted: true,
+          });
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === aiMessageId
+                ? { ...msg, metadata: interruptedMetadata }
+                : msg
+            )
+          );
+          await saveResponse(true);
+          return;
+        }
         setError(
           err instanceof Error ? err.message : '不明なエラーが発生しました'
         );
@@ -555,6 +590,11 @@ export function useChat({
     [persist, setSaveState]
   );
 
+  // 生成中の応答を止める。生成中でなければ何もしない（送信直後の保存待ちの間など）
+  const stopGeneration = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
   const clearMessages = useCallback(() => {
     pendingSavesRef.current.clear();
     setMessages([]);
@@ -568,6 +608,7 @@ export function useChat({
     error,
     activeToolCall,
     sendMessage,
+    stopGeneration,
     retrySave,
     clearMessages,
     loadMessages,
