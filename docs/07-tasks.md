@@ -811,6 +811,10 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] `vitest` を 4.1.12 に更新（`@vitest/mocker` のパストラバーサル）
   - [x] 現行メジャー内で全依存を更新し、推移依存（hono / undici / postcss / sharp / js-yaml 等）を解消
   - [x] `pnpm audit` の残り 1 件（`braces`：修正版未提供・`eslint-config-next` 経由の lint 時専用）は解消不能として記録
+- [x] vite の脆弱性アラート（Dependabot #194〜#196、`launch-editor` 由来）を lockfile の更新で解消する — #139
+  - [x] Dependabot の自動修正が失敗する原因を特定: 要求版（8.3.4）と pnpm が推移依存として解決した版（8.3.5）が食い違い、Dependabot が更新を破棄する（`dependency_file_not_resolvable`）
+  - [x] `vitest` 経由の推移依存 `vite` を 8.1.4 → 8.3.4 に更新（`package.json` は変更なし。lockfile にある範囲内の版を pnpm が据え置くため、一時的に直接依存として追加・削除して解決し直す）。公開直後の 8.3.5（当日公開）は Dependabot の `cooldown` と同じ方針で採用しない
+  - [x] `pnpm audit` の vite の指摘が消え、残りが既知の `braces` 1 件のみであることを確認
 
 ## フェーズ27: ローカル開発環境の負荷軽減・モデル更新
 
