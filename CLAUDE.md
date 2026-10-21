@@ -140,7 +140,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 ### プロジェクト全体
 
-- **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない。加えて Workflow Lint・Secret scan を常時実行）
+- **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない。加えて Workflow Lint・Secret scan を常時実行）。アクションの版更新は `.github/dependabot.yml`（Dependabot・週次）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
 - **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
 - **`manuals/`** — セットアップガイド等のマニュアル
@@ -251,4 +251,4 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `database.md` | `front/prisma/**` 等 | Prisma 命名規約・スキーマ・マイグレーション・クエリルール |
 | `documentation.md` | 全体 | ドキュメント乖離防止・影響マップ（変更種別→更新必須ドキュメント）・opt-out 完了条件 |
 | `github-issue.md` | 全体 | GitHub issue 運用・ブランチと対で起票・`Closes #N` で自動クローズ・サブ issue |
-| `github-actions.md` | `.github/workflows/**` | ワークフロー規約・最小権限・concurrency・4 本の `on:` の同期（Workflow Lint で検査）・actionlint・常時実行の検査（Secret scan） |
+| `github-actions.md` | `.github/workflows/**` | ワークフロー規約・最小権限・concurrency・4 本の `on:` の同期（Workflow Lint で検査）・actionlint・常時実行の検査（Secret scan）・Dependabot によるアクション更新 |

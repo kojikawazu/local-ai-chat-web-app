@@ -55,6 +55,10 @@ globs: ".github/workflows/**"
 ## バージョンの固定
 
 - ツール・ランタイムは `latest` を使わず固定する（破壊的に上がるため）。固定した理由はワークフロー内のコメントに残す（Node 20 / 22、pnpm 10、Ollama 0.30.7 等の既存の固定と同じ扱い）。
+- **`uses:` のアクションは Dependabot が更新する**（`.github/dependabot.yml`。週次・公開から 7 日待つ `cooldown`・マイナー/パッチは 1 PR にまとめ、メジャーはアクションごとの個別 PR）。手で一括置換しない。
+  - Dependabot の PR は、リリースノートで破壊的変更と現行の `with:` への影響を確認し、CI が通ってからマージする。
+  - Dependabot のコミットメッセージは英語になる（`ci: bump ...`）。日本語コミットの規約の例外として許容する。
+- **`run:` の中に直接書いた Docker イメージ（`rhysd/actionlint:<version>` 等）は Dependabot の対象外**。手動で更新する。
 
 ## 将来 required status check を入れる場合
 
