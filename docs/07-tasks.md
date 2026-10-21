@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-20
+> 最終更新: 2026-10-21
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -797,12 +797,12 @@ LLM がツールを呼び出して外部情報を取得・処理できるエー�
   - [x] issue 案の不具合を修正: grep の該当なし（終了コード 1）で `bash -e` が正常時もジョブを落とす点を `|| true` で吸収、非 ASCII パスが引用符付きで出力され素通りする点を `core.quotePath=false` で解消
   - [x] Ubuntu コンテナで代表 18 パス（検出 10・素通り 8）と現リポジトリを検証、actionlint 指摘なし
   - [x] `docs/05`・`security.md` に `.gitignore` の限界とローテーションの方針を追記し、`CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`testing.md`・`github-actions.md` を同期
-- [ ] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
+- [x] Dependabot（github-actions）を導入し、Node 20 向けアクションを更新する — #101
   - [x] `.github/dependabot.yml` を追加（github-actions・週次・`cooldown` 7 日・コミット接頭辞 `ci`・マイナー/パッチはグループ化、メジャーは個別 PR）
   - [x] 各アクションのメジャー版（checkout v7・setup-node v7・upload-artifact v7・pnpm/action-setup v6）のリリースノートを確認し、現行の `with:` に影響する破壊的変更が無いことを確認
   - [x] `github-actions.md` に Dependabot 運用（手で一括置換しない・`run:` 内の Docker イメージは対象外）を追記し、`CLAUDE.md`・`docs/02`・`docs/04`・`documentation.md` を同期
-  - [ ] Dependabot が作る更新 PR（初回はメジャー 4 本の見込み）をレビュー・マージする
-  - [ ] CI の注記に Node 20 非推奨のメッセージが出ないことを確認し、#101 を手動でクローズする
+  - [x] Dependabot が作る更新 PR（メジャー 4 本: #134 checkout v7・#135 setup-node v7・#136 pnpm/action-setup v6・#137 upload-artifact v7）をレビュー・マージする。差分は `uses:` の版のみで、E2E を含む全チェックの通過と v7 での `playwright-report` のアップロードを確認
+  - [x] CI の注記に Node 20 非推奨のメッセージが出ないことを確認（更新前の main `9e6ec6c` では出ていた注記が、更新後の `810ac79` の 6 ワークフローでは出ない）
 
 ### 26-4: 依存パッケージの脆弱性解消
 
