@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { User, Bot, Copy, TriangleAlert, RotateCw } from 'lucide-react';
+import { User, Bot, TriangleAlert, RotateCw } from 'lucide-react';
 import type { Message } from '@/types';
 import MarkdownContent from './MarkdownContent';
+import { CopyButton } from './CopyButton';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
@@ -24,7 +25,7 @@ type ChatWindowProps = {
  * チャットのメッセージ一覧を描画するスクロール領域。
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
- * 描画し、思考過程・ツール呼び出し結果・ラウンド統計を付随表示する。最初のチャンク
+ * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピーボタンを付随表示する。最初のチャンク
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
  *
@@ -177,15 +178,8 @@ export default function ChatWindow({
                       </button>
                     )}
                     {msg.role === 'assistant' && (
-                      <button
-                        className="hover:text-nord-frost-1 transition-colors"
-                        onClick={() =>
-                          navigator.clipboard.writeText(msg.content)
-                        }
-                        aria-label="コピー"
-                      >
-                        <Copy size={14} />
-                      </button>
+                      // 表示ではなく Markdown の原文をコピーする（貼り付け先で書式を再現できる）
+                      <CopyButton text={msg.content} label="コピー" />
                     )}
                     <span className="opacity-50 font-mono">
                       {msg.createdAt.toLocaleTimeString([], {

@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-20
+> 最終更新: 2026-10-21
 
 ## 目次
 
@@ -106,16 +106,18 @@ front/src/
 │   │   ├── components/
 │   │   │   ├── ChatBar.tsx    #     メッセージ入力（IME対応、forwardRef）
 │   │   │   ├── ChatWindow.tsx #     メッセージ一覧表示
+│   │   │   ├── CopyButton.tsx #     コピーボタン（結果の一時表示。応答・コードブロックで共用）
 │   │   │   ├── Footer.tsx     #     フッター
 │   │   │   ├── Header.tsx     #     ヘッダー（モデル選択ドロップダウン）
-│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示
+│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示（コードブロックのコピーボタン付き）
 │   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │   │   │   └── ToolCallResult.tsx  #  ツール実行結果の折りたたみ表示
 │   │   ├── constants/
 │   │   │   └── toolLabels.ts  #     ツール名→表示ラベルのマッピング
 │   │   └── hooks/
-│   │       └── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成）
+│   │       ├── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成）
+│   │       └── useCopyFeedback.ts #  コピーの実行と結果表示（copied / failed）の自動リセット
 │   └── sidebar/
 │       ├── components/
 │       │   ├── Sidebar.tsx    #     デスクトップのサイドバー（md 以上）
@@ -131,6 +133,7 @@ front/src/
 ├── lib/
 │   ├── ollama.ts              #   Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   ├── prisma.ts              #   Prismaクライアントインスタンス
+│   ├── clipboard.ts           #   クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
 │   ├── validation.ts          #   バリデーションユーティリティ
 │   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
@@ -172,6 +175,7 @@ front/tests/
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
+    ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト

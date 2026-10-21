@@ -3,6 +3,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import { CopyButton } from './CopyButton';
 
 /** {@link MarkdownContent} の props。 */
 interface MarkdownContentProps {
@@ -10,12 +11,36 @@ interface MarkdownContentProps {
   content: string;
 }
 
+/** 構文木（hast）のうち、文字列の取り出しに使う部分だけの形 */
+type HastNode = { type: string; value?: string; children?: HastNode[] };
+
+/**
+ * 構文木のノード配下の文字列を連結して返す（DOM の `textContent` 相当）。
+ *
+ * @param node - 対象のノード
+ * @returns 配下のテキストノードの値を順に連結した文字列
+ */
+function hastToText(node: HastNode): string {
+  if (node.type === 'text') return node.value ?? '';
+  return (node.children ?? []).map(hastToText).join('');
+}
+
 const components: Components = {
-  pre({ children }) {
+  pre({ children, node }) {
+    // remark はコードブロックの末尾に改行を 1 つ付けるため、コピー時は落とす
+    const code = node ? hastToText(node).replace(/\n$/, '') : '';
     return (
-      <pre className="my-3 p-4 rounded-lg bg-nord-0 border border-nord-3 overflow-x-auto text-sm">
-        {children}
-      </pre>
+      <div className="relative my-3">
+        <pre className="p-4 rounded-lg bg-nord-0 border border-nord-3 overflow-x-auto text-sm">
+          {children}
+        </pre>
+        {/* pre の外に置き、横スクロールしても右上に留める。ホバーの無いスマホでも押せるよう常に表示 */}
+        <CopyButton
+          text={code}
+          label="コードをコピー"
+          className="absolute top-2 right-2 flex-row-reverse px-2 py-1 rounded bg-nord-1/80 text-xs text-nord-4"
+        />
+      </div>
     );
   },
   code({ children, className }) {
@@ -104,7 +129,7 @@ const components: Components = {
  *
  * `remark-gfm` で GFM（表・打ち消し線等）に対応し、各要素をテーマ色付きの
  * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
- * 委ねるため、XSS 耐性を保つ。
+ * 委ねるため、XSS 耐性を保つ。コードブロックには右上にコピーボタンを付ける。
  *
  * @param props - 描画する Markdown テキストを持つ props
  */

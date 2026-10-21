@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-10-20
+> 最終更新: 2026-10-21
 
 ## 目次
 
@@ -77,6 +77,7 @@ front/tests/
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
+    ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト

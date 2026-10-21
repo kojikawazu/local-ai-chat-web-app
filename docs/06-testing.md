@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-20
+> 最終更新: 2026-10-21
 
 ## 目次
 
@@ -40,7 +40,7 @@
   - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは実施しない（E2Eで担保）。
   - **IT**: route handler をブラウザ抜きで直接叩き、実PostgreSQL（Testcontainers）相手に handler↔Prisma↔DB を検証。実依存（DB）は使い、mockは真の外部3rd-party（Ollama/Web）のみ。
   - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
-- **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入（`page.route`）を唯一の許容mock例外とする。
+- **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入を唯一の許容mock例外とする。対象は通信の境界（`page.route`）と、実ブラウザで安定して起こせないブラウザ API の境界（`page.addInitScript` で `navigator.clipboard` / `document.execCommand` を差し替える等。`copy.spec.ts`）に限り、アプリ側のロジックは差し替えない。
 - **ブラウザ**（E2E）: Chromiumのみ。
 - **CI**: GitHub Actionsで自動実行（品質チェック・UT・IT・E2Eは独立ジョブ。ワークフロー定義は Workflow Lint、秘匿ファイルの追跡は Secret scan が常時検査）。
 
@@ -347,7 +347,8 @@ front/tests/
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 │   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
-│   └── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
+│   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
+│   └── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
@@ -369,6 +370,7 @@ front/tests/
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
+    ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
     ├── sidebar.spec.ts           # サイドバー操作テスト
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）
