@@ -14,6 +14,8 @@ export interface TestMessage {
   id: string;
   role: string;
   content: string;
+  /** ツール呼び出し・思考過程・中断マーク等の付随情報（無ければ null） */
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 

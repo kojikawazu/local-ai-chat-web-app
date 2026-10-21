@@ -61,7 +61,7 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
  * 値のある項目だけを含める（空のツール呼び出し一覧・空の思考過程は含めない）。
  * 表示用の state と保存 API へ渡す値を同じ関数で作り、片方だけ項目が欠けるのを防ぐ（#94）。
  *
- * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間（いずれも任意）
+ * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間・停止の有無（いずれも任意）
  * @returns 組み立てた metadata。値のある項目が 1 つも無ければ `null`（通常チャットの応答など）
  */
 export function buildMessageMetadata(
@@ -77,6 +77,8 @@ export function buildMessageMetadata(
     ...(fields.agentDurationMs !== undefined && {
       agentDurationMs: fields.agentDurationMs,
     }),
+    // 停止していない応答に false を持たせない（通常チャットの応答は metadata 自体を null に保つ）
+    ...(fields.interrupted && { interrupted: true }),
   };
   return Object.keys(metadata).length > 0 ? metadata : null;
 }
@@ -92,7 +94,8 @@ export function buildMessageMetadata(
  */
 export function parseMessageMetadata(value: unknown): MessageMetadata | null {
   if (!isRecord(value)) return null;
-  const { toolCalls, thinkingText, agentRounds, agentDurationMs } = value;
+  const { toolCalls, thinkingText, agentRounds, agentDurationMs, interrupted } =
+    value;
   return buildMessageMetadata({
     toolCalls: Array.isArray(toolCalls)
       ? toolCalls
@@ -104,5 +107,6 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
     agentDurationMs: isNonNegativeNumber(agentDurationMs)
       ? agentDurationMs
       : undefined,
+    interrupted: interrupted === true,
   });
 }

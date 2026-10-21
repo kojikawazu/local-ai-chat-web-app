@@ -57,6 +57,12 @@ describe('buildMessageMetadata', () => {
         agentDurationMs: 0,
       });
     });
+
+    it('通常チャットの応答を停止した場合も、中断マークだけの metadata を返す（#8）', () => {
+      expect(buildMessageMetadata({ interrupted: true })).toEqual({
+        interrupted: true,
+      });
+    });
   });
 
   describe('異常系', () => {
@@ -69,6 +75,10 @@ describe('buildMessageMetadata', () => {
           agentDurationMs: undefined,
         })
       ).toBeNull();
+    });
+
+    it('停止していない応答（interrupted: false）は中断マークを持たせない', () => {
+      expect(buildMessageMetadata({ interrupted: false })).toBeNull();
     });
   });
 });
@@ -83,6 +93,12 @@ describe('parseMessageMetadata', () => {
         agentDurationMs: 14800,
       };
       expect(parseMessageMetadata(saved)).toEqual(saved);
+    });
+
+    it('中断マークを復元する（#8）', () => {
+      expect(
+        parseMessageMetadata({ thinkingText: '考えた', interrupted: true })
+      ).toEqual({ thinkingText: '考えた', interrupted: true });
     });
   });
 
@@ -113,6 +129,12 @@ describe('parseMessageMetadata', () => {
           agentRounds: 1.5,
           agentDurationMs: -1,
         })
+      ).toEqual({ thinkingText: '考えた' });
+    });
+
+    it('中断マークは true のときだけ復元する（"true" などの文字列は捨てる）', () => {
+      expect(
+        parseMessageMetadata({ thinkingText: '考えた', interrupted: 'true' })
       ).toEqual({ thinkingText: '考えた' });
     });
 

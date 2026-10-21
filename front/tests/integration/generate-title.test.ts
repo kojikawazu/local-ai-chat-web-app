@@ -115,6 +115,19 @@ describe('POST /api/conversations/[id]/generate-title', () => {
 
       expect(sentBody(mock).think).toBe(false);
     });
+
+    it('生成するトークン数に上限（num_predict）を付けて Ollama を呼ぶ', async () => {
+      // 小さいモデルが指示を外れて書き続け、Ollama を数分占有するのを打ち切るため（#8）
+      const id = await createConversation();
+      const mock = stubFetch(() => ollamaChatResponse('タイトル'));
+
+      await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ' }),
+        routeContext(id)
+      );
+
+      expect(sentBody(mock).options).toEqual({ num_predict: 64 });
+    });
   });
 
   describe('準正常系', () => {

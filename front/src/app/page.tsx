@@ -100,6 +100,7 @@ export default function Home() {
     error,
     activeToolCall,
     sendMessage,
+    stopGeneration,
     retrySave,
     clearMessages,
     loadMessages,
@@ -188,6 +189,8 @@ export default function Home() {
           ref={chatBarRef}
           onSendMessage={sendMessage}
           disabled={isLoading}
+          isGenerating={isLoading}
+          onStop={stopGeneration}
         />
         <Footer />
       </main>
