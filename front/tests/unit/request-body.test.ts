@@ -3,6 +3,7 @@ import {
   parseChatBody,
   parseCreateConversationBody,
   parseGenerateTitleBody,
+  parseReplaceMessageBody,
   parseSaveMessageBody,
   readJsonBody,
 } from '@/lib/request-body';
@@ -381,9 +382,28 @@ describe('parseSaveMessageBody', () => {
         },
       });
     });
+
+    it('クライアントが採番した id（UUID）を返す（#9）', () => {
+      const id = crypto.randomUUID();
+      const result = parseSaveMessageBody({
+        id,
+        role: 'user',
+        content: 'やあ',
+      });
+      expect(result.ok && result.value.id).toBe(id);
+    });
   });
 
   describe('準正常系', () => {
+    it('id の null は未指定として扱う（DB が採番する）', () => {
+      const result = parseSaveMessageBody({
+        id: null,
+        role: 'user',
+        content: 'やあ',
+      });
+      expect(result.ok && result.value.id).toBeUndefined();
+    });
+
     it('metadata の null は未指定として扱う', () => {
       expect(
         parseSaveMessageBody({ role: 'user', content: 'やあ', metadata: null })
@@ -426,8 +446,86 @@ describe('parseSaveMessageBody', () => {
         { role: 'user', content: 'やあ', metadata: [] },
         'metadataはオブジェクト形式で指定してください',
       ],
+      [
+        'id が UUID 形式でない',
+        { id: 'not-a-uuid', role: 'user', content: 'やあ' },
+        'idはUUID形式で指定してください',
+      ],
+      [
+        'id が数値',
+        { id: 1, role: 'user', content: 'やあ' },
+        'idはUUID形式で指定してください',
+      ],
     ])('%sなら失敗', (_label, body, expected) => {
       expect(errorOf(parseSaveMessageBody(body))).toBe(expected);
+    });
+  });
+});
+
+describe('parseReplaceMessageBody', () => {
+  describe('正常系', () => {
+    it('content と metadata を返す', () => {
+      expect(
+        parseReplaceMessageBody({
+          content: '新しい回答',
+          metadata: { agentRounds: 2 },
+        })
+      ).toEqual({
+        ok: true,
+        value: { content: '新しい回答', metadata: { agentRounds: 2 } },
+      });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('metadata の null は未指定として扱う（旧応答の metadata を消す）', () => {
+      expect(parseReplaceMessageBody({ content: 'x', metadata: null })).toEqual(
+        { ok: true, value: { content: 'x', metadata: undefined } }
+      );
+    });
+
+    it('role を付けても無視する（置き換えられるのは assistant だけ）', () => {
+      expect(parseReplaceMessageBody({ role: 'user', content: 'x' })).toEqual({
+        ok: true,
+        value: { content: 'x', metadata: undefined },
+      });
+    });
+
+    it('assistant の上限ちょうどの本文は通す（境界値。user の上限ではない）', () => {
+      const content = 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH);
+      expect(parseReplaceMessageBody({ content }).ok).toBe(true);
+    });
+  });
+
+  describe('異常系', () => {
+    it.each(NON_OBJECT_BODIES)('ボディが%sなら失敗', (_label, body) => {
+      expect(parseReplaceMessageBody(body).ok).toBe(false);
+    });
+
+    it.each([
+      ['content 欠落', {}, 'contentは空でない文字列で指定してください'],
+      [
+        'content 空文字',
+        { content: '' },
+        'contentは空でない文字列で指定してください',
+      ],
+      [
+        'content が数値',
+        { content: 1 },
+        'contentは空でない文字列で指定してください',
+      ],
+      [
+        'metadata が配列',
+        { content: 'x', metadata: [] },
+        'metadataはオブジェクト形式で指定してください',
+      ],
+      [
+        'content が assistant の上限を超える',
+        { content: 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH + 1) },
+        'メッセージは100,000文字以内で入力してください',
+      ],
+    ])('%sなら失敗', (_label, body, expected) => {
+      expect(errorOf(parseReplaceMessageBody(body))).toBe(expected);
     });
   });
 });

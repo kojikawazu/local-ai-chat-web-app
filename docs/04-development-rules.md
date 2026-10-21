@@ -72,6 +72,7 @@ front/tests/
 └── e2e/
     ├── helpers/
     │   ├── test-data.ts           # テストデータ管理ヘルパー
+    │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済みを検証
     ├── chat.spec.ts               # チャット機能テスト
@@ -79,6 +80,7 @@ front/tests/
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
+    ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト

@@ -106,6 +106,20 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(messages[0].metadata).toEqual(metadata);
     });
 
+    it('クライアントが採番した id で保存する（画面と DB の ID を揃える。#9）', async () => {
+      const id = await createConversation();
+      const messageId = crypto.randomUUID();
+      const res = await POST(
+        jsonRequest(URL, 'POST', { id: messageId, role: 'user', content: 'x' }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(201);
+      expect((await res.json()).id).toBe(messageId);
+      expect(
+        (await prisma.message.findUnique({ where: { id: messageId } }))?.content
+      ).toBe('x');
+    });
+
     it('assistant 応答は入力上限を超えても保存できる（LLM 出力は user と別上限）', async () => {
       const id = await createConversation();
       const content = 'あ'.repeat(MAX_MESSAGE_LENGTH + 1);
@@ -197,6 +211,33 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
   });
 
   describe('異常系', () => {
+    it('同じ id のメッセージが既にあれば 409（重複して保存しない）', async () => {
+      const id = await createConversation();
+      const messageId = crypto.randomUUID();
+      const body = { id: messageId, role: 'user', content: '1回目' };
+      await POST(jsonRequest(URL, 'POST', body), routeContext(id));
+
+      const res = await POST(
+        jsonRequest(URL, 'POST', { ...body, content: '2回目' }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(409);
+      expect(typeof (await res.json()).error).toBe('string');
+      // 1 回目の内容のまま、1 件だけ残る
+      const stored = await prisma.message.findMany();
+      expect(stored.map((m) => m.content)).toEqual(['1回目']);
+    });
+
+    it('id が UUID 形式でなければ 400（DB には保存されない）', async () => {
+      const id = await createConversation();
+      const res = await POST(
+        jsonRequest(URL, 'POST', { id: NOT_UUID, role: 'user', content: 'x' }),
+        routeContext(id)
+      );
+      expect(res.status).toBe(400);
+      expect(await prisma.message.count()).toBe(0);
+    });
+
     it('不正な JSON ボディは 400', async () => {
       const id = await createConversation();
       const res = await POST(

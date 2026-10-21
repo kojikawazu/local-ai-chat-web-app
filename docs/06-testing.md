@@ -63,7 +63,7 @@
 | 配置 | `front/tests/integration/`（`*.test.ts`） |
 | 設定 | `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup: コンテナ起動＋`migrate deploy`、setup-env: 接続URL注入） |
 | 実行 | `pnpm test:integration` |
-| 対象 | DB系: `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得）。外部系: `/api/chat`・`/api/models`（Ollamaをfetchスタブ） |
+| 対象 | DB系: `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得）・`[id]/messages/[messageId]`（置き換え）。外部系: `/api/chat`・`/api/models`（Ollamaをfetchスタブ） |
 | 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
 | モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ（`helpers/ollama-stub.ts`）。DB系はスタブ無し |
 | エラー契約 | Ollamaダウン→502・バリデーション→400 等を IT で決定的に検証（E2E の障害注入から移譲） |
@@ -334,7 +334,7 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
 | 応答の完了待ち | `waitForResponseComplete`（`helpers/test-data.ts`）を使う。送信ボタンは入力欄が空だと有効にならないため、1 文字入力してから有効化を待つ（#115）。ローディング表示は最初のチャンクまでしか出ないので完了の判定には使えない |
 | 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
-| 長い応答が必要な検証 | 軽量モデルは指示どおり長く答えるとは限らない。`streaming-stop.spec.ts` は長くなりやすいプロンプト（日本の歴史を各時代について）を使い、止める前に終わったら送り直す（最大 3 回） |
+| 長い応答が必要な検証 | 軽量モデルは指示どおり長く答えるとは限らない。`helpers/long-answer.ts`（`streaming-stop.spec.ts`・`regenerate.spec.ts` が使う）は長くなりやすいプロンプト（日本の歴史を各時代について）を使い、止める前に終わったら送り直す（最大 3 回） |
 | `page.route` で遅らせたリクエスト | 遅らせた後の `route.continue()` は、ページが中断した後でもサーバーへ転送する。受け手のいない生成が Ollama を占有して後続のテストを数分待たせたため、中断させるリクエストは転送せず `route.fulfill()` で返す（#8） |
 
 ## テストファイル構成
@@ -345,6 +345,7 @@ front/tests/
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
 │   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限）
 │   ├── conversation-history.test.ts # 会話履歴の組み立て（失敗した user の除外・件数／長さの上限）
+│   ├── regenerate.test.ts        # 再生成できる応答の判定（最後・保存済み）と送り直す質問・履歴
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
@@ -358,7 +359,8 @@ front/tests/
 │   │   └── db.ts                 # resetDb・NextRequest/コンテキスト構築
 │   ├── conversations.test.ts     # 作成/一覧（POST/GET）
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
-│   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション
+│   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
+│   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
@@ -368,6 +370,7 @@ front/tests/
 └── e2e/
     ├── helpers/
     │   ├── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── long-answer.ts        # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
     │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済みを検証
     ├── chat.spec.ts              # チャット機能テスト
@@ -375,6 +378,7 @@ front/tests/
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
     ├── streaming-stop.spec.ts    # 生成の停止（Stop ボタン・Escape・本文前の停止・中断した応答の保存と保存失敗）
+    ├── regenerate.spec.ts        # 応答の再生成（置き換えと永続化・最後の応答のみ・本文前の停止と生成失敗で旧応答へ復元・生成中は無効・置き換えの保存失敗と再試行）
     ├── sidebar.spec.ts           # サイドバー操作テスト
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）

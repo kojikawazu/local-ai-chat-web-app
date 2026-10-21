@@ -2,6 +2,8 @@ import type { Prisma } from '@/generated/prisma/client';
 import type { OllamaChatMessage } from '@/lib/ollama';
 import {
   getMaxMessageLength,
+  isValidUUID,
+  MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
@@ -44,11 +46,24 @@ export type CreateConversationBody = {
 
 /** `POST /api/conversations/[id]/messages` の検証済みボディ。 */
 export type SaveMessageBody = {
+  /**
+   * クライアントが採番したメッセージ ID（UUID）。未指定なら DB が採番する。
+   * 画面上の ID と DB の ID を揃え、再生成で置き換える対象を特定できるようにする（#9）
+   */
+  id?: string;
   /** メッセージの発話主体 */
   role: 'user' | 'assistant';
   /** メッセージ本文 */
   content: string;
   /** ツール呼び出し情報・思考過程等。未指定なら保存しない */
+  metadata?: Prisma.InputJsonObject;
+};
+
+/** `PUT /api/conversations/[id]/messages/[messageId]` の検証済みボディ（応答の再生成による置き換え）。 */
+export type ReplaceMessageBody = {
+  /** 置き換え後の応答本文 */
+  content: string;
+  /** 置き換え後の metadata。未指定なら旧応答の metadata を消す */
   metadata?: Prisma.InputJsonObject;
 };
 
@@ -288,14 +303,17 @@ export function parseCreateConversationBody(
  * `metadata` は指定されたのにオブジェクトでない場合、黙って捨てずに失敗にする。
  *
  * @param body - {@link readJsonBody} で読み取った値
- * @returns 検証済みのボディ。オブジェクトでない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過なら失敗
+ * @returns 検証済みのボディ。オブジェクトでない・`id` が UUID 形式でない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過なら失敗
  */
 export function parseSaveMessageBody(
   body: unknown
 ): ParseResult<SaveMessageBody> {
   if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
 
-  const { role, content, metadata } = body;
+  const { id, role, content, metadata } = body;
+  if (id != null && (typeof id !== 'string' || !isValidUUID(id))) {
+    return { ok: false, error: 'idはUUID形式で指定してください' };
+  }
   if (!role || !content) {
     return { ok: false, error: 'roleとcontentは必須です' };
   }
@@ -326,7 +344,48 @@ export function parseSaveMessageBody(
   return {
     ok: true,
     value: {
+      id: id ?? undefined,
       role,
+      content,
+      metadata: isJsonObject(metadata) ? metadata : undefined,
+    },
+  };
+}
+
+/**
+ * `PUT /api/conversations/[id]/messages/[messageId]` のボディを検証する。
+ *
+ * 置き換えられるのは assistant の応答だけのため、`role` は受け取らず、本文の上限も
+ * assistant の上限（{@link MAX_ASSISTANT_MESSAGE_LENGTH}）を使う。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`content` が空または文字列でない・`metadata` が非オブジェクト・本文の上限超過なら失敗
+ */
+export function parseReplaceMessageBody(
+  body: unknown
+): ParseResult<ReplaceMessageBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+
+  const { content, metadata } = body;
+  if (typeof content !== 'string' || !content) {
+    return { ok: false, error: 'contentは空でない文字列で指定してください' };
+  }
+  if (metadata != null && !isJsonObject(metadata)) {
+    return {
+      ok: false,
+      error: 'metadataはオブジェクト形式で指定してください',
+    };
+  }
+  if (content.length > MAX_ASSISTANT_MESSAGE_LENGTH) {
+    return {
+      ok: false,
+      error: `メッセージは${formatCount(MAX_ASSISTANT_MESSAGE_LENGTH)}文字以内で入力してください`,
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
       content,
       metadata: isJsonObject(metadata) ? metadata : undefined,
     },

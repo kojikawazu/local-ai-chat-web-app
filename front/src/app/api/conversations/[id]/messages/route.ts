@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { parseSaveMessageBody, readJsonBody } from '@/lib/request-body';
 import { isValidUUID } from '@/lib/validation';
@@ -51,13 +52,17 @@ export async function GET(
 /**
  * 指定した会話に新規メッセージを保存し、会話の更新日時を現在時刻に更新する（両者は同一トランザクション）。
  *
+ * `id` を指定するとその UUID で保存する（クライアントの表示上の ID と DB の ID を揃えるため。#9）。
+ * 同じ `id` が既にあれば 409 を返す。クライアントは保存の再試行で 409 を受けたら、前回の保存が
+ * 届いていたものとして扱える（UUID v4 の偶然の衝突は無視できるため）。
+ *
  * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
  * 思考過程等）は任意で、JSON オブジェクトの場合のみ保存する（配列・プリミティブを
  * 指定した場合は黙って捨てずに 400 を返す）。
  *
- * @param request - `role`（必須・user|assistant）・`content`（必須・user は最大 `MAX_MESSAGE_LENGTH` 文字、assistant は最大 `MAX_ASSISTANT_MESSAGE_LENGTH` 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
+ * @param request - 任意の `id`（UUID）・`role`（必須・user|assistant）・`content`（必須・user は最大 `MAX_MESSAGE_LENGTH` 文字、assistant は最大 `MAX_ASSISTANT_MESSAGE_LENGTH` 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・JSON 構文不正・ボディが非オブジェクト・role/content 欠落・role 不正・content 非文字列・metadata 非オブジェクト・content 長さ超過は 400、会話が存在しなければ 404、保存失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・JSON 構文不正・ボディが非オブジェクト・role/content 欠落・role 不正・content 非文字列・metadata 非オブジェクト・content 長さ超過・id が UUID 形式でないは 400、会話が存在しなければ 404、同じ id のメッセージが既にあれば 409、保存失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(
   request: NextRequest,
@@ -75,7 +80,7 @@ export async function POST(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { role, content, metadata } = parsed.value;
+  const { id: messageId, role, content, metadata } = parsed.value;
 
   try {
     const conversation = await prisma.conversation.findUnique({
@@ -94,6 +99,7 @@ export async function POST(
     const [message] = await prisma.$transaction([
       prisma.message.create({
         data: {
+          ...(messageId && { id: messageId }),
           conversationId: id,
           role,
           content,
@@ -108,6 +114,16 @@ export async function POST(
 
     return NextResponse.json(message, { status: 201 });
   } catch (error) {
+    // P2002 は一意制約違反。主キーの重複は、指定された id のメッセージが既にあることを表す
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return NextResponse.json(
+        { error: '同じIDのメッセージが既に存在します' },
+        { status: 409 }
+      );
+    }
     console.error('Failed to save message:', error);
     return NextResponse.json(
       { error: 'メッセージの保存に失敗しました' },

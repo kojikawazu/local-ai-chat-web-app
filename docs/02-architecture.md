@@ -98,7 +98,9 @@ front/src/
 │               ├── generate-title/
 │               │   └── route.ts #   LLMで会話タイトル自動生成
 │               └── messages/
-│                   └── route.ts #   メッセージ取得・保存
+│                   ├── route.ts #   メッセージ取得・保存
+│                   └── [messageId]/
+│                       └── route.ts # 応答の置き換え（再生成）
 ├── components/                # 共通UIコンポーネント
 │   └── SettingsModal.tsx      #   設定モーダル（モデル選択・テーマ切替）
 ├── features/                  # 機能固有モジュール
@@ -137,6 +139,7 @@ front/src/
 │   ├── validation.ts          #   バリデーションユーティリティ
 │   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
+│   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
 │   ├── agent-config.ts        #   エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
@@ -170,6 +173,7 @@ front/tests/
 └── e2e/
     ├── helpers/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
+    │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済みを検証
     ├── chat.spec.ts               # チャット機能テスト
@@ -177,6 +181,7 @@ front/tests/
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
+    ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
@@ -252,6 +257,15 @@ model Message {
 8. フロントエンドがReadableStreamを読み取り、リアルタイムにUIを更新
 9. ストリーミング完了後、AIメッセージをDBに保存
 10. 新規会話の場合、`/api/conversations/[id]/generate-title` でタイトル自動生成
+
+### 応答の再生成フロー
+
+1. 最後の AI 応答の「再生成」ボタンを押す（`lib/regenerate.ts` が対象と送り直す質問・履歴を求める）
+2. 旧応答を同じ ID の空の応答に差し替え、直前の質問で `/api/chat` に送り直す
+3. ストリーミング完了後、`PUT /api/conversations/[id]/messages/[messageId]` で DB の旧応答を置き換える
+4. 生成に失敗した場合・本文が出る前に停止した場合は旧応答に戻す（DB は書き換えない）
+
+メッセージは画面上の ID をそのまま DB の ID として保存する（`POST` の `id`）。画面と DB の ID が一致するため、置き換える応答を ID で特定できる。
 
 ### 会話管理フロー
 

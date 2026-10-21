@@ -101,6 +101,7 @@ export default function Home() {
     activeToolCall,
     sendMessage,
     stopGeneration,
+    regenerate,
     retrySave,
     clearMessages,
     loadMessages,
@@ -179,6 +180,7 @@ export default function Home() {
           activeToolCall={activeToolCall}
           isLoading={isLoading}
           onRetrySave={retrySave}
+          onRegenerate={regenerate}
         />
         {error && (
           <div className="px-4 md:px-8 py-2 bg-nord-aurora-red/20 text-nord-aurora-red text-sm text-center">
