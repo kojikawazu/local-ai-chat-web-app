@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 公式 Docker イメージをタグで固定して使う。shellcheck / pyflakes が同梱されており、
       # run: のシェルも検査される（バイナリ単体や brew 版では shellcheck が無いと run: の検査が
