@@ -55,7 +55,7 @@ jobs:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # testcontainers 12 が使う undici の webidl.util.markAsUncloneable は
           # undici 6 系（Node 22+）で追加された API。Node 20 では未定義で TypeError に
