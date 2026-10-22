@@ -11,6 +11,7 @@
   - [DELETE /api/conversations/[id]](#delete-apiconversationsid)
   - [GET /api/conversations/[id]/messages](#get-apiconversationsidmessages)
   - [POST /api/conversations/[id]/messages](#post-apiconversationsidmessages)
+  - [PUT /api/conversations/[id]/messages/[messageId]](#put-apiconversationsidmessagesmessageid)
   - [GET /api/models](#get-apimodels)
   - [GET /api/tools](#get-apitools)
   - [POST /api/conversations/[id]/generate-title](#post-apiconversationsidgenerate-title)
@@ -20,7 +21,7 @@
 
 ## 内部API（Next.js Route Handlers）
 
-### リクエストボディの検証（全 POST 共通）
+### リクエストボディの検証（全 POST・PUT 共通）
 
 ボディは `unknown` として読み取り、`front/src/lib/request-body.ts` の検証関数（`parseChatBody` 等）を通してから DB・Ollama へ渡す（#95）。JSON として構文が正しくても API の形に合わない入力は、すべて `{ error: string }` + 400 で返す。
 
@@ -180,6 +181,7 @@
 
 ```typescript
 {
+  id?: string | null;                       // クライアントが採番したメッセージ ID（UUID。任意。省略時は DB が採番）
   role: 'user' | 'assistant';
   content: string;                          // user は最大10,000文字、assistant は最大100,000文字
   metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意。JSONオブジェクトのみ）
@@ -200,8 +202,9 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・id が UUID 形式でない） |
 | 404 | 会話が見つからない |
+| 409 | 同じ `id` のメッセージが既に存在する |
 | 500 | サーバー内部エラー |
 
 上限値は `front/src/lib/validation.ts` が正準。user は `MAX_MESSAGE_LENGTH`（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）、assistant は `MAX_ASSISTANT_MESSAGE_LENGTH`（LLM 出力は長さを制御できないため入力上限と分ける）。
@@ -209,6 +212,36 @@
 メッセージの作成と会話の `updatedAt` 更新は同一トランザクションで行い、片方だけが成功する部分成功を起こさない。
 
 クライアント（`useChat`）は 2xx 以外を保存失敗として扱い、該当メッセージに失敗表示と再試行ボタンを出す。user メッセージの保存に失敗した場合は `POST /api/chat` を呼ばない（再送で保存できてから応答を生成する）。
+
+クライアントは画面上のメッセージ ID を `id` に指定して保存し、画面と DB の ID を揃える（再生成で置き換える応答を特定するため。#9）。保存の再試行で 409 を受けた場合は、前回の保存がサーバーに届いていた（応答だけが失われた）ものとして成功扱いにする。
+
+---
+
+### PUT /api/conversations/[id]/messages/[messageId]
+
+再生成した応答で、既存の assistant の応答を置き換える（#9）。
+
+**リクエスト**
+
+```typescript
+{
+  content: string;                          // 空でない文字列。最大100,000文字（assistant の上限）
+  metadata?: Record<string, unknown> | null; // 置き換え後の metadata（任意。省略時は旧応答の metadata を消す）
+}
+```
+
+**レスポンス**: 置き換え後のメッセージ（`POST` のレスポンスと同じ形）
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 置き換え成功 |
+| 400 | リクエスト不正（会話 ID・メッセージ ID が UUID 形式でない・JSON不正・ボディが非オブジェクト・content が空または文字列でない・content が上限超過・metadata が非オブジェクト） |
+| 404 | その会話に属する assistant の応答が見つからない（user のメッセージ・別の会話のメッセージも 404） |
+| 500 | サーバー内部エラー |
+
+本文・metadata とあわせて `createdAt` を現在時刻にする（表示する時刻を再生成した時刻にするため。再生成できるのは最後の応答だけなので、並び順は変わらない）。会話の `updatedAt` の更新と同一トランザクションで行う。
+
+クライアントは生成し終えてから置き換える。生成に失敗した場合・本文が出る前に停止した場合は呼ばず、旧応答の表示に戻す。
 
 ---
 

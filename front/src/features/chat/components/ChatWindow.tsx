@@ -1,8 +1,16 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { User, Bot, TriangleAlert, RotateCw, CircleStop } from 'lucide-react';
+import {
+  User,
+  Bot,
+  TriangleAlert,
+  RotateCw,
+  CircleStop,
+  RefreshCw,
+} from 'lucide-react';
 import type { Message } from '@/types';
+import { findRegenerateTarget } from '@/lib/regenerate';
 import MarkdownContent from './MarkdownContent';
 import { CopyButton } from './CopyButton';
 import { ToolCallIndicator } from './ToolCallIndicator';
@@ -19,6 +27,8 @@ type ChatWindowProps = {
   isLoading?: boolean;
   /** 保存に失敗したメッセージの再試行ボタン押下時のコールバック。メッセージ ID を受け取る。 */
   onRetrySave?: (messageId: string) => void;
+  /** 再生成ボタン押下時のコールバック。再生成する応答の ID を受け取る。省略時はボタンを出さない。 */
+  onRegenerate?: (messageId: string) => void;
 };
 
 /**
@@ -29,14 +39,16 @@ type ChatWindowProps = {
  * 「生成を中断しました」を添える。最初のチャンク
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
+ * 再生成できる応答（最後の保存済みの応答）には再生成ボタンを付け、生成中は押させない。
  *
- * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行コールバックを持つ props
+ * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行／再生成コールバックを持つ props
  */
 export default function ChatWindow({
   messages,
   activeToolCall,
   isLoading,
   onRetrySave,
+  onRegenerate,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +62,9 @@ export default function ChatWindow({
   const lastMsg = messages[messages.length - 1];
   const isWaitingFirstChunk =
     isLoading && lastMsg?.role === 'assistant' && lastMsg.content === '';
+  // 再生成できるのは最後の応答だけ（条件は findRegenerateTarget に集約し、useChat と揃える）
+  const regenerableId =
+    lastMsg && findRegenerateTarget(messages, lastMsg.id) ? lastMsg.id : null;
 
   return (
     <div
@@ -187,6 +202,17 @@ export default function ChatWindow({
                     {msg.role === 'assistant' && (
                       // 表示ではなく Markdown の原文をコピーする（貼り付け先で書式を再現できる）
                       <CopyButton text={msg.content} label="コピー" />
+                    )}
+                    {onRegenerate && msg.id === regenerableId && (
+                      <button
+                        className="flex items-center gap-1 text-nord-frost-1 hover:underline disabled:opacity-50 disabled:no-underline"
+                        onClick={() => onRegenerate(msg.id)}
+                        // 生成中（再生成中を含む）は押させない
+                        disabled={isLoading}
+                      >
+                        <RefreshCw size={14} />
+                        再生成
+                      </button>
                     )}
                     <span className="opacity-50 font-mono">
                       {msg.createdAt.toLocaleTimeString([], {

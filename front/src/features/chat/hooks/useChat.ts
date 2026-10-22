@@ -10,6 +10,7 @@ import type {
 import type { AgentStreamEvent } from '@/lib/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/validation';
 import { toConversationHistory } from '@/lib/conversation-history';
+import { findRegenerateTarget } from '@/lib/regenerate';
 import {
   buildMessageMetadata,
   parseMessageMetadata,
@@ -43,31 +44,45 @@ type PendingSave = {
   metadata: Message['metadata'];
   /** 再試行で保存に成功した後に続ける処理（user なら応答生成、初回の assistant ならタイトル生成） */
   onSaved?: () => void;
+  /** 再生成した応答なら true。新規保存（POST）ではなく、同じ ID の旧応答の置き換え（PUT）で保存する */
+  replace?: boolean;
 };
 
 /**
  * メッセージを会話に永続化する（API 経由で保存）。
  *
+ * 表示中の ID をそのまま DB の ID として送り、画面と DB の ID を揃える（再生成で置き換える
+ * 対象を特定するため。#9）。再生成した応答は同じ ID の旧応答を PUT で置き換える。
+ *
  * `fetch()` は HTTP 4xx/5xx では reject しないため、`response.ok` を検証して
  * 失敗を例外に変換する（検証しないと保存失敗が成功扱いになる）。
  *
- * @param conversationId - 保存先の会話 ID
- * @param role - メッセージの役割（`'user'` | `'assistant'`）
- * @param content - メッセージ本文
- * @param metadata - ツール呼び出し情報等の付随メタデータ（無ければ省略・`null`）
+ * @param messageId - 表示中のメッセージ ID（DB の ID になる）
+ * @param payload - 保存内容（{@link PendingSave}）。`replace` なら置き換えで保存する
  * @throws {Error} 保存 API がエラーを返した、または通信に失敗した場合
  */
 async function saveMessage(
-  conversationId: string,
-  role: Message['role'],
-  content: string,
-  metadata?: Message['metadata']
+  messageId: string,
+  payload: PendingSave
 ): Promise<void> {
-  const res = await fetch(`/api/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, content, metadata }),
-  });
+  const { conversationId, role, content, metadata, replace } = payload;
+  const res = replace
+    ? await fetch(
+        `/api/conversations/${conversationId}/messages/${messageId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, metadata }),
+        }
+      )
+    : await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: messageId, role, content, metadata }),
+      });
+  // 409 は同じ ID のメッセージが保存済み。前回の保存はサーバーに届いていて、
+  // 応答だけが失われた（再試行で起こりうる）ものとして成功扱いにする
+  if (!replace && res.status === 409) return;
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(
@@ -86,6 +101,8 @@ async function saveMessage(
  * `retrySave` で同じ内容を再送できる（user の保存失敗時は LLM を呼ばない）。
  * `stopGeneration` で生成を止めると、届いた分までの本文を `metadata.interrupted` 付きで
  * 保存する（本文が空なら応答を残さない）。中断は内部の `AbortController` で扱う。
+ * `regenerate` は最後の応答を同じ質問で作り直し、生成し終えてから旧応答を置き換える
+ * （失敗・本文が空のまま停止した場合は旧応答に戻し、DB には触れない）。
  *
  * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
  *   エージェント有効化・システムプロンプトと、会話作成／タイトル生成完了時の
@@ -94,7 +111,7 @@ async function saveMessage(
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
  *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`sendMessage` は
  *   本文を送信して応答をストリーム受信する関数、`stopGeneration` は生成中の応答を
- *   止める関数、`retrySave` は保存に失敗した
+ *   止める関数、`regenerate` は最後の応答を ID 指定で再生成する関数、`retrySave` は保存に失敗した
  *   メッセージを ID 指定で再送する関数、`clearMessages` はメッセージ・エラー・
  *   実行中ツールを初期化する関数、`loadMessages` は指定会話のメッセージを読み込む関数
  */
@@ -136,12 +153,7 @@ export function useChat({
   const persist = useCallback(
     async (messageId: string, payload: PendingSave): Promise<boolean> => {
       try {
-        await saveMessage(
-          payload.conversationId,
-          payload.role,
-          payload.content,
-          payload.metadata
-        );
+        await saveMessage(messageId, payload);
         pendingSavesRef.current.delete(messageId);
         setSaveState(messageId, undefined);
         return true;
@@ -202,26 +214,43 @@ export function useChat({
    * @param content - 応答対象の user メッセージ本文
    * @param conversationHistory - この user メッセージより前の会話履歴
    * @param isFirstExchange - 会話の最初のやり取りか（true なら保存後にタイトルを生成する）
+   * @param replacing - 再生成で置き換える旧応答。省略時は新しい応答として末尾に追加する。
+   *   指定時は旧応答と同じ ID・同じ位置で生成し、保存は置き換え（PUT）で行う
    */
   const generateResponse = useCallback(
     async (
       activeConversationId: string,
       content: string,
       conversationHistory: HistoryEntry[],
-      isFirstExchange: boolean
+      isFirstExchange: boolean,
+      replacing?: Message
     ) => {
       setError(null);
       setIsLoading(true);
       setActiveToolCall(null);
 
-      const aiMessageId = crypto.randomUUID();
+      // 再生成では旧応答の ID を引き継ぐ（DB 上の旧応答を同じ ID で置き換えるため）
+      const aiMessageId = replacing?.id ?? crypto.randomUUID();
       const aiMessage: Message = {
         id: aiMessageId,
         role: 'assistant',
         content: '',
         createdAt: new Date(),
       };
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) =>
+        replacing
+          ? prev.map((msg) => (msg.id === aiMessageId ? aiMessage : msg))
+          : [...prev, aiMessage]
+      );
+
+      // 応答を残さずに終わるとき（エラー・本文が空のままの停止・完了）に表示を戻す。
+      // 再生成なら旧応答を元の位置に戻す（DB は書き換えていないため旧応答のまま）
+      const discardResponse = () =>
+        setMessages((prev) =>
+          replacing
+            ? prev.map((msg) => (msg.id === aiMessageId ? replacing : msg))
+            : prev.filter((msg) => msg.id !== aiMessageId)
+        );
 
       abortControllerRef.current = new AbortController();
 
@@ -241,7 +270,11 @@ export function useChat({
        * @param interrupted - ユーザーが停止した応答か（中断マーク付きで保存する）
        */
       const saveResponse = async (interrupted: boolean) => {
-        if (!fullAiContent) return;
+        if (!fullAiContent) {
+          // 本文の無い応答は保存しない。再生成なら空の応答で置き換えず、旧応答に戻す
+          if (replacing) discardResponse();
+          return;
+        }
         const generateTitle = isFirstExchange
           ? () => requestTitleGeneration(activeConversationId, content)
           : undefined;
@@ -260,6 +293,7 @@ export function useChat({
             interrupted,
           }),
           onSaved: generateTitle,
+          replace: replacing !== undefined,
         });
         if (saved) generateTitle?.();
       };
@@ -460,7 +494,7 @@ export function useChat({
         if (err instanceof DOMException && err.name === 'AbortError') {
           if (!fullAiContent) {
             // 本文が 1 文字も届く前に止めた。空の応答は残さない
-            setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
+            discardResponse();
             return;
           }
           // 停止までに届いた思考過程・ツール結果も含め、中断マーク付きで表示する
@@ -484,7 +518,7 @@ export function useChat({
         setError(
           err instanceof Error ? err.message : '不明なエラーが発生しました'
         );
-        setMessages((prev) => prev.filter((msg) => msg.id !== aiMessageId));
+        discardResponse();
       } finally {
         setIsLoading(false);
         setActiveToolCall(null);
@@ -579,6 +613,23 @@ export function useChat({
     [conversationId, messages, onConversationCreated, persist, generateResponse]
   );
 
+  const regenerate = useCallback(
+    async (messageId: string) => {
+      if (!conversationId || isLoading) return;
+      const found = findRegenerateTarget(messages, messageId);
+      if (!found) return;
+      // 最初のやり取りでもタイトルは生成済みのため作り直さない
+      await generateResponse(
+        conversationId,
+        found.prompt,
+        found.history,
+        false,
+        found.target
+      );
+    },
+    [conversationId, isLoading, messages, generateResponse]
+  );
+
   const retrySave = useCallback(
     async (messageId: string) => {
       const pending = pendingSavesRef.current.get(messageId);
@@ -609,6 +660,7 @@ export function useChat({
     activeToolCall,
     sendMessage,
     stopGeneration,
+    regenerate,
     retrySave,
     clearMessages,
     loadMessages,

@@ -1,6 +1,11 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import {
+  LONG_PROMPT,
+  startLongAnswer,
+  stopButton,
+} from './helpers/long-answer';
+import {
   cleanupAllConversations,
   createConversation,
   createMessage,
@@ -20,46 +25,9 @@ import {
  * サーバー側で Ollama の生成が止まることは IT（chat-stop.test.ts）が担う。
  */
 
-/**
- * 止める前に終わらないよう、十分に長い応答を求める。qwen2.5:0.5b で 300 トークン以上の応答に
- * なる割合が最も高かった（15 回中 14 回。「1 から 500 まで数えて」は 7 回で、短く省略しがち）
- */
-const LONG_PROMPT =
-  '日本の歴史について、縄文時代から令和まで、各時代を詳しく、できるだけ長く説明してください。';
-
-/** 応答が短く終わって止められなかったときに送り直す上限（15 回に 1 回の短い応答を吸収する） */
-const MAX_SEND_ATTEMPTS = 3;
-
-/** 生成中に出る停止ボタン */
-function stopButton(page: Page) {
-  return page.getByRole('button', { name: '生成を停止' });
-}
-
 /** 表示中の最後の応答の本文（Markdown の描画領域） */
 function lastAnswer(page: Page) {
   return page.locator('.prose-nord').last();
-}
-
-/**
- * 長い応答を生成させ、本文が出始めて生成中のところまで進める。
- *
- * 軽量モデルはまれに短く答えて、止める前に生成を終える。その場合は同じ会話で送り直す
- * （モデルの出力の長さはテストから制御できないため）。
- *
- * @param page - 対象のページ
- * @throws {Error} {@link MAX_SEND_ATTEMPTS} 回送っても、生成中の状態にならなかった場合
- */
-async function startLongAnswer(page: Page) {
-  await page.goto('/');
-  const answers = page.locator('.prose-nord');
-  for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
-    const before = await answers.count();
-    await sendMessage(page, LONG_PROMPT);
-    // 本文の描画領域は最初の文字が届いた時点で現れる
-    await expect(answers).toHaveCount(before + 1, { timeout: 120000 });
-    if (await stopButton(page).isVisible()) return;
-  }
-  throw new Error(`${MAX_SEND_ATTEMPTS} 回送っても、止める前に応答が終わった`);
 }
 
 /**
@@ -89,6 +57,7 @@ test.describe('ストリーミング停止', () => {
       page,
       request,
     }) => {
+      await page.goto('/');
       await startLongAnswer(page);
 
       await stopButton(page).click();
@@ -134,6 +103,7 @@ test.describe('ストリーミング停止', () => {
 
   test.describe('準正常系', () => {
     test('生成中に入力欄で Escape を押すと停止する', async ({ page }) => {
+      await page.goto('/');
       await startLongAnswer(page);
 
       await page.locator('textarea').press('Escape');
@@ -193,6 +163,7 @@ test.describe('ストリーミング停止', () => {
         }
         await route.continue();
       });
+      await page.goto('/');
       await startLongAnswer(page);
 
       await stopButton(page).click();
