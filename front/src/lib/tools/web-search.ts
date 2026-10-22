@@ -11,6 +11,32 @@ const MAX_INPUT_BYTES = 1024 * 1024;
 // DuckDuckGo HTML API エンドポイント（API キー不要）
 const DDG_URL = 'https://html.duckduckgo.com/html/';
 
+// DuckDuckGo のボット判定の確認ページが返すステータス（2xx のため res.ok では弾けない）
+const BOT_CHALLENGE_STATUS = 202;
+// 確認ページの目印（確認用モーダル・画像選択フォーム・判定スクリプト）。検索結果のページには現れない
+const BOT_CHALLENGE_PATTERN =
+  /id="(?:anomaly-modal|challenge-form)"|anomaly\.js/;
+// 確認ページを受けたときにモデルへ返す理由。同じ IP からは時間をおくまで拒否が続くため、
+// 言い換えた検索の繰り返し（#151 では 1 回の応答で 17 回）を止める指示まで含める
+const BOT_CHALLENGE_MESSAGE =
+  'Web検索サービス（DuckDuckGo）に自動アクセスと判定され、検索を拒否されました。' +
+  '時間をおくまでは、言い換えて検索し直しても結果は得られません。Web検索を使わずに回答してください。';
+
+/**
+ * 検索の応答が、検索結果ではなく DuckDuckGo のボット判定の確認ページかを判定する。
+ *
+ * 確認ページは HTTP 202 で返り、結果のリンク（`result__a`）を含まないため、
+ * 判定しないと「0 件」と区別できない（#151）。ステータスが 200 でも本文に
+ * 確認ページの目印があれば確認ページとみなす。
+ *
+ * @param status - 検索の応答の HTTP ステータス
+ * @param html - 検索の応答の本文
+ * @returns 確認ページなら `true`
+ */
+export function isBotChallenge(status: number, html: string): boolean {
+  return status === BOT_CHALLENGE_STATUS || BOT_CHALLENGE_PATTERN.test(html);
+}
+
 interface SearchResult {
   title: string;
   url: string;
@@ -164,8 +190,9 @@ async function fetchWithRetry(
       throw new Error(`Web検索リクエスト失敗 (HTTP ${res.status})`);
     }
 
+    let html: string;
     try {
-      return await readBodyWithLimit(res, MAX_INPUT_BYTES, attemptSignal);
+      html = await readBodyWithLimit(res, MAX_INPUT_BYTES, attemptSignal);
     } catch (e) {
       // サイズ超過はリトライしても同じ結果になる
       if (e instanceof BodyTooLargeError) {
@@ -181,6 +208,12 @@ async function fetchWithRetry(
         `Web検索に失敗しました: ${e instanceof Error ? e.message : String(e)}`
       );
     }
+
+    // 確認ページは同じ IP からは再試行しても変わらないため、リトライせずに失敗にする
+    if (isBotChallenge(res.status, html)) {
+      throw new Error(BOT_CHALLENGE_MESSAGE);
+    }
+    return html;
   }
 
   throw new Error('Web検索に失敗しました');
@@ -193,6 +226,8 @@ async function fetchWithRetry(
  * DuckDuckGo HTML エンドポイントへ問い合わせる。ネットワークエラー・レート
  * リミット（429）・サーバーエラー（5xx）はリトライ（バックオフ）し、上位
  * 最大 5 件を整形して返す。結果は最大 3,000 文字で、超過分は省略する。
+ * ボット判定の確認ページ（{@link isBotChallenge}）は 0 件ではなく失敗として返し、
+ * リトライしない。
  * 各試行の期限は本文の読了まで有効で、受信は 1 MiB で打ち切る。呼び出し元の
  * `signal` が中断されるとリトライ待機中でも即座に処理を止める。
  * エラーはすべて `"エラー: ..."` 形式の文字列で返し、例外は投げない。
