@@ -44,7 +44,7 @@ globs: "front/src/components/**,front/src/app/[^a]*/**,front/src/hooks/**,front/
 - CSS 変数ベースの3テーマ切替（Nordic Frost / Aurora Borealis / Midnight Ocean）。
 - `globals.css` の `@theme` ディレクティブで CSS 変数を定義（`@theme inline` は使用禁止）。
 - `[data-theme='aurora']`, `[data-theme='ocean']` セレクタで変数を上書き。
-- **テーマ定義の正準は `src/types/theme.ts`**（`THEMES` を `as const` で定義し、`ThemeId` をそこから導出する）。テーマを追加する場合は `THEMES` への追記と `globals.css` のセレクタ追加を**必ず対で行う**。
+- **テーマ定義の正準は `src/types/theme.ts`**（`THEMES` を `as const` で定義し、`ThemeId` をそこから導出する）。テーマを追加する場合は `THEMES` への追記と `globals.css` のセレクタ追加を**必ず対で行う**。セレクタではシンタックスハイライト専用の `--color-nord-aurora-orange` / `--color-nord-aurora-purple` も定義する（無いと数値・メタの色が Nord のまま残る）。
 - 既定テーマ（`nordic`）は `data-theme` 属性を**付けない**ことで表現する。`useTheme` の `DEFAULT_THEME_ID` がこの分岐を持つ。
 
 ## インポート

@@ -1,8 +1,11 @@
 'use client';
 
 import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
+import { getCodeLanguage, hastToText } from '@/lib/code-block';
+import type { HastNode } from '@/lib/code-block';
 import { CopyButton } from './CopyButton';
 
 /** {@link MarkdownContent} の props。 */
@@ -11,42 +14,37 @@ interface MarkdownContentProps {
   content: string;
 }
 
-/** 構文木（hast）のうち、文字列の取り出しに使う部分だけの形 */
-type HastNode = { type: string; value?: string; children?: HastNode[] };
-
-/**
- * 構文木のノード配下の文字列を連結して返す（DOM の `textContent` 相当）。
- *
- * @param node - 対象のノード
- * @returns 配下のテキストノードの値を順に連結した文字列
- */
-function hastToText(node: HastNode): string {
-  if (node.type === 'text') return node.value ?? '';
-  return (node.children ?? []).map(hastToText).join('');
-}
-
 const components: Components = {
   pre({ children, node }) {
+    // react-markdown の hast 型は本ファイルの読み取りに要る部分より広く、構造的にそのまま渡せる
+    const pre: HastNode | undefined = node;
     // remark はコードブロックの末尾に改行を 1 つ付けるため、コピー時は落とす
-    const code = node ? hastToText(node).replace(/\n$/, '') : '';
+    const code = pre ? hastToText(pre).replace(/\n$/, '') : '';
+    const language = pre ? getCodeLanguage(pre) : null;
     return (
-      <div className="relative my-3">
-        <pre className="p-4 rounded-lg bg-nord-0 border border-nord-3 overflow-x-auto text-sm">
+      <div className="my-3 rounded-lg bg-nord-0 border border-nord-3 overflow-hidden">
+        {/* 言語名とコピーボタンは pre の外の見出し行に置き、横スクロールしても本文と重ならない。
+            ホバーの無いスマホでも押せるよう常に表示 */}
+        <div className="flex items-center justify-end gap-3 px-3 py-1.5 border-b border-nord-3 text-xs text-nord-4">
+          {language && <span data-testid="code-language">{language}</span>}
+          <CopyButton
+            text={code}
+            label="コードをコピー"
+            className="flex-row-reverse"
+          />
+        </div>
+        {/* 言語未指定のブロックの code はインライン用の見た目で描画されるため、ここで打ち消す */}
+        <pre className="p-4 overflow-x-auto text-sm text-nord-6 [&_code]:p-0 [&_code]:border-0 [&_code]:rounded-none [&_code]:bg-transparent [&_code]:text-inherit">
           {children}
         </pre>
-        {/* pre の外に置き、横スクロールしても右上に留める。ホバーの無いスマホでも押せるよう常に表示 */}
-        <CopyButton
-          text={code}
-          label="コードをコピー"
-          className="absolute top-2 right-2 flex-row-reverse px-2 py-1 rounded bg-nord-1/80 text-xs text-nord-4"
-        />
       </div>
     );
   },
   code({ children, className }) {
-    const isBlock = className?.startsWith('language-');
-    if (isBlock) {
-      return <code className={`${className} text-nord-6`}>{children}</code>;
+    // className はコードフェンスに言語を書いたブロックにだけ付く（`hljs language-ts` 等）。
+    // rehype-highlight が先頭に hljs を足すため、`language-` で始まるかでは判定しない
+    if (className) {
+      return <code className={className}>{children}</code>;
     }
     return (
       <code className="px-1.5 py-0.5 rounded bg-nord-0 border border-nord-3 text-nord-frost-1 text-sm">
@@ -129,14 +127,20 @@ const components: Components = {
  *
  * `remark-gfm` で GFM（表・打ち消し線等）に対応し、各要素をテーマ色付きの
  * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
- * 委ねるため、XSS 耐性を保つ。コードブロックには右上にコピーボタンを付ける。
+ * 委ねるため、XSS 耐性を保つ。コードブロックは `rehype-highlight` で言語別に色付けし
+ * （色は `globals.css` の `.hljs-*`）、右上に言語名とコピーボタンを付ける。言語の指定が
+ * 無いブロックは自動判定せず単色のまま描画する。
  *
  * @param props - 描画する Markdown テキストを持つ props
  */
 export default function MarkdownContent({ content }: MarkdownContentProps) {
   return (
     <div className="leading-relaxed text-sm md:text-base prose-nord">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>

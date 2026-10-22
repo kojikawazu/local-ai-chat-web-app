@@ -514,17 +514,20 @@ AI応答の個別メッセージをMarkdown形式でコピー・ダウンロー�
 ## フェーズ20: シンタックスハイライト・図表レンダリング
 
 コードブロックに言語別のシンタックスハイライトを適用し、
-Mermaid / PlantUML のコードブロックを図表としてレンダリングする。
+Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144。20-2 以降は着手時に起票）
 
 現状: `react-markdown` でコードブロックは表示されるが全言語同一色（`text-nord-6`）。図表レンダリングは未対応。
 
-### 20-1: シンタックスハイライト
+着手時点の問題（20-1）: 言語を指定しないコードブロックは `code` に className が付かず、インラインコードの見た目（枠・frost 色）で `pre` の中に描画されていた。
 
-- [ ] ハイライトライブラリの選定・導入（highlight.js / Prism / Shiki）
-- [ ] Nordテーマ対応のカラースキーム設定
-- [ ] MarkdownContent.tsx のコードブロックコンポーネント拡張
-- [ ] 言語名の表示（コードブロック右上に「typescript」「python」等のラベル）
-- [ ] 対応言語: bash, javascript, typescript, java, go, python, rust, SQL, JSON, YAML, HTML, CSS 等
+### 20-1: シンタックスハイライト — #144
+
+- [x] ハイライトライブラリの選定・導入（`rehype-highlight` を採用。同期処理でストリーミング中の再描画に追従でき、構文木のまま描画するため生 HTML を埋め込まない。選定理由は `docs/11`）
+- [x] Nordテーマ対応のカラースキーム設定（`globals.css` の `.hljs-*` をテーマ変数で色付けし 3 テーマに追従。オレンジ・紫の変数を全テーマに追加）
+- [x] MarkdownContent.tsx のコードブロックコンポーネント拡張（ブロック判定を className の有無に変更。言語未指定のブロックはインラインの見た目を打ち消す）
+- [x] 言語名の表示（コードブロック上端の見出し行の右側に、コピーボタンと並べて表示。言語未指定なら出さない）
+- [x] 対応言語: bash, javascript, typescript, java, go, python, rust, SQL, JSON, YAML, HTML, CSS 等（lowlight の `common` 37 言語。別名 `ts`・`py`・`yml`・`html` 等も解決）
+- [x] 言語未指定のブロックは自動判定しない（短いコードの誤判定・ストリーミング中の判定コストを避ける）
 
 ### 20-2: Mermaid図表レンダリング
 
@@ -548,13 +551,13 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 
 ### 20-5: E2Eテスト
 
-- [ ] シンタックスハイライトE2Eテスト作成（syntax-highlight.spec.ts: 正常系/準正常系/異常系）
+- [x] シンタックスハイライトE2Eテスト作成（syntax-highlight.spec.ts: 正常系/準正常系/異常系）。UT は `code-block.test.ts`（言語名の取り出し・本文の連結）
 - [ ] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）
 
 ### 20-6: ドキュメント
 
-- [ ] `docs/11-syntax-highlight-diagrams.md` 作成（シンタックスハイライト・図表レンダリング設計書）
-- [ ] 既存ドキュメント更新（requirements, architecture, CLAUDE.md等）
+- [x] `docs/11-syntax-highlight-diagrams.md` 作成（シンタックスハイライト・図表レンダリング設計書）。20-1 の分を記載し、図表は未着手として節だけ置く
+- [x] 既存ドキュメント更新（20-1 の分: `CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/README.md`・`.claude/rules/frontend.md`・`security.md`・`documentation.md`）
 
 ## フェーズ21: エージェント機能（ツール呼び出し）
 

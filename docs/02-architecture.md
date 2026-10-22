@@ -111,7 +111,7 @@ front/src/
 │   │   │   ├── CopyButton.tsx #     コピーボタン（結果の一時表示。応答・コードブロックで共用）
 │   │   │   ├── Footer.tsx     #     フッター
 │   │   │   ├── Header.tsx     #     ヘッダー（モデル選択ドロップダウン）
-│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示（コードブロックのコピーボタン付き）
+│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
 │   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │   │   │   └── ToolCallResult.tsx  #  ツール実行結果の折りたたみ表示
@@ -140,6 +140,7 @@ front/src/
 │   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
+│   ├── code-block.ts          #   コードブロックの構文木から言語名・コピーする本文を取り出す
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
 │   ├── agent-config.ts        #   エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
@@ -180,6 +181,7 @@ front/tests/
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
+    ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
     ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
@@ -306,6 +308,7 @@ CSS変数ベースのテーマ切替を実装。
 - **CSS**: `globals.css` の `@theme` ディレクティブでCSS変数を定義。`[data-theme='aurora']`, `[data-theme='ocean']` セレクタで変数を上書き
 - **状態管理**: `useTheme` フックで `useState` + `useEffect` で管理
 - **永続化**: localStorageにテーマIDを保存
+- **シンタックスハイライト**: コードブロックのトークン（`.hljs-*`）もテーマ変数で色を付けるため、テーマに追従する。ハイライト専用に `--color-nord-aurora-orange` / `--color-nord-aurora-purple` を全テーマで定義する（[11-syntax-highlight-diagrams.md](./11-syntax-highlight-diagrams.md)）
 
 ### テーマ一覧
 

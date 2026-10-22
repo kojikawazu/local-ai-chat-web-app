@@ -4,7 +4,7 @@
 [![Integration Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml)
 [![E2E Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml)
 
-[日本語](README.md) ・ Last updated: 2026-07-11
+[日本語](README.md) ・ Last updated: 2026-10-22
 
 A chat web app for talking to a local LLM (Ollama), built on the Nordic Frost design system as a private AI workspace.
 
@@ -42,7 +42,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | Framework | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19 (React Compiler enabled) |
 | Styling | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm |
+| Markdown | react-markdown + remark-gfm + rehype-highlight |
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |
 | ORM | Prisma 7 |
