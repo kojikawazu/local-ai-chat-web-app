@@ -1,5 +1,5 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
-import { streamChat } from './ollama';
+import { streamChat, withSystemPrompt } from './ollama';
 import { parsePositiveIntEnv } from './agent-config';
 import { getAllToolDefinitions, executeTool } from './tools/index';
 import type {
@@ -278,10 +278,7 @@ export function runAgentLoop(
       };
 
       // システムプロンプトがあれば先頭に追加
-      const systemMessages: OllamaChatMessage[] = systemPrompt?.trim()
-        ? [{ role: 'system' as const, content: systemPrompt.trim() }]
-        : [];
-      const history: OllamaChatMessage[] = [...systemMessages, ...messages];
+      const history = withSystemPrompt(messages, systemPrompt);
       const loopStartTime = Date.now();
 
       // 完了イベント（ツール呼び出し記録・実行統計付き）を送ってストリームを閉じる。

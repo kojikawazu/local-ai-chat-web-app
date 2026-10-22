@@ -527,6 +527,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 - `enableTools: false`（デフォルト）: 従来と同じプレーンテキストストリーミング
 - `enableTools: true`: ツール定義を Ollama に渡し、NDJSON イベントストリームで応答
 - `systemPrompt` が指定された場合、エージェントループの先頭に `role: 'system'` メッセージとして挿入
+- **追記（#10）**: 会話の役割（システムプロンプト）の導入で、`systemPrompt` は通常モードでも先頭に付けるようになった。エージェントモードでは、クライアントが会話の役割を先に、下記のプリセットを後に置いて連結したものを送る（`lib/system-prompt.ts` の `buildSystemPrompt`。詳細は `03-api-design.md`）
 
 ### GET /api/tools（新規 — Phase A）
 
@@ -765,7 +766,7 @@ export interface Message {
 
 #### システムプロンプトのプリセット（`lib/agent-prompts.ts`）
 
-Phase C では `agent-prompts.ts` に4種のプリセットを定義。設定モーダル（Tools ON 時のみ表示）で選択し、localStorage に `agent-prompt-preset-id` として永続化する:
+Phase C では `agent-prompts.ts` に4種のプリセットを定義。設定モーダル（Tools ON 時のみ表示）で選択し、localStorage に `agent-prompt-preset-id` として永続化する。会話の役割（#10）とは別物で、役割が「誰として答えるか」、このプリセットが「どう調べて答えるか」を担い、送信時に役割の後ろへ連結する:
 
 | ID | 名前 | 用途 |
 |----|------|------|

@@ -12,14 +12,18 @@ import ChatBar, {
 } from '@/features/chat/components/ChatBar';
 import Footer from '@/features/chat/components/Footer';
 import SettingsModal from '@/components/SettingsModal';
+import RoleDialog from '@/features/chat/components/RoleDialog';
 import { useTheme } from '@/hooks/useTheme';
 import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent-prompts';
+import { getRoleLabel } from '@/lib/system-prompt';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
  *
- * 会話の選択/作成/削除、メッセージ送受信、モデル・ツール・テーマ・エージェント
+ * 会話の選択/作成/削除、メッセージ送受信、会話の役割、モデル・ツール・テーマ・エージェント
  * プロンプトの UI 設定を束ね、各機能フックと子コンポーネントへ受け渡す。
+ * 会話の役割は会話ごとに DB に持つ。会話を作る前（新規会話）に選んだ役割は下書きとして持ち、
+ * 最初の送信で会話と同時に保存する。
  * ツール使用の有効状態とプロンプトプリセットは localStorage に永続化する。
  */
 export default function Home() {
@@ -28,6 +32,9 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  // 会話を作る前に選んだ役割。最初の送信で会話と同時に保存する
+  const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
   const menuId = useId();
   const [enableTools, setEnableTools] = useState(false);
@@ -80,8 +87,28 @@ export default function Home() {
     currentConversationId,
     deleteConversation,
     selectConversation,
+    updateSystemPrompt,
     refreshConversations,
   } = useConversations();
+
+  const currentConversation = conversations.find(
+    (c) => c.id === currentConversationId
+  );
+  // 作成直後で一覧の再取得が済むまでは会話が一覧に無いため、作成時に送った下書きを使う
+  const systemPrompt = currentConversation
+    ? (currentConversation.systemPrompt ?? '')
+    : draftSystemPrompt;
+
+  const handleSaveRole = useCallback(
+    async (prompt: string) => {
+      if (currentConversationId) {
+        await updateSystemPrompt(currentConversationId, prompt);
+      } else {
+        setDraftSystemPrompt(prompt);
+      }
+    },
+    [currentConversationId, updateSystemPrompt]
+  );
 
   const skipLoadRef = useRef(false);
 
@@ -109,7 +136,8 @@ export default function Home() {
     conversationId: currentConversationId,
     model: selectedModel,
     enableTools,
-    systemPrompt: enableTools
+    systemPrompt,
+    agentPrompt: enableTools
       ? (getPresetById(agentPromptPresetId)?.prompt ?? '')
       : '',
     onConversationCreated: handleConversationCreated,
@@ -133,6 +161,7 @@ export default function Home() {
   const handleNewConversation = useCallback(() => {
     selectConversation(null);
     clearMessages();
+    setDraftSystemPrompt('');
     setTimeout(() => chatBarRef.current?.focus(), 0);
   }, [selectConversation, clearMessages]);
 
@@ -141,6 +170,8 @@ export default function Home() {
       await deleteConversation(id);
       if (currentConversationId === id) {
         clearMessages();
+        // 消した会話の作成時の下書きが、次の新規会話に持ち越されないようにする
+        setDraftSystemPrompt('');
       }
     },
     [deleteConversation, currentConversationId, clearMessages]
@@ -174,6 +205,8 @@ export default function Home() {
           menuId={menuId}
           isMenuOpen={isMenuOpen}
           onOpenMenu={() => setIsMenuOpen(true)}
+          roleLabel={getRoleLabel(systemPrompt)}
+          onOpenRole={() => setIsRoleDialogOpen(true)}
         />
         <ChatWindow
           messages={messages}
@@ -196,6 +229,14 @@ export default function Home() {
         />
         <Footer />
       </main>
+
+      {isRoleDialogOpen && (
+        <RoleDialog
+          initialPrompt={systemPrompt}
+          onSave={handleSaveRole}
+          onClose={() => setIsRoleDialogOpen(false)}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}

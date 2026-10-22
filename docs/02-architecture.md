@@ -94,7 +94,7 @@ front/src/
 │       └── conversations/
 │           ├── route.ts       #     会話一覧取得・新規作成
 │           └── [id]/
-│               ├── route.ts   #     会話削除
+│               ├── route.ts   #     会話の役割の変更（PATCH）・会話削除
 │               ├── generate-title/
 │               │   └── route.ts #   LLMで会話タイトル自動生成
 │               └── messages/
@@ -110,7 +110,8 @@ front/src/
 │   │   │   ├── ChatWindow.tsx #     メッセージ一覧表示
 │   │   │   ├── CopyButton.tsx #     コピーボタン（結果の一時表示。応答・コードブロックで共用）
 │   │   │   ├── Footer.tsx     #     フッター
-│   │   │   ├── Header.tsx     #     ヘッダー（モデル選択ドロップダウン）
+│   │   │   ├── Header.tsx     #     ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
+│   │   │   ├── RoleDialog.tsx #     会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
 │   │   │   ├── MarkdownContent.tsx #  Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
 │   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
@@ -141,9 +142,10 @@ front/src/
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   ├── code-block.ts          #   コードブロックの構文木から言語名・コピーする本文を取り出す
+│   ├── system-prompt.ts       #   会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   ├── agent.ts               #   エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
 │   ├── agent-config.ts        #   エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
-│   ├── agent-prompts.ts       #   システムプロンプトプリセット定義
+│   ├── agent-prompts.ts       #   エージェントモードのシステムプロンプトプリセット定義
 │   ├── message-metadata.ts    #   メッセージ metadata の組み立て・取得時の実行時検証
 │   └── tools/                 #   ツール実装
 │       ├── types.ts           #     ツール関連型定義
@@ -182,6 +184,7 @@ front/tests/
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
+    ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
     ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── sidebar.spec.ts            # サイドバー操作テスト
@@ -217,9 +220,10 @@ Conversation           Message
 ┌──────────────┐       ┌──────────────────┐
 │ id (UUID PK) │──┐    │ id (UUID PK)     │
 │ title        │  │    │ conversationId   │──→ Conversation.id (FK)
-│ createdAt    │  │    │ role             │    ('user' | 'assistant')
-│ updatedAt    │  └───<│ content          │
-└──────────────┘       │ createdAt        │
+│ systemPrompt │  │    │ role             │    ('user' | 'assistant')
+│ createdAt    │  └───<│ content          │
+│ updatedAt    │       │ createdAt        │
+└──────────────┘       └──────────────────┘
                        └──────────────────┘
 ```
 
@@ -227,11 +231,12 @@ Conversation           Message
 
 ```prisma
 model Conversation {
-  id        String    @id @default(uuid())
-  title     String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  messages  Message[]
+  id           String    @id @default(uuid())
+  title        String
+  systemPrompt String? // 会話の役割（システムプロンプト）。null は役割なし
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
 }
 
 model Message {
@@ -268,6 +273,15 @@ model Message {
 4. 生成に失敗した場合・本文が出る前に停止した場合は旧応答に戻す（DB は書き換えない）
 
 メッセージは画面上の ID をそのまま DB の ID として保存する（`POST` の `id`）。画面と DB の ID が一致するため、置き換える応答を ID で特定できる。
+
+### 会話の役割（システムプロンプト）フロー
+
+1. ヘッダーの役割ボタン（現在の役割の表示名。プリセットに一致しなければ「カスタム」、無ければ「役割なし」）で `RoleDialog` を開き、プリセットを選ぶか自由に入力する
+2. 既存の会話なら `PATCH /api/conversations/[id]` で保存する。会話を作る前（新規会話）なら `page.tsx` の下書きに持ち、最初の送信の `POST /api/conversations` で会話と同時に保存する
+3. 送信のたびに、`useChat` が会話の役割とエージェントのプリセット（エージェントモードのときだけ）を `buildSystemPrompt` で連結し、`/api/chat` の `systemPrompt` として送る
+4. `/api/chat` は通常・エージェントとも、会話履歴の先頭に `role: 'system'` として付ける（`withSystemPrompt`）
+
+役割は会話ごとに本文だけを保存する（プリセットの ID は保存しない）。途中で変えた役割は以降の送信（再生成を含む）から効く。
 
 ### 会話管理フロー
 

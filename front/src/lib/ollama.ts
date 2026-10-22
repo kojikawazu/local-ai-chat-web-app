@@ -113,6 +113,23 @@ export function getDefaultModel(): string {
 }
 
 /**
+ * 会話履歴の先頭にシステムプロンプトを付ける。通常チャットとエージェントで同じ付け方にする（#10）。
+ *
+ * @param messages - 会話履歴（user / assistant / tool を時系列で並べる）
+ * @param systemPrompt - 付けるシステムプロンプト。前後の空白は除く
+ * @returns 先頭に system メッセージを足した新しい配列。空・空白のみ・未指定なら元の内容のまま（複製）
+ */
+export function withSystemPrompt(
+  messages: OllamaChatMessage[],
+  systemPrompt?: string
+): OllamaChatMessage[] {
+  const trimmed = systemPrompt?.trim();
+  return trimmed
+    ? [{ role: 'system', content: trimmed }, ...messages]
+    : [...messages];
+}
+
+/**
  * Ollama `/api/chat` にストリーミングモードでリクエストし、生のレスポンスを返す。
  *
  * レスポンスボディの読み取り・パースは呼び出し側の責務（NDJSON 中継のため）。
