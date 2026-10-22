@@ -1,6 +1,6 @@
 'use client';
 
-import { Cpu, Activity, ChevronDown, Menu } from 'lucide-react';
+import { Cpu, Activity, ChevronDown, Menu, UserRoundCog } from 'lucide-react';
 
 /** {@link Header} の props。 */
 type HeaderProps = {
@@ -16,16 +16,21 @@ type HeaderProps = {
   isMenuOpen: boolean;
   /** メニューボタン押下時のコールバック。 */
   onOpenMenu: () => void;
+  /** 現在の会話の役割の表示名（「翻訳者」「カスタム」「役割なし」等。#10）。 */
+  roleLabel: string;
+  /** 役割ボタン押下時のコールバック（役割の編集ダイアログを開く）。 */
+  onOpenRole: () => void;
 };
 
 /**
- * アプリ上部のヘッダー。接続状態の表示とモデル選択セレクトボックスを提供する。
+ * アプリ上部のヘッダー。接続状態の表示・会話の役割の表示と編集の入口・モデル選択セレクトボックスを提供する。
  *
  * モバイル幅（md 未満）ではサイドバーが隠れるため、先頭にメニューボタンを出し、
  * 会話管理・設定を持つドロワーを開けるようにする。
- * モデル名の `:latest` サフィックスは表示上省略する。
+ * モデル名の `:latest` サフィックスは表示上省略する。役割の名前はモバイル幅では隠し、
+ * アイコンだけを出す（ボタン名で読み上げる）。
  *
- * @param props - モデル一覧・選択中モデル・変更コールバックとメニューの開閉状態を持つ props
+ * @param props - モデル一覧・選択中モデル・変更コールバック・メニューの開閉状態・役割の表示名と編集の入口を持つ props
  */
 export default function Header({
   models,
@@ -34,6 +39,8 @@ export default function Header({
   menuId,
   isMenuOpen,
   onOpenMenu,
+  roleLabel,
+  onOpenRole,
 }: HeaderProps) {
   const displayName = selectedModel.replace(/:latest$/, '');
 
@@ -71,7 +78,19 @@ export default function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-4 min-w-0">
+      <div className="flex items-center gap-2 md:gap-4 min-w-0">
+        <button
+          type="button"
+          onClick={onOpenRole}
+          aria-label={`会話の役割: ${roleLabel}`}
+          aria-haspopup="dialog"
+          className="flex items-center gap-1.5 shrink-0 px-2 md:px-3 py-1.5 rounded-lg text-xs font-bold border border-nord-3 bg-nord-2 text-nord-4 hover:bg-nord-3 hover:text-nord-6 transition-colors focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+        >
+          <UserRoundCog size={14} className="text-nord-frost-1" />
+          <span className="hidden md:inline max-w-32 truncate">
+            {roleLabel}
+          </span>
+        </button>
         <div className="relative min-w-0">
           <select
             value={selectedModel}

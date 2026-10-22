@@ -66,6 +66,44 @@ describe('POST /api/chat（通常チャット）', () => {
       ]);
     });
 
+    it('systemPrompt（会話の役割）を先頭の system メッセージとして Ollama へ渡す（#10）', async () => {
+      const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
+
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          message: 'Hello',
+          conversationHistory: [{ role: 'user', content: '前の発言' }],
+          enableTools: false,
+          systemPrompt: ' あなたは翻訳者です。 ',
+        })
+      );
+      expect(res.status).toBe(200);
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(init!.body as string).messages).toEqual([
+        { role: 'system', content: 'あなたは翻訳者です。' },
+        { role: 'user', content: '前の発言' },
+        { role: 'user', content: 'Hello' },
+      ]);
+    });
+
+    it('systemPrompt が空白のみなら system メッセージを付けない', async () => {
+      const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
+
+      await POST(
+        jsonRequest(URL, 'POST', {
+          message: 'Hello',
+          enableTools: false,
+          systemPrompt: '  ',
+        })
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(init!.body as string).messages).toEqual([
+        { role: 'user', content: 'Hello' },
+      ]);
+    });
+
     it('履歴の要素は role と content だけを Ollama へ渡す（tool_calls 等の余分な項目は落とす）', async () => {
       const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
 

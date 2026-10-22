@@ -4,6 +4,7 @@ import {
   getMaxMessageLength,
   isValidUUID,
   MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
@@ -34,7 +35,7 @@ export type ChatBody = {
   model?: string;
   /** エージェントモードで実行するか（未指定は false） */
   enableTools: boolean;
-  /** エージェントモードで先頭に付けるシステムプロンプト */
+  /** 先頭に付けるシステムプロンプト（会話の役割と、エージェントモードならそのプリセットを連結したもの） */
   systemPrompt?: string;
 };
 
@@ -42,6 +43,14 @@ export type ChatBody = {
 export type CreateConversationBody = {
   /** 前後の空白を除いたタイトル。未指定・空なら既定タイトル */
   title: string;
+  /** 前後の空白を除いた会話の役割（システムプロンプト）。未指定・空なら `null`（役割なし） */
+  systemPrompt: string | null;
+};
+
+/** `PATCH /api/conversations/[id]` の検証済みボディ。 */
+export type UpdateConversationBody = {
+  /** 前後の空白を除いた会話の役割。`null`・空なら役割を外す */
+  systemPrompt: string | null;
 };
 
 /** `POST /api/conversations/[id]/messages` の検証済みボディ。 */
@@ -274,10 +283,32 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
 }
 
 /**
+ * 会話の役割（システムプロンプト）を検証し、保存する形に整える。
+ *
+ * @param value - `systemPrompt` フィールドの値
+ * @returns 前後の空白を除いた役割。未指定（`undefined` / `null`）・空白のみなら `null`（役割なし）。文字列でない・上限超過なら失敗
+ */
+function parseConversationSystemPrompt(
+  value: unknown
+): ParseResult<string | null> {
+  const parsed = parseOptionalString(value, 'systemPrompt');
+  if (!parsed.ok) return parsed;
+
+  const trimmed = parsed.value?.trim() || null;
+  if (trimmed && trimmed.length > MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH) {
+    return {
+      ok: false,
+      error: `systemPromptは${formatCount(MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH)}文字以内で指定してください`,
+    };
+  }
+  return { ok: true, value: trimmed };
+}
+
+/**
  * `POST /api/conversations` のボディを検証する。
  *
  * @param body - {@link readJsonBody} で読み取った値（空ボディは `{}`）
- * @returns 検証済みのボディ（`title` 未指定・空白のみなら既定タイトル）。オブジェクトでない・`title` が文字列でない・上限超過なら失敗
+ * @returns 検証済みのボディ（`title` 未指定・空白のみなら既定タイトル、`systemPrompt` 未指定・空白のみなら `null`）。オブジェクトでない・`title`/`systemPrompt` が文字列でない・上限超過なら失敗
  */
 export function parseCreateConversationBody(
   body: unknown
@@ -294,7 +325,40 @@ export function parseCreateConversationBody(
       error: `タイトルは${MAX_TITLE_LENGTH}文字以内で入力してください`,
     };
   }
-  return { ok: true, value: { title: resolved } };
+
+  const systemPrompt = parseConversationSystemPrompt(body.systemPrompt);
+  if (!systemPrompt.ok) return systemPrompt;
+
+  return {
+    ok: true,
+    value: { title: resolved, systemPrompt: systemPrompt.value },
+  };
+}
+
+/**
+ * `PATCH /api/conversations/[id]` のボディを検証する（会話の役割の変更。#10）。
+ *
+ * 変更できるのは役割だけ。`systemPrompt` キーの省略は「何も変えない」と「役割を外す」の
+ * 区別が付かないため失敗にし、外すときは `null` か空文字を明示させる。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ（`null`・空白のみなら役割を外す `null`）。オブジェクトでない・`systemPrompt` キーが無い・文字列/`null` でない・上限超過なら失敗
+ */
+export function parseUpdateConversationBody(
+  body: unknown
+): ParseResult<UpdateConversationBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  if (!('systemPrompt' in body)) {
+    return {
+      ok: false,
+      error: 'systemPromptを指定してください（外す場合は null）',
+    };
+  }
+
+  const systemPrompt = parseConversationSystemPrompt(body.systemPrompt);
+  if (!systemPrompt.ok) return systemPrompt;
+
+  return { ok: true, value: { systemPrompt: systemPrompt.value } };
 }
 
 /**

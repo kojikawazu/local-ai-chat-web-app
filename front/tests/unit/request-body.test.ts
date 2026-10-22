@@ -5,10 +5,12 @@ import {
   parseGenerateTitleBody,
   parseReplaceMessageBody,
   parseSaveMessageBody,
+  parseUpdateConversationBody,
   readJsonBody,
 } from '@/lib/request-body';
 import {
   MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
@@ -317,7 +319,16 @@ describe('parseCreateConversationBody', () => {
     it('title の前後の空白を除いて返す', () => {
       expect(parseCreateConversationBody({ title: ' 会話 ' })).toEqual({
         ok: true,
-        value: { title: '会話' },
+        value: { title: '会話', systemPrompt: null },
+      });
+    });
+
+    it('systemPrompt（会話の役割）の前後の空白を除いて返す（#10）', () => {
+      expect(
+        parseCreateConversationBody({ title: '会話', systemPrompt: ' 翻訳者 ' })
+      ).toEqual({
+        ok: true,
+        value: { title: '会話', systemPrompt: '翻訳者' },
       });
     });
   });
@@ -330,8 +341,26 @@ describe('parseCreateConversationBody', () => {
     ])('title が%sなら既定タイトルになる', (_label, body) => {
       expect(parseCreateConversationBody(body)).toEqual({
         ok: true,
-        value: { title: '新しい会話' },
+        value: { title: '新しい会話', systemPrompt: null },
       });
+    });
+
+    it.each([
+      ['null', null],
+      ['空白のみ', '   '],
+    ])('systemPrompt が%sなら役割なし（null）', (_label, systemPrompt) => {
+      expect(parseCreateConversationBody({ systemPrompt })).toEqual({
+        ok: true,
+        value: { title: '新しい会話', systemPrompt: null },
+      });
+    });
+
+    it('systemPrompt がちょうど上限なら通る（境界値）', () => {
+      expect(
+        parseCreateConversationBody({
+          systemPrompt: 'あ'.repeat(MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH),
+        }).ok
+      ).toBe(true);
     });
 
     it('title がちょうど上限なら通る（境界値）', () => {
@@ -360,6 +389,79 @@ describe('parseCreateConversationBody', () => {
           })
         )
       ).toBe('タイトルは100文字以内で入力してください');
+    });
+
+    it('systemPrompt が文字列でなければ失敗', () => {
+      expect(errorOf(parseCreateConversationBody({ systemPrompt: 1 }))).toBe(
+        'systemPromptは文字列で指定してください'
+      );
+    });
+
+    it('systemPrompt が上限を超えると失敗', () => {
+      expect(
+        errorOf(
+          parseCreateConversationBody({
+            systemPrompt: 'あ'.repeat(
+              MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH + 1
+            ),
+          })
+        )
+      ).toBe('systemPromptは5,000文字以内で指定してください');
+    });
+  });
+});
+
+describe('parseUpdateConversationBody', () => {
+  describe('正常系', () => {
+    it('systemPrompt の前後の空白を除いて返す', () => {
+      expect(parseUpdateConversationBody({ systemPrompt: ' 翻訳者 ' })).toEqual(
+        { ok: true, value: { systemPrompt: '翻訳者' } }
+      );
+    });
+  });
+
+  describe('準正常系', () => {
+    it.each([
+      ['null', null],
+      ['空文字', ''],
+      ['空白のみ', ' \n '],
+    ])('systemPrompt が%sなら役割を外す（null）', (_label, systemPrompt) => {
+      expect(parseUpdateConversationBody({ systemPrompt })).toEqual({
+        ok: true,
+        value: { systemPrompt: null },
+      });
+    });
+
+    it('systemPrompt 以外のフィールドは無視する（役割だけを変更できる）', () => {
+      expect(
+        parseUpdateConversationBody({ systemPrompt: '役割', title: '変更' })
+      ).toEqual({ ok: true, value: { systemPrompt: '役割' } });
+    });
+  });
+
+  describe('異常系', () => {
+    it.each(NON_OBJECT_BODIES)('ボディが%sなら失敗', (_label, body) => {
+      expect(parseUpdateConversationBody(body).ok).toBe(false);
+    });
+
+    it('systemPrompt キーが無ければ失敗（変えないのか外すのか区別できないため）', () => {
+      expect(errorOf(parseUpdateConversationBody({}))).toBe(
+        'systemPromptを指定してください（外す場合は null）'
+      );
+    });
+
+    it('systemPrompt が文字列でも null でもなければ失敗', () => {
+      expect(
+        errorOf(parseUpdateConversationBody({ systemPrompt: ['役割'] }))
+      ).toBe('systemPromptは文字列で指定してください');
+    });
+
+    it('systemPrompt が上限を超えると失敗', () => {
+      expect(
+        parseUpdateConversationBody({
+          systemPrompt: 'あ'.repeat(MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH + 1),
+        }).ok
+      ).toBe(false);
     });
   });
 });

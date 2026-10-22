@@ -11,6 +11,7 @@ import type { AgentStreamEvent } from '@/lib/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/validation';
 import { toConversationHistory } from '@/lib/conversation-history';
 import { findRegenerateTarget } from '@/lib/regenerate';
+import { buildSystemPrompt } from '@/lib/system-prompt';
 import {
   buildMessageMetadata,
   parseMessageMetadata,
@@ -24,8 +25,13 @@ interface UseChatOptions {
   model: string;
   /** エージェント（ツール実行）モードを有効にするか。省略時は無効。 */
   enableTools?: boolean;
-  /** システムプロンプト。空文字の場合は API へ送信しない。省略時は空。 */
+  /**
+   * 会話の役割（システムプロンプト。#10）。新規会話の作成時は会話に保存し、送信時は
+   * {@link UseChatOptions.agentPrompt} と連結して API へ送る。省略時は空（役割なし）。
+   */
   systemPrompt?: string;
+  /** エージェントモードのプリセットの本文。役割の後ろに連結して送る。通常モードでは空にする。省略時は空。 */
+  agentPrompt?: string;
   /** 新規会話が作成されたときのコールバック。作成された会話 ID を受け取る。 */
   onConversationCreated?: (id: string) => void;
   /** 初回応答後にタイトル自動生成が完了したときのコールバック。 */
@@ -96,7 +102,8 @@ async function saveMessage(
  *
  * メッセージ送信時は user メッセージの保存を待ってから `/api/chat` へストリーミング
  * 要求を行い、NDJSON（エージェントモード）とプレーンテキスト（通常モード）の両方式を
- * 扱う。会話 ID が未指定なら新規会話を作成し、初回応答の保存後にタイトル自動生成を
+ * 扱う。システムプロンプトは会話の役割とエージェントのプリセットを連結して送る。
+ * 会話 ID が未指定なら役割付きで新規会話を作成し、初回応答の保存後にタイトル自動生成を
  * 要求する。保存に失敗したメッセージは `saveState` を付けて表示に残し、
  * `retrySave` で同じ内容を再送できる（user の保存失敗時は LLM を呼ばない）。
  * `stopGeneration` で生成を止めると、届いた分までの本文を `metadata.interrupted` 付きで
@@ -105,7 +112,7 @@ async function saveMessage(
  * （失敗・本文が空のまま停止した場合は旧応答に戻し、DB には触れない）。
  *
  * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
- *   エージェント有効化・システムプロンプトと、会話作成／タイトル生成完了時の
+ *   エージェント有効化・会話の役割・エージェントのプリセットと、会話作成／タイトル生成完了時の
  *   コールバックを含む。各フィールドの意味は {@link UseChatOptions} を参照。
  * @returns チャット状態と操作関数。`messages` は現在のメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
@@ -120,6 +127,7 @@ export function useChat({
   model,
   enableTools = false,
   systemPrompt = '',
+  agentPrompt = '',
   onConversationCreated,
   onTitleGenerated,
 }: UseChatOptions) {
@@ -307,7 +315,9 @@ export function useChat({
             conversationHistory,
             model,
             enableTools,
-            systemPrompt: systemPrompt || undefined,
+            // 役割は送信のたびに今の値を送る。途中で変えた役割は以降の送信から効く
+            systemPrompt:
+              buildSystemPrompt(systemPrompt, agentPrompt) || undefined,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -525,7 +535,14 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [model, enableTools, systemPrompt, persist, requestTitleGeneration]
+    [
+      model,
+      enableTools,
+      systemPrompt,
+      agentPrompt,
+      persist,
+      requestTitleGeneration,
+    ]
   );
 
   const sendMessage = useCallback(
@@ -553,7 +570,11 @@ export function useChat({
             headers: { 'Content-Type': 'application/json' },
             // API 側の上限（MAX_TITLE_LENGTH）と同じ値で切り詰める。
             // ここがずれると会話作成が 400 になるため定数を共有する。
-            body: JSON.stringify({ title: content.slice(0, MAX_TITLE_LENGTH) }),
+            // 最初の送信の前に選んだ役割も、会話と同時に保存する
+            body: JSON.stringify({
+              title: content.slice(0, MAX_TITLE_LENGTH),
+              systemPrompt: systemPrompt || null,
+            }),
           });
           if (!res.ok) throw new Error('会話の作成に失敗しました');
           const conv = await res.json();
@@ -610,7 +631,14 @@ export function useChat({
         isFirstExchange
       );
     },
-    [conversationId, messages, onConversationCreated, persist, generateResponse]
+    [
+      conversationId,
+      messages,
+      systemPrompt,
+      onConversationCreated,
+      persist,
+      generateResponse,
+    ]
   );
 
   const regenerate = useCallback(

@@ -6,6 +6,7 @@ const BASE_URL = 'http://localhost:3000';
 export interface TestConversation {
   id: string;
   title: string;
+  systemPrompt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,10 +89,11 @@ export async function waitForResponseComplete(page: Page, timeout = 120000) {
 
 export async function createConversation(
   request: APIRequestContext,
-  title?: string
+  title?: string,
+  systemPrompt?: string
 ): Promise<TestConversation> {
   const res = await request.post(`${BASE_URL}/api/conversations`, {
-    data: { title: title || 'テスト会話' },
+    data: { title: title || 'テスト会話', systemPrompt },
   });
   return res.json();
 }

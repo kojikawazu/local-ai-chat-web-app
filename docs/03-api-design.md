@@ -8,6 +8,7 @@
   - [POST /api/chat](#post-apichat)
   - [GET /api/conversations](#get-apiconversations)
   - [POST /api/conversations](#post-apiconversations)
+  - [PATCH /api/conversations/[id]](#patch-apiconversationsid)
   - [DELETE /api/conversations/[id]](#delete-apiconversationsid)
   - [GET /api/conversations/[id]/messages](#get-apiconversationsidmessages)
   - [POST /api/conversations/[id]/messages](#post-apiconversationsidmessages)
@@ -21,14 +22,14 @@
 
 ## 内部API（Next.js Route Handlers）
 
-### リクエストボディの検証（全 POST・PUT 共通）
+### リクエストボディの検証（全 POST・PUT・PATCH 共通）
 
 ボディは `unknown` として読み取り、`front/src/lib/request-body.ts` の検証関数（`parseChatBody` 等）を通してから DB・Ollama へ渡す（#95）。JSON として構文が正しくても API の形に合わない入力は、すべて `{ error: string }` + 400 で返す。
 
 - ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
 - 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
 - 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
-- 上限値は `front/src/lib/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH`）
+- 上限値は `front/src/lib/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`）
 
 ### POST /api/chat
 
@@ -46,11 +47,13 @@
   }[];
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
-  systemPrompt?: string;   // システムプロンプト（エージェントモード時に先頭挿入）。最大 10,000 文字
+  systemPrompt?: string;   // システムプロンプト。通常・エージェントとも先頭の system メッセージにする。最大 10,000 文字
 }
 ```
 
-履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
+履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。
+
+`systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、空でなければ会話履歴の先頭に `role: 'system'` として付ける（`lib/ollama.ts` の `withSystemPrompt`）。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
 **レスポンス**
 
@@ -86,6 +89,7 @@
   conversations: {
     id: string;
     title: string;
+    systemPrompt: string | null;  // 会話の役割。役割なしは null（#10）
     createdAt: string;
     updatedAt: string;
   }[];
@@ -107,9 +111,12 @@
 
 ```typescript
 {
-  title?: string;  // 省略・空文字時は既定タイトル「新しい会話」。最大100文字
+  title?: string;         // 省略・空文字時は既定タイトル「新しい会話」。最大100文字
+  systemPrompt?: string | null;  // 会話の役割。省略・null・空白のみなら役割なし（null）。前後の空白は除く。最大 5,000 文字（#10）
 }
 ```
+
+最初の送信の前に選んだ役割を、会話の作成と同時に保存するために `systemPrompt` を受け付ける。
 
 ボディ自体を省略（空の本文）した場合も既定タイトルで作成する。本文があるのに JSON として不正・オブジェクトでない場合は 400（#95 以前は構文エラーを握りつぶして既定タイトルで作成していた）。
 
@@ -119,6 +126,7 @@
 {
   id: string;
   title: string;
+  systemPrompt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -127,10 +135,48 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 作成成功 |
-| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title が文字列でない・title が100文字超） |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title / systemPrompt が文字列でない・title が100文字超・systemPrompt が 5,000 文字超） |
 | 500 | サーバー内部エラー |
 
-上限値は `front/src/lib/validation.ts` の `MAX_TITLE_LENGTH` が正準。
+上限値は `front/src/lib/validation.ts` の `MAX_TITLE_LENGTH`・`MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` が正準。
+
+---
+
+### PATCH /api/conversations/[id]
+
+会話の役割（システムプロンプト）を変更する（#10）。変更は以降の送信から効き、これまでの応答はそのまま残る。
+
+**リクエスト**
+
+```typescript
+{
+  systemPrompt: string | null;  // 必須。null・空白のみなら役割を外す。前後の空白は除く。最大 5,000 文字
+}
+```
+
+- 変更できるのは `systemPrompt` だけ（`title` 等の他のフィールドは無視する）。
+- `systemPrompt` キーの省略は 400。「変えない」と「外す」を区別できないため、外すときは `null` か空文字を明示する。
+- `updatedAt` も更新されるため、会話一覧の先頭に来る（タイトルの自動生成と同じ扱い）。
+- 存在しない会話は、UPDATE の更新件数（`updateMany` の `count`）で 404 と判定する（DELETE と同じ）。
+
+**レスポンス**
+
+```typescript
+{
+  id: string;
+  title: string;
+  systemPrompt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 変更成功 |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・systemPrompt キーが無い・文字列 / null でない・5,000 文字超） |
+| 404 | 会話が見つからない |
+| 500 | サーバー内部エラー |
 
 ---
 

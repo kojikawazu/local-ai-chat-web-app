@@ -47,3 +47,11 @@ export const MAX_HISTORY_MESSAGES = 1_000;
  * 既存のエージェントプリセットは約 1,000 文字のため、ユーザー入力と同じ 10,000 文字で十分収まる。
  */
 export const MAX_SYSTEM_PROMPT_LENGTH = 10_000;
+/**
+ * 会話に保存する役割（システムプロンプト）の最大文字数（#10）。
+ *
+ * エージェントモードでは役割の後ろにエージェントのプリセット（約 1,000 文字）を連結して
+ * `/api/chat` の `systemPrompt` として送る。連結後も {@link MAX_SYSTEM_PROMPT_LENGTH} に
+ * 収まるよう、その半分の 5,000 文字とする（不変条件は UT で検証する）。
+ */
+export const MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH = 5_000;

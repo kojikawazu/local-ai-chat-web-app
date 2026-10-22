@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '@/app/api/conversations/route';
 import { prisma, resetDb, jsonRequest } from './helpers/db';
-import { MAX_TITLE_LENGTH } from '@/lib/validation';
+import {
+  MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
+  MAX_TITLE_LENGTH,
+} from '@/lib/validation';
 
 /**
  * `/api/conversations`（一覧取得・新規作成）の IT。
@@ -33,6 +36,22 @@ describe('POST /api/conversations（作成）', () => {
       expect(stored?.title).toBe('テスト会話');
     });
 
+    it('systemPrompt（会話の役割）を前後の空白を除いて保存する（#10）', async () => {
+      const res = await POST(
+        jsonRequest(URL, 'POST', {
+          title: '翻訳',
+          systemPrompt: ' あなたは翻訳者です。 ',
+        })
+      );
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.systemPrompt).toBe('あなたは翻訳者です。');
+      const stored = await prisma.conversation.findUnique({
+        where: { id: body.id },
+      });
+      expect(stored?.systemPrompt).toBe('あなたは翻訳者です。');
+    });
+
     it('title 未指定なら既定タイトル「新しい会話」で作成する', async () => {
       const res = await POST(jsonRequest(URL, 'POST', {}));
       expect(res.status).toBe(201);
@@ -56,6 +75,19 @@ describe('POST /api/conversations（作成）', () => {
       expect(res.status).toBe(201);
       expect((await res.json()).title).toBe('新しい会話');
     });
+
+    it.each([
+      ['未指定', {}],
+      ['空白のみ', { systemPrompt: '  ' }],
+      ['null', { systemPrompt: null }],
+    ])(
+      'systemPrompt が%sなら役割なし（null）で作成する',
+      async (_label, body) => {
+        const res = await POST(jsonRequest(URL, 'POST', body));
+        expect(res.status).toBe(201);
+        expect((await res.json()).systemPrompt).toBeNull();
+      }
+    );
 
     it('title がちょうど上限文字数なら作成できる（境界値）', async () => {
       const title = 'あ'.repeat(MAX_TITLE_LENGTH);
@@ -81,6 +113,13 @@ describe('POST /api/conversations（作成）', () => {
       ['ボディが null', null],
       ['ボディが配列', []],
       ['title が数値', { title: 123 }],
+      ['systemPrompt が数値', { systemPrompt: 1 }],
+      [
+        'systemPrompt が上限超過',
+        {
+          systemPrompt: 'あ'.repeat(MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH + 1),
+        },
+      ],
     ])('%sなら 400（DB には保存されない）', async (_label, body) => {
       const res = await POST(jsonRequest(URL, 'POST', body));
       expect(res.status).toBe(400);
@@ -111,10 +150,11 @@ describe('GET /api/conversations（一覧）', () => {
       expect(conversations).toHaveLength(2);
       expect(conversations[0].id).toBe(second.id);
       expect(conversations[1].id).toBe(first.id);
-      // 一覧は id/title/createdAt/updatedAt のみ返す
+      // 一覧は id/title/systemPrompt/createdAt/updatedAt のみ返す
       expect(Object.keys(conversations[0]).sort()).toEqual([
         'createdAt',
         'id',
+        'systemPrompt',
         'title',
         'updatedAt',
       ]);

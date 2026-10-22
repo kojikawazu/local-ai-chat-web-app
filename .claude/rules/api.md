@@ -21,7 +21,7 @@ front/src/app/api/
 └── conversations/
     ├── route.ts                           # 会話一覧取得・新規作成
     └── [id]/
-        ├── route.ts                       # 会話削除
+        ├── route.ts                       # 会話の役割の変更（PATCH）・会話削除
         ├── messages/route.ts              # メッセージ取得・保存
         ├── messages/[messageId]/route.ts  # 応答の置き換え（再生成）
         └── generate-title/route.ts        # LLM でタイトル自動生成

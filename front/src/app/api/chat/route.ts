@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
-import { streamChat } from '@/lib/ollama';
+import { streamChat, withSystemPrompt } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
 import { initializeTools } from '@/lib/tools/registry';
 import { parseChatBody, readJsonBody } from '@/lib/request-body';
@@ -16,6 +16,8 @@ const CLIENT_CLOSED_REQUEST = 499;
 /**
  * Ollama にチャットメッセージを送信し、応答をストリーミングで中継する。
  *
+ * `systemPrompt`（会話の役割と、エージェントモードならそのプリセットを連結したもの。#10）があれば、
+ * どちらのモードでも会話履歴の先頭に system メッセージとして付ける。
  * 通常モードでは Ollama の生成テキストをそのまま `text/event-stream` で逐次返す。
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
  * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
@@ -63,11 +65,16 @@ export async function POST(request: NextRequest) {
   try {
     // 通常チャットは思考させない（#116）。思考に対応したモデルは既定で考えてから答えるため、
     // 最初の文字が出るまで数秒、画面に何も出ない。考えさせたい場合はエージェントモードを使う
-    ollamaResponse = await streamChat(messages, model, undefined, {
-      think: false,
-      // ブラウザが停止・切断したら Ollama への接続も切り、生成を止める（#8）
-      signal: request.signal,
-    });
+    ollamaResponse = await streamChat(
+      withSystemPrompt(messages, systemPrompt),
+      model,
+      undefined,
+      {
+        think: false,
+        // ブラウザが停止・切断したら Ollama への接続も切り、生成を止める（#8）
+        signal: request.signal,
+      }
+    );
   } catch (error) {
     // モデルの読み込み待ちの間に停止された。接続の失敗ではないため 502 にもログにもしない
     if (request.signal.aborted) {

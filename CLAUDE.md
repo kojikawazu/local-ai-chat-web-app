@@ -122,11 +122,12 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt指定可） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt指定可。systemPrompt は通常・エージェントとも先頭の system メッセージになる） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得 |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得 |
 | GET | `/api/conversations` | 会話一覧取得 |
-| POST | `/api/conversations` | 新規会話作成 |
+| POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt` を指定可） |
+| PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）の変更 |
 | DELETE | `/api/conversations/[id]` | 会話削除（メッセージもカスケード削除） |
 | GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得 |
 | POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可） |
@@ -157,11 +158,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
 - **`components/`** — 共通UIコンポーネント（SettingsModal等、複数機能で再利用）
 - **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
-  - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
+  - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, RoleDialog, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent / hooks: useConversations, useDrawerDialog）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — 共通カスタムフック（useTheme等）
-- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, code-block.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
+- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, code-block.ts, system-prompt.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
   - `lib/tools/` — ツール実装（types.ts, index.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
 - **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
 

@@ -22,11 +22,12 @@ globs: "front/prisma/**,front/src/lib/prisma.ts,front/src/generated/**"
 
 ```prisma
 model Conversation {
-  id        String    @id @default(uuid())
-  title     String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  messages  Message[]
+  id           String    @id @default(uuid())
+  title        String
+  systemPrompt String? // 会話の役割（システムプロンプト）。null は役割なし
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
 }
 
 model Message {

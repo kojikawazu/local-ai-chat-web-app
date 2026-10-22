@@ -67,6 +67,8 @@ export interface Conversation {
   id: string;
   /** 会話タイトル（LLM で自動生成されうる） */
   title: string;
+  /** 会話の役割（システムプロンプト）。役割なしは `null`（#10） */
+  systemPrompt: string | null;
   /** 作成日時（API から ISO 文字列で受け取る） */
   createdAt: string;
   /** 最終更新日時（API から ISO 文字列で受け取る） */
