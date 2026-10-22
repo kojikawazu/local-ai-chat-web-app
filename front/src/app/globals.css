@@ -15,6 +15,9 @@
   --color-nord-aurora-yellow: #ebcb8b;
   --color-nord-aurora-green: #a3be8c;
   --color-nord-aurora-red: #bf616a;
+  /* シンタックスハイライト（.hljs-*）でだけ使う色。テーマを足すときはここも上書きする */
+  --color-nord-aurora-orange: #d08770;
+  --color-nord-aurora-purple: #b48ead;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -41,6 +44,8 @@ body {
   --color-nord-aurora-yellow: #e0af68;
   --color-nord-aurora-green: #9ece6a;
   --color-nord-aurora-red: #f7768e;
+  --color-nord-aurora-orange: #ff9e64;
+  --color-nord-aurora-purple: #9d7cd8;
 }
 
 /* Theme: Midnight Ocean */
@@ -59,4 +64,83 @@ body {
   --color-nord-aurora-yellow: #d29922;
   --color-nord-aurora-green: #3fb950;
   --color-nord-aurora-red: #f85149;
+  --color-nord-aurora-orange: #ffa657;
+  --color-nord-aurora-purple: #d2a8ff;
+}
+
+/*
+ * シンタックスハイライト（#144）。rehype-highlight（highlight.js）がトークンに付ける
+ * .hljs-* クラスへ、テーマ変数で色を付ける。変数経由のため 3 テーマに自動で追従する。
+ * 割り当ては Nord 公式の highlight.js テーマに合わせ、地の文字色は pre の text-nord-6。
+ */
+.hljs-comment,
+.hljs-quote {
+  color: color-mix(in srgb, var(--color-nord-4) 60%, transparent);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-name,
+.hljs-section,
+.hljs-doctag {
+  color: var(--color-nord-frost-2);
+}
+
+.hljs-built_in,
+.hljs-type,
+.hljs-title.class_,
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--color-nord-frost-0);
+}
+
+.hljs-title,
+.hljs-title.function_ {
+  color: var(--color-nord-frost-1);
+}
+
+.hljs-string,
+.hljs-addition {
+  color: var(--color-nord-aurora-green);
+}
+
+.hljs-number {
+  color: var(--color-nord-aurora-purple);
+}
+
+.hljs-regexp,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-template-tag {
+  color: var(--color-nord-aurora-yellow);
+}
+
+.hljs-meta,
+.hljs-variable.language_ {
+  color: var(--color-nord-aurora-orange);
+}
+
+.hljs-deletion {
+  color: var(--color-nord-aurora-red);
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params,
+.hljs-subst {
+  color: var(--color-nord-4);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
 }

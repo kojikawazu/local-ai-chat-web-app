@@ -1,6 +1,6 @@
 # セキュリティ要件書
 
-> 最終更新: 2026-10-20
+> 最終更新: 2026-10-22
 
 ## 目次
 
@@ -58,6 +58,7 @@
   - `react-markdown` はHTMLをパースせず、Markdownのみをリアクトコンポーネントに変換するため安全
   - `dangerouslySetInnerHTML` を使用しない方式でMarkdown整形を実現
   - カスタムコンポーネント（code, table, blockquote等）でNordテーマのスタイルを適用
+  - コードブロックのシンタックスハイライトは `rehype-highlight` で行う。構文木（hast）を書き換えるだけで HTML 文字列を作らないため、コード内の `<script>` 等は文字のまま表示される。色は CSS クラスで付け、インラインの `style` 属性も作らない
 
 ## Content Security Policy（CSP）
 

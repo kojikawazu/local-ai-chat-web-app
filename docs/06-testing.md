@@ -351,7 +351,8 @@ front/tests/
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 │   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
-│   └── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
+│   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
+│   └── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
@@ -377,6 +378,7 @@ front/tests/
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
+    ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語・インラインコード・HTML タグの非実行・閉じていないフェンス）
     ├── streaming-stop.spec.ts    # 生成の停止（Stop ボタン・Escape・本文前の停止・中断した応答の保存と保存失敗）
     ├── regenerate.spec.ts        # 応答の再生成（置き換えと永続化・最後の応答のみ・本文前の停止と生成失敗で旧応答へ復元・生成中は無効・置き換えの保存失敗と再試行）
     ├── sidebar.spec.ts           # サイドバー操作テスト

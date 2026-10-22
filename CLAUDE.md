@@ -24,7 +24,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | React | React 19 — React Compiler有効（`next.config.ts`で`reactCompiler: true`） |
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
-| Markdown表示 | react-markdown + remark-gfm |
+| Markdown表示 | react-markdown + remark-gfm + rehype-highlight（コードブロックのシンタックスハイライト） |
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
@@ -161,7 +161,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent / hooks: useConversations, useDrawerDialog）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — 共通カスタムフック（useTheme等）
-- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
+- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, code-block.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
   - `lib/tools/` — ツール実装（types.ts, index.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
 - **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
 
@@ -200,10 +200,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/08-ci-e2e-bug-report.md` | CI E2Eテスト バグレポート |
 | `docs/09-agent-architecture.md` | エージェント機能 設計書 |
 | `docs/10-roadmap.md` | 開発ロードマップ |
+| `docs/11-syntax-highlight-diagrams.md` | シンタックスハイライト・図表レンダリング 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`11-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`12-`〜）を付与する。
 
 ## Instruction Shortcuts
 

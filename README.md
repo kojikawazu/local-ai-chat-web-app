@@ -4,7 +4,7 @@
 [![Integration Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml)
 [![E2E Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml)
 
-[English](README.en.md) ・ 最終更新: 2026-07-11
+[English](README.en.md) ・ 最終更新: 2026-10-22
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション。
 Nordic Frostデザインシステムをベースとした、プライベートなAIワークスペース。
@@ -43,7 +43,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | フレームワーク | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm |
+| Markdown | react-markdown + remark-gfm + rehype-highlight |
 | LLM | Ollama（ローカル実行） |
 | DB | PostgreSQL 16（Docker Compose） |
 | ORM | Prisma 7 |
