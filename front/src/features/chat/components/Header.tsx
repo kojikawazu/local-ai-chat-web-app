@@ -29,6 +29,9 @@ type HeaderProps = {
  * 会話管理・設定を持つドロワーを開けるようにする。
  * モデル名の `:latest` サフィックスは表示上省略する。役割の名前はモバイル幅では隠し、
  * アイコンだけを出す（ボタン名で読み上げる）。
+ * 幅が足りないときに縮むのはモデル選択だけにする（左側は縮めず、モデル名を省略表示する）。
+ * 左側も縮めると `whitespace-nowrap` の「Node: Local」が隣の役割ボタンに重なり、
+ * 幅指定の無い select は縮んだ親からはみ出すため。
  *
  * @param props - モデル一覧・選択中モデル・変更コールバック・メニューの開閉状態・役割の表示名と編集の入口を持つ props
  */
@@ -46,7 +49,7 @@ export default function Header({
 
   return (
     <header className="h-16 px-4 md:px-6 flex items-center justify-between gap-3 sticky top-0 z-10 bg-nord-1 border-b border-nord-3">
-      <div className="flex items-center gap-3 md:gap-6 min-w-0">
+      <div className="flex items-center gap-3 md:gap-6 shrink-0">
         <button
           type="button"
           onClick={onOpenMenu}
@@ -96,7 +99,7 @@ export default function Header({
             value={selectedModel}
             onChange={(e) => onModelChange(e.target.value)}
             aria-label="モデルを選択"
-            className="max-w-36 md:max-w-none truncate appearance-none pl-4 pr-8 py-1.5 rounded-lg text-xs font-bold border border-nord-3 bg-nord-2 text-nord-6 cursor-pointer hover:bg-nord-3 transition-colors focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+            className="w-full max-w-36 md:max-w-none truncate appearance-none pl-4 pr-8 py-1.5 rounded-lg text-xs font-bold border border-nord-3 bg-nord-2 text-nord-6 cursor-pointer hover:bg-nord-3 transition-colors focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
           >
             {models.length > 0 ? (
               models.map((model) => (
