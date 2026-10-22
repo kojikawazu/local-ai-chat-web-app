@@ -116,12 +116,10 @@ test.describe('会話の役割（システムプロンプト）', () => {
       );
       await waitForResponseComplete(page);
 
+      // 開き直したときの表示は、投入した会話で次のテストが確かめる（送信で作った会話は
+      // タイトルの自動生成で名前が変わり、開き直す操作が不安定になるため）
       const [conv] = await fetchConversations(request);
       expect(conv.systemPrompt).toBe(presetPrompt);
-      // 開き直しても、会話に保存した役割が表示される
-      await page.reload();
-      await page.getByText(conv.title).click();
-      await expect(roleButton(page, '翻訳者')).toBeVisible();
     });
 
     test('既存の会話の役割を変えると保存され、次の送信から新しい役割が付く', async ({
@@ -129,6 +127,7 @@ test.describe('会話の役割（システムプロンプト）', () => {
       request,
     }) => {
       await createConversation(request, TITLE, 'あなたは日本語教師です。');
+      // 開いた会話の、保存済みの役割が表示される
       await openSeededConversation(page);
       await expect(roleButton(page, 'カスタム')).toBeVisible();
 
