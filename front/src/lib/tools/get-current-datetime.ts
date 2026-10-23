@@ -5,8 +5,8 @@ import type { Tool } from './types';
  *
  * 引数 `timezone`（例: `Asia/Tokyo`, `UTC`。省略時は `Asia/Tokyo`）で指定した
  * タイムゾーンの現在時刻を、UTC オフセット付きの ISO 8601 形式
- * （`YYYY-MM-DDThh:mm:ss±hh:mm`）文字列で返す。不正なタイムゾーン指定時は
- * 例外を投げず UTC の ISO 文字列にフォールバックする。
+ * （`YYYY-MM-DDThh:mm:ss±hh:mm`）で返す（見出しの要約も同じ日時）。不正なタイムゾーン
+ * 指定時は例外を投げず UTC の ISO 文字列にフォールバックする（失敗扱いにはしない）。
  */
 export const getCurrentDatetimeTool: Tool = {
   definition: {
@@ -51,10 +51,12 @@ export const getCurrentDatetimeTool: Tool = {
       // タイムゾーンオフセットを取得
       const utcOffset = getUtcOffset(now, timezone);
 
-      return `${dateStr}${utcOffset}`;
+      const datetime = `${dateStr}${utcOffset}`;
+      return { result: datetime, isError: false, summary: datetime };
     } catch {
       // 不正なタイムゾーン指定時は UTC で返す
-      return new Date().toISOString();
+      const datetime = new Date().toISOString();
+      return { result: datetime, isError: false, summary: datetime };
     }
   },
 };

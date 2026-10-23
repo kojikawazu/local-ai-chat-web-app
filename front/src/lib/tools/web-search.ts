@@ -1,4 +1,5 @@
-import type { Tool } from './types';
+import type { Tool, ToolOutput } from './types';
+import { toolError } from './output';
 import { BodyTooLargeError, discardBody, readBodyWithLimit } from './read-body';
 
 const MAX_RESULTS = 5;
@@ -93,28 +94,41 @@ function parseSearxngResponse(
  * すべて応答したうえでの 0 件だけを「見つかりませんでした」とする。0 件と失敗を
  * 区別しないと、モデルは言い換えた検索を繰り返す（#151）。
  *
+ * 見出しの要約は件数（`5 件`）。すべて応答したうえでの 0 件は `isEmpty` にする（#150）。
+ *
  * @param query - 検索クエリ（結果の見出しに使う）
  * @param body - SearXNG の応答本文（JSON 文字列）
- * @returns ツールの結果の文章。失敗は `"エラー: ..."` で始まる。最大 {@link MAX_CHARS} 文字で、超過分は省略する
+ * @returns ツールの実行結果。文章は最大 {@link MAX_CHARS} 文字で、超過分は省略する。失敗は `isError: true` で、文章は `"エラー: ..."` で始まる
  */
-export function formatSearchResponse(query: string, body: string): string {
+export function formatSearchResponse(query: string, body: string): ToolOutput {
   let json: unknown;
   try {
     json = JSON.parse(body);
   } catch {
-    return 'エラー: SearXNG の応答を解釈できませんでした（JSON ではありません）';
+    return toolError(
+      'SearXNG の応答を解釈できませんでした（JSON ではありません）'
+    );
   }
   const parsed = parseSearxngResponse(json);
   if (!parsed) {
-    return 'エラー: SearXNG の応答を解釈できませんでした（results がありません）';
+    return toolError(
+      'SearXNG の応答を解釈できませんでした（results がありません）'
+    );
   }
 
   const { results, unresponsiveEngines } = parsed;
   if (results.length === 0) {
     if (unresponsiveEngines.length > 0) {
-      return `エラー: "${query}" の検索で、検索エンジンが応答しませんでした（${unresponsiveEngines.join(', ')}）。しばらく時間をおいてから検索し直してください。`;
+      return toolError(
+        `"${query}" の検索で、検索エンジンが応答しませんでした（${unresponsiveEngines.join(', ')}）。しばらく時間をおいてから検索し直してください。`
+      );
     }
-    return `"${query}" の検索結果が見つかりませんでした。`;
+    return {
+      result: `"${query}" の検索結果が見つかりませんでした。`,
+      isError: false,
+      summary: '0 件',
+      isEmpty: true,
+    };
   }
 
   const lines = [`"${query}" の検索結果 (上位${results.length}件):\n`];
@@ -127,9 +141,14 @@ export function formatSearchResponse(query: string, body: string): string {
   }
 
   const joined = lines.join('\n');
-  return joined.length > MAX_CHARS
-    ? joined.slice(0, MAX_CHARS) + '…（省略）'
-    : joined;
+  return {
+    result:
+      joined.length > MAX_CHARS
+        ? joined.slice(0, MAX_CHARS) + '…（省略）'
+        : joined,
+    isError: false,
+    summary: `${results.length} 件`,
+  };
 }
 
 // signal の中断で打ち切れる待機。リトライ待ちの間に全体タイムアウトが来ても即時に抜ける
@@ -291,7 +310,7 @@ async function fetchWithRetry(
  * JSON の API が無効（403）の場合はリトライせず、直し方を含むエラーを返す。
  * 各試行の期限は本文の読了まで有効で、受信は 1 MiB で打ち切る。呼び出し元の
  * `signal` が中断されるとリトライ待機中でも即座に処理を止める。
- * エラーはすべて `"エラー: ..."` 形式の文字列で返し、例外は投げない。
+ * エラーはすべて `isError: true`（文章は `"エラー: ..."` 形式）で返し、例外は投げない。
  */
 export const webSearchTool: Tool = {
   definition: {
@@ -311,13 +330,13 @@ export const webSearchTool: Tool = {
   },
   execute: async (args, signal) => {
     const query = typeof args.query === 'string' ? args.query.trim() : '';
-    if (!query) return 'エラー: 検索クエリが空です';
+    if (!query) return toolError('検索クエリが空です');
 
     try {
       const body = await fetchWithRetry(query, signal);
       return formatSearchResponse(query, body);
     } catch (e) {
-      return `エラー: ${e instanceof Error ? e.message : String(e)}`;
+      return toolError(e instanceof Error ? e.message : String(e));
     }
   },
 };

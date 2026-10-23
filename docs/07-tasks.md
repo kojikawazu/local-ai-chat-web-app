@@ -904,3 +904,15 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 - [x] UT `current-date.test.ts`（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン・空の役割）・IT `chat.test.ts` / `chat-agent.test.ts`（両モードで先頭の system に日時が入る）
 - [x] 実モデルで再現をやり直し、最初の検索から今年の年を使い、日時のツールを呼ばずに最新の版を答えることを確認
 - [x] `CLAUDE.md`・`docs/02`・`docs/03`・`docs/06`・`docs/09`・`docs/models/qwen3.8-27b.md` を同期
+
+## フェーズ30: ツールの結果の要約と失敗の表示
+
+ツールの結果パネルの見出しには成否・ラベル・所要時間しか出ず、Web 検索が何件返したかは開かないとわからなかった。さらに `web_search`・`url_fetch`・`calculate` は失敗を例外ではなく `"エラー: ..."` の文字列で返すため、`runTool` は失敗も `isError: false` として送り、検索の失敗・0 件でも ✅ が出ていた。 — #150
+
+- [x] ツールの戻り値を構造化する（`ToolOutput`: モデルへ返す文章・`isError`・要約・空の結果）。モデルへ返す文章は変えない
+- [x] 各ツールが要約を返す（Web 検索: 件数・0 件、URL 取得: 文字数・省略、計算: 結果、日時: 取得した日時、失敗: 理由）
+- [x] `tool_call_result` イベント・`done` の `toolCalls`・保存する metadata に要約・空の結果を載せる（`ToolCallRecord` は `ToolCallInfo` に一本化）
+- [x] `ToolCallResult` の見出しに要約を出し、0 件は ✅ と区別、失敗は ❌ と理由を出す
+- [x] UT（`web-search.test.ts`・`calculate.test.ts`・`message-metadata.test.ts`・URL 取得の要約）・IT（`chat-agent.test.ts`）・E2E（`tool-result-summary.spec.ts`）
+- [x] 保存済みの metadata から、見出しの 5 種（件数・0 件・失敗の理由・省略した文字数・計算結果）を実際の画面で確認
+- [x] `CLAUDE.md`・`docs/02`・`docs/04`・`docs/06`・`docs/09` を同期

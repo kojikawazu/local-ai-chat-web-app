@@ -2,10 +2,11 @@ import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
 import { streamChat, withSystemPrompt } from './ollama';
 import { parsePositiveIntEnv } from './agent-config';
 import { getAllToolDefinitions, executeTool } from './tools/index';
+import type { ToolCallInfo } from '@/types';
 import type {
   AgentStreamEvent,
-  ToolCallRecord,
   OllamaToolCall,
+  ToolOutput,
 } from './tools/types';
 
 const DEFAULT_MAX_TOOL_ROUNDS = 10;
@@ -47,11 +48,12 @@ function encodeEvent(event: AgentStreamEvent): Uint8Array {
 // fetch・本文読み取り・リトライ待機を止めてバックグラウンドに処理を残さない。
 // signal を見ないツールがあっても応答が返るよう race は残す。
 // ループ全体の中断（ブラウザの停止・切断）でもツールを止めるため、loopSignal と合成して渡す。
+// ツール自身の失敗は戻り値の isError で届く。ここで isError にするのは例外（タイムアウト・未登録のツール）だけ
 async function runTool(
   name: string,
   args: Record<string, unknown>,
   loopSignal: AbortSignal
-): Promise<{ result: string; isError: boolean; durationMs: number }> {
+): Promise<ToolOutput & { durationMs: number }> {
   const start = Date.now();
   const abortController = new AbortController();
   const toolSignal = AbortSignal.any([abortController.signal, loopSignal]);
@@ -68,16 +70,21 @@ async function runTool(
   });
 
   try {
-    const result = await Promise.race([
+    const output = await Promise.race([
       executeTool(name, args, toolSignal),
       timeoutPromise,
     ]);
     clearTimeout(timeoutId);
-    return { result, isError: false, durationMs: Date.now() - start };
+    return { ...output, durationMs: Date.now() - start };
   } catch (e) {
     clearTimeout(timeoutId);
     const msg = e instanceof Error ? e.message : String(e);
-    return { result: msg, isError: true, durationMs: Date.now() - start };
+    return {
+      result: msg,
+      isError: true,
+      summary: msg,
+      durationMs: Date.now() - start,
+    };
   }
 }
 
@@ -256,7 +263,7 @@ export function runAgentLoop(
   signal?: AbortSignal
 ): ReadableStream<Uint8Array> {
   const tools = getAllToolDefinitions();
-  const toolCallRecords: ToolCallRecord[] = [];
+  const toolCallRecords: ToolCallInfo[] = [];
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();
   const loopSignal = signal
@@ -338,24 +345,23 @@ export function runAgentLoop(
               // 実行開始イベント
               send({ type: 'tool_call_start', name, arguments: args });
 
-              const { result, isError, durationMs } = await runTool(
+              const { durationMs, ...output } = await runTool(
                 name,
                 args,
                 loopSignal
               );
 
               // 実行結果イベント
-              send({ type: 'tool_call_result', name, result, isError });
+              send({ type: 'tool_call_result', name, ...output });
 
               toolCallRecords.push({
                 name,
                 arguments: args,
-                result,
-                isError,
+                ...output,
                 durationMs,
               });
 
-              return { name, result };
+              return { name, result: output.result };
             })
           );
 

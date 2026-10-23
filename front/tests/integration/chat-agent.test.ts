@@ -220,6 +220,14 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
           '',
         ].join('\n'),
         isError: false,
+        summary: '1 件',
+      });
+      // 保存される記録（done の toolCalls）にも要約が載る（#150）
+      expect(events.at(-1)).toMatchObject({
+        type: 'done',
+        metadata: {
+          toolCalls: [{ name: 'web_search', isError: false, summary: '1 件' }],
+        },
       });
       // 接続先は SEARXNG_URL の既定値。JSON の API をクエリ付きで呼ぶ
       // このファイルの URL 定数（/api/chat の URL）が組み込みの URL を隠しているため globalThis から使う
@@ -241,9 +249,10 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
 
       const events = await runAgent();
 
-      expect(toolResultOf(events).result).toBe(
-        'エラー: ページが大きすぎます（2MB 超）。'
-      );
+      expect(toolResultOf(events)).toMatchObject({
+        result: 'エラー: ページが大きすぎます（2MB 超）。',
+        isError: true,
+      });
       expect(observed.cancelled).toBe(true);
       // 上限（2 MiB）を超えた直後で止まり、それ以上受信しない（read-ahead の 1 チャンク分を許容）
       const maxPulls = (2 * 1024 * 1024) / observed.chunkBytes + 2;
@@ -280,6 +289,51 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       expect(observed.cancelled).toBe(true);
       // サイズ超過は再試行しても同じ結果になるため 1 回で諦める
       expect(search).toHaveBeenCalledTimes(1);
+    });
+
+    it('web_search の失敗は isError: true と理由の要約で届き、モデルへは「エラー: 」の文章を返す（#150）', async () => {
+      const fetchMock = stubAgentFetch(
+        webSearchCall('php 2025'),
+        () => new Response('Forbidden', { status: 403 })
+      );
+
+      const events = await runAgent();
+
+      const reason =
+        'SearXNG が JSON の応答を返しません（HTTP 403）。searxng/settings.yml の search.formats に json があるか確認してください。';
+      expect(toolResultOf(events, 'web_search')).toMatchObject({
+        result: `エラー: ${reason}`,
+        isError: true,
+        summary: reason,
+      });
+      // 2 回目の Ollama への問い合わせ（最終回答）に、ツールの結果が従来と同じ文章で入る
+      const ollamaBodies = fetchMock.mock.calls
+        .filter(([requested]) => String(requested).endsWith('/api/chat'))
+        .map(([, init]) => JSON.parse(String(init?.body)));
+      expect(ollamaBodies[1].messages.at(-1)).toEqual({
+        role: 'tool',
+        content: `エラー: ${reason}`,
+      });
+    });
+
+    it('web_search はすべての検索エンジンが応答したうえでの 0 件を、失敗ではなく空の結果として返す（#150）', async () => {
+      stubAgentFetch(
+        webSearchCall('php 2025'),
+        () =>
+          new Response(JSON.stringify({ results: [] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+      );
+
+      const events = await runAgent();
+
+      expect(toolResultOf(events, 'web_search')).toMatchObject({
+        result: '"php 2025" の検索結果が見つかりませんでした。',
+        isError: false,
+        summary: '0 件',
+        isEmpty: true,
+      });
     });
 
     it('web_search は SearXNG に接続できなければ、起動の手順を返してリトライしない', async () => {
@@ -332,9 +386,11 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
 
       const events = await runAgent();
 
-      expect(toolResultOf(events, 'web_search').result).toBe(
-        'エラー: "php 2025" の検索で、検索エンジンが応答しませんでした（duckduckgo）。しばらく時間をおいてから検索し直してください。'
-      );
+      expect(toolResultOf(events, 'web_search')).toMatchObject({
+        result:
+          'エラー: "php 2025" の検索で、検索エンジンが応答しませんでした（duckduckgo）。しばらく時間をおいてから検索し直してください。',
+        isError: true,
+      });
     });
 
     it.each([
@@ -406,6 +462,7 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       expect(toolResultOf(events, 'web_search')).toMatchObject({
         result: `ツール "web_search" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`,
         isError: true,
+        summary: `ツール "web_search" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`,
       });
       // 中断されなかった場合に 2 回目が走るはずの時刻（最初の待機 1 秒）を過ぎるまで待ってから確かめる
       await new Promise((r) => setTimeout(r, 1200));
