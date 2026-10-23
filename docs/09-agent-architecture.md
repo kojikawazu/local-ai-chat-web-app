@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-23
+> 最終更新: 2026-10-24
 
 ## 目次
 
@@ -421,8 +421,9 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 | 名前 | `web_search` |
 | 説明 | Web を検索して結果を取得する |
 | パラメータ | `query` (string, required) — 検索クエリ |
-| 戻り値 | 検索結果のタイトル・URL・スニペット一覧（JSON 文字列） |
-| 実装 | 下記「検索エンジン選定」を参照 |
+| 戻り値 | 検索結果のタイトル・URL・スニペット一覧（`[N] タイトル / URL: ... / 概要` 形式のテキスト。UI の `WebSearchResult` がこの形を読む） |
+| 実装 | ローカルの **SearXNG** の JSON API（`GET {SEARXNG_URL}/search?q=...&format=json&language=auto`）。下記「検索エンジン選定」を参照 |
+| 接続先 | 環境変数 `SEARXNG_URL`（既定 `http://localhost:8888`。`docker-compose.yml` の `searxng` サービス） |
 | 制限 | 結果を上位5件に制限、レスポンスを3,000文字以内にトリム。受信は本文を**ストリームで読み 1 MiB（バイト）で打ち切る** |
 | タイムアウト | 1 試行 10 秒。**ヘッダー受信から本文の読了まで**に適用（リトライ時は試行ごとに新しい期限） |
 | リトライ | 条件に応じてリトライ（下記「リトライ条件」参照） |
@@ -431,19 +432,20 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 
 | 候補 | メリット | デメリット |
 |------|---------|-----------|
-| DuckDuckGo HTML スクレイピング | API キー不要、手軽 | 非公式 API のため仕様変更・ブロックのリスクあり。レートリミット不明 |
-| SearXNG（セルフホスト） | ローカル環境方針に合致。安定した JSON API。複数検索エンジンを集約 | Docker Compose への追加が必要。セットアップコスト |
+| DuckDuckGo HTML スクレイピング（旧実装） | API キー不要、手軽 | 非公式 API のため仕様変更・ブロックのリスクあり。**2026-10-23 にボット判定で全検索が拒否された** |
+| **SearXNG（セルフホスト・採用）** | ローカル環境方針に合致。安定した JSON API。複数検索エンジンを集約し、1 つがブロックされても結果を返せる | Docker Compose への追加が必要（メモリ約 150MiB） |
 | Brave Search API | 公式 API、無料枠あり | API キー必要。外部依存 |
 
-**推奨**: 初期実装は **DuckDuckGo** で手軽に動作確認し、安定性が問題になった段階で **SearXNG** に移行する。SearXNG は `docker-compose.yml` に追加するだけでローカル環境に組み込める。
+**採用: SearXNG**（#151）。初期実装は DuckDuckGo の HTML スクレイピングだったが、2026-10-23 に DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202）を返し、検索結果を取得できなくなった（ブラウザの User-Agent・POST・lite 版でも同じ）。ツールは確認ページを 0 件と誤認し、モデルが言い換えた検索を 1 回の応答で最大 17 回繰り返していた。SearXNG に切り替え、DuckDuckGo への直接の問い合わせは削除した。
 
-> **⚠️ 既知の制限事項 — DuckDuckGo HTML スクレイピングの安定性**
->
-> `html.duckduckgo.com/html/` は非公式エンドポイントであり、HTML 内の CSS クラス名（`result__a`・`result__snippet`）が変更された場合、検索結果をサイレントに取得できなくなるリスクがある。
-> 正規 JSON API（`api.duckduckgo.com/?format=json`）は安定しているが返せる情報量が限られる。
-> 安定性問題が顕在化した場合は SearXNG への移行を推奨する。
->
-> **2026-10-23 に顕在化した**: DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202）を返し、検索結果を取得できなくなった。ブラウザの User-Agent・POST・lite 版でも同じだった。確認ページは拒否のエラーとして返すようにした（#151）。検索の手段の切り替え（SearXNG）は #151 の続きで扱う。
+- 同じ時点で SearXNG 経由の検索は 20〜27 件を 0.7〜1.8 秒で返した。DuckDuckGo（CAPTCHA）・Brave（too many requests）が応答しなくても、Google CSE 等の結果で補えた。
+- **SearXNG の構成**（`docker-compose.yml` の `searxng` サービス・`searxng/settings.yml`）:
+  - イメージはタグで固定する（`searxng/searxng:2026.10.2-a5659a536`）。
+  - `127.0.0.1:8888` だけで待ち受ける（同時アクセスの制限 `limiter` を止めているため、PC の外へ公開しない）。
+  - `search.formats` に `json` を加える（既定は `html` だけで、`format=json` は 403 になる）。
+  - `server.secret_key` が既定値のままだと起動しないため、`SEARXNG_SECRET` が空なら**起動ごとにランダムな鍵を作る**（Cookie 等の署名にしか使わず、ローカルでは起動ごとに変わっても困らない。リポジトリにも `.env` にも秘密を置かない）。
+
+**0 件と失敗の区別**: SearXNG の応答の `unresponsive_engines`（応答しなかった検索エンジンと理由）を見る。結果が 0 件で応答しなかった検索エンジンがあれば、0 件ではなく失敗（エンジン名つき）として返す。すべて応答したうえでの 0 件だけを「見つかりませんでした」とする（0 件と伝えるとモデルは言い換えた再検索を繰り返すため）。
 
 **リトライ条件**:
 
@@ -452,9 +454,10 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 | ネットワークエラー・接続タイムアウト | ✅ 最大2回（1秒間隔） | 一時的な障害の可能性 |
 | HTTP 5xx（サーバーエラー） | ✅ 最大2回（1秒間隔） | サービス一時障害の可能性 |
 | HTTP 429（レートリミット） | ✅ 最大2回（Exponential Backoff: 2秒 → 4秒） | 時間を置けば回復する可能性 |
+| 接続の拒否（`ECONNREFUSED`。SearXNG が起動していない） | ❌ リトライしない。`docker compose up -d` で起動するよう伝える | 起動するまで変わらない |
+| HTTP 403（JSON の API が無効） | ❌ リトライしない。`searxng/settings.yml` の `search.formats` を確かめるよう伝える | 設定の誤りのため |
 | HTTP 4xx（Bad Request 等） | ❌ リトライしない | クエリや設定の問題のためリトライしても無意味 |
-| パースエラー（HTML 構造変化等） | ❌ リトライしない | リトライしても同じ結果になる |
-| ボット判定の確認ページ（HTTP 202、本文に `anomaly-modal` / `challenge-form` / `anomaly.js`） | ❌ リトライしない。0 件ではなく**拒否のエラー**を返す | 同じ IP からは時間をおくまで拒否が続く。0 件として返すと、モデルが言い換えた検索を繰り返す（#151） |
+| 応答の形が違う（JSON でない・`results` が無い） | ❌ リトライしない | リトライしても同じ結果になる |
 
 #### 4. url_fetch（URL取得）
 
@@ -797,6 +800,7 @@ Phase C では `agent-prompts.ts` に4種のプリセットを定義。設定モ
 | `AGENT_ENABLED` | エージェント機能の有効化 | `true` | A |
 | `AGENT_MAX_TOOL_ROUNDS` | ツール呼び出しの最大ラウンド数 | `10` | A |
 | `AGENT_TOOL_TIMEOUT_MS` | 各ツール実行のタイムアウト（ms） | `30000` | A |
+| `SEARXNG_URL` | `web_search` が問い合わせる SearXNG の接続先 | `http://localhost:8888` | B |
 
 **設定値の設計意図:**
 

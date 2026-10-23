@@ -1,0 +1,18 @@
+# SearXNG の設定（web_search ツールの検索エンジン。#151）。
+# 既定の設定を引き継ぎ、ローカルで 1 人が使うための差分だけを書く。
+# 項目の意味: https://docs.searxng.org/admin/settings/index.html
+use_default_settings: true
+
+server:
+  # 同時アクセスの制限。インターネットに公開するインスタンス向けの機能で、
+  # docker-compose.yml で 127.0.0.1 だけに公開するローカル利用では要らない
+  limiter: false
+  # 画像の中継。web_search は画像を使わない
+  image_proxy: false
+
+search:
+  # JSON の API を有効にする（既定は html だけで、format=json は 403 になる）。
+  # html は、ブラウザで http://localhost:8888 を開いて動作を確かめるために残す
+  formats:
+    - html
+    - json

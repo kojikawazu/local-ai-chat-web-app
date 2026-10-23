@@ -22,3 +22,8 @@ globs:
 - **`.gitignore` だけに頼らない**: `.gitignore` は未追跡ファイルにしか効かない。追跡された秘匿ファイルは CI の Secret scan（`.github/workflows/secret-scan.yml`）で検出して落とす。検出対象・除外は同ワークフローが唯一の真実
 - **混入したらローテーション**: push 済みのファイルは追跡を外しても履歴に残るため、含まれる鍵・トークンを必ずローテーションする（履歴の書き換えでは対処にならない）
 - テンプレート（`.env.example` 等）を追加する場合は、Secret scan の除外に当たる名前（`.example` / `.sample` / `.template` / `.dist`）にする
+
+## ローカルの補助サービス（Docker）
+
+- `docker-compose.yml` のサービスのうち、アプリだけが使うもの（SearXNG 等）は **`127.0.0.1` だけに公開する**。特に、同時アクセスの制限を止めたサービスを外へ公開しない
+- サービスの秘密鍵が要る場合は、リポジトリにも `.env` にも置かず、起動時に生成するなどして渡す（SearXNG の `SEARXNG_SECRET` の扱い。`docs/05-security.md` 参照）

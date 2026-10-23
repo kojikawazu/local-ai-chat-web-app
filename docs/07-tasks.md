@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-23
+> 最終更新: 2026-10-24
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -886,4 +886,9 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 
 - [x] 確認ページを 0 件ではなく拒否のエラーとして返し、リトライしない（`isBotChallenge`。HTTP 202・確認ページの目印で判定。エラー文で言い換えた再検索を止める）
   - [x] UT `web-search.test.ts`（確認ページ・検索結果・0 件の区別）・IT `chat-agent.test.ts`（202 の確認ページで拒否のエラー・1 回で諦める）
-- [ ] 検索の手段を SearXNG（ローカルの Docker）に切り替える（設計をレビューしてから実装する）
+- [x] 検索の手段を SearXNG（ローカルの Docker）に切り替え、DuckDuckGo への直接の問い合わせを削除する
+  - [x] `docker-compose.yml` に `searxng` サービスを追加（タグ固定・`127.0.0.1:8888` のみ公開・秘密鍵は起動ごとに生成）、`searxng/settings.yml` で JSON API を有効化
+  - [x] `web-search.ts` を SearXNG の JSON API に切り替え（`SEARXNG_URL`）。0 件と失敗（応答しない検索エンジン）を区別し、未起動・403 はリトライせず直し方を返す
+  - [x] UT `web-search.test.ts`（整形・0 件と失敗の区別・不正な形）・IT `chat-agent.test.ts`（JSON API の呼び出し・未起動・403・応答しない検索エンジン）
+  - [x] 実際の SearXNG でエージェントの検索から回答まで動くこと、SearXNG の停止時に起動の手順が返ることを確認
+  - [x] `CLAUDE.md`・`README.md`・`README.en.md`・`front/.env.example`・`Makefile`・`docs/02`・`docs/05`・`docs/06`・`docs/09`・`.claude/rules/security.md`・`.claude/rules/testing.md`・`manuals/setup-guide-macos.md` を同期

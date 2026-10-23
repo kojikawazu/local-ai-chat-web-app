@@ -28,6 +28,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
+| Web検索 | SearXNG（Docker Compose。`web_search` ツールの検索エンジン） |
 | ORM | Prisma 7（クライアント出力先: `src/generated/prisma/`） |
 | ユニットテスト | Vitest（純ロジック対象） |
 | インテグレーションテスト | Vitest + Testcontainers（実PostgreSQL） |
@@ -79,7 +80,7 @@ E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、
 ### DB関連
 
 ```bash
-docker compose up -d                    # PostgreSQL起動（プロジェクトルートで実行）
+docker compose up -d                    # PostgreSQL・SearXNG起動（プロジェクトルートで実行）
 cd front && pnpm prisma migrate dev     # マイグレーション実行
 cd front && pnpm prisma studio          # Prisma Studio（DBブラウザ）
 cd front && pnpm prisma generate        # Prismaクライアント再生成
@@ -96,6 +97,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
+| `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 
 ## 開発手法
 
@@ -107,7 +109,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 ```
 ブラウザ → Next.js Route Handlers → Ollama API (localhost:11434)
-                                  → Agent Loop → Tool Executor（ツール実行）
+                                  → Agent Loop → Tool Executor（ツール実行）→ SearXNG (Docker・Web検索)
                                   → Prisma ORM → PostgreSQL (Docker)
 ```
 
@@ -147,7 +149,8 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
-- **`docker-compose.yml`** — PostgreSQLコンテナ定義（プロジェクトルート）
+- **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）のコンテナ定義（プロジェクトルート）
+- **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化等。`docker-compose.yml` がマウントする）
 
 ### front/src/ ソースコード構成（ハイブリッド方式）
 

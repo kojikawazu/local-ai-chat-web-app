@@ -19,7 +19,7 @@ import {
 /**
  * `/api/chat`（エージェント経路・`url_fetch` / `web_search`）の IT。
  *
- * 真の外部である Ollama と取得先 Web サーバー（任意 URL・DuckDuckGo）を fetch スタブで
+ * 真の外部である Ollama と取得先 Web サーバー（任意 URL・SearXNG）を fetch スタブで
  * 差し替え、「Ollama がツールを要求 → ツールが外部を取得 → 結果を NDJSON の
  * tool_call_result で返す」配線を決定的に検証する。E2E では実 LLM がツールを
  * 呼ぶかが非決定的なため、ツール結果の中身（サイズ超過・タイムアウト・SSRF）の
@@ -91,12 +91,12 @@ function ollamaToolCallResponse(call: ToolCallSpec): Response {
  * Ollama への 1 回目はツール呼び出し、2 回目以降は最終回答のテキストを返す。
  *
  * @param call - LLM が要求するツール呼び出し
- * @param target - 取得先への fetch に返すレスポンス（init から signal を観測できる）
+ * @param target - 取得先への fetch に返すレスポンス（init から signal を、requested から要求先の URL を観測できる）
  * @returns スタブした fetch のモック関数
  */
 function stubAgentFetch(
   call: ToolCallSpec,
-  target: (init?: RequestInit) => Response
+  target: (init: RequestInit | undefined, requested: string) => Response
 ) {
   let ollamaCalls = 0;
   return stubFetch((requested, init) => {
@@ -106,7 +106,7 @@ function stubAgentFetch(
         ? ollamaToolCallResponse(call)
         : ollamaStreamResponse(['完了']);
     }
-    return target(init);
+    return target(init, requested);
   });
 }
 
@@ -186,6 +186,50 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       });
       expect(events.at(-1)?.type).toBe('done');
     });
+
+    it('web_search は SearXNG の JSON API に問い合わせ、結果を一覧にして返す', async () => {
+      // 要求先の URL を検証するため、stubAgentFetch が渡す引数の型を mock.calls に持たせる
+      const search = vi.fn<
+        (init: RequestInit | undefined, requested: string) => Response
+      >(
+        () =>
+          new Response(
+            JSON.stringify({
+              results: [
+                {
+                  title: 'Next.js 16',
+                  url: 'https://nextjs.org/blog/next-16',
+                  content: 'Next.js 16 is now available.',
+                },
+              ],
+              unresponsive_engines: [['duckduckgo', 'CAPTCHA']],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      );
+      stubAgentFetch(webSearchCall('Next.js 16'), search);
+
+      const events = await runAgent();
+
+      expect(toolResultOf(events, 'web_search')).toMatchObject({
+        result: [
+          '"Next.js 16" の検索結果 (上位1件):\n',
+          '[1] Next.js 16',
+          '    URL: https://nextjs.org/blog/next-16',
+          '    Next.js 16 is now available.',
+          '',
+        ].join('\n'),
+        isError: false,
+      });
+      // 接続先は SEARXNG_URL の既定値。JSON の API をクエリ付きで呼ぶ
+      // このファイルの URL 定数（/api/chat の URL）が組み込みの URL を隠しているため globalThis から使う
+      const requested = new globalThis.URL(search.mock.calls[0][1]);
+      expect(requested.origin + requested.pathname).toBe(
+        'http://localhost:8888/search'
+      );
+      expect(requested.searchParams.get('q')).toBe('Next.js 16');
+      expect(requested.searchParams.get('format')).toBe('json');
+    });
   });
 
   describe('準正常系', () => {
@@ -231,32 +275,66 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       const events = await runAgent();
 
       expect(toolResultOf(events, 'web_search').result).toBe(
-        'エラー: 検索結果ページが大きすぎます（1MB 超）'
+        'エラー: 検索結果が大きすぎます（1MB 超）'
       );
       expect(observed.cancelled).toBe(true);
       // サイズ超過は再試行しても同じ結果になるため 1 回で諦める
       expect(search).toHaveBeenCalledTimes(1);
     });
 
-    it('web_search は DuckDuckGo の確認ページ（HTTP 202）を 0 件ではなく拒否として返し、リトライしない', async () => {
-      const search = vi.fn(
-        () =>
-          new Response(
-            '<form id="challenge-form" action="//duckduckgo.com/anomaly.js?sv=html"></form>',
-            { status: 202, headers: { 'content-type': 'text/html' } }
-          )
-      );
+    it('web_search は SearXNG に接続できなければ、起動の手順を返してリトライしない', async () => {
+      const search = vi.fn(() => {
+        // Node の fetch（undici）が接続を拒否されたときに投げる形
+        throw new TypeError('fetch failed', {
+          cause: Object.assign(
+            new Error('connect ECONNREFUSED 127.0.0.1:8888'),
+            {
+              code: 'ECONNREFUSED',
+            }
+          ),
+        });
+      });
       stubAgentFetch(webSearchCall('php 2025'), search);
 
       const events = await runAgent();
 
-      const { result } = toolResultOf(events, 'web_search');
-      expect(result).toMatch(
-        /^エラー: Web検索サービス（DuckDuckGo）に自動アクセスと判定され、検索を拒否されました。/
+      expect(toolResultOf(events, 'web_search').result).toBe(
+        'エラー: SearXNG（http://localhost:8888）に接続できません。プロジェクトのルートで `docker compose up -d` を実行して起動してください。起動するまで、検索し直しても結果は得られません。'
       );
-      expect(result).not.toContain('検索結果が見つかりませんでした');
-      // 確認ページは同じ IP からは再試行しても変わらないため 1 回で諦める
+      // 起動していなければ再試行しても変わらないため 1 回で諦める
       expect(search).toHaveBeenCalledTimes(1);
+    });
+
+    it('web_search は SearXNG の JSON の API が無効（403）なら、設定の直し方を返してリトライしない', async () => {
+      const search = vi.fn(() => new Response('Forbidden', { status: 403 }));
+      stubAgentFetch(webSearchCall('php 2025'), search);
+
+      const events = await runAgent();
+
+      expect(toolResultOf(events, 'web_search').result).toBe(
+        'エラー: SearXNG が JSON の応答を返しません（HTTP 403）。searxng/settings.yml の search.formats に json があるか確認してください。'
+      );
+      expect(search).toHaveBeenCalledTimes(1);
+    });
+
+    it('web_search は 0 件で検索エンジンが応答しなかったとき、0 件ではなく失敗として返す', async () => {
+      stubAgentFetch(
+        webSearchCall('php 2025'),
+        () =>
+          new Response(
+            JSON.stringify({
+              results: [],
+              unresponsive_engines: [['duckduckgo', 'CAPTCHA']],
+            }),
+            { status: 200 }
+          )
+      );
+
+      const events = await runAgent();
+
+      expect(toolResultOf(events, 'web_search').result).toBe(
+        'エラー: "php 2025" の検索で、検索エンジンが応答しませんでした（duckduckgo）。しばらく時間をおいてから検索し直してください。'
+      );
     });
 
     it.each([
