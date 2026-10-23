@@ -1,12 +1,13 @@
 import type { Tool } from './types';
+import { toolError } from './output';
 
 /**
  * 数式を計算して結果を返すエージェントツール。
  *
  * 引数 `expression` に四則演算・括弧・単項マイナスを含む計算式を受け取り、
  * 自前の再帰下降パーサーで安全に評価する（`eval` は使わない）。許可文字以外の
- * 混入・ゼロ除算・不正な形式はエラー文字列として返す。返り値は
- * `"式 = 結果"` 形式の文字列で、実行時に例外は投げず全てを文字列で返す。
+ * 混入・ゼロ除算・不正な形式は `isError: true` で返す。結果の文章は
+ * `"式 = 結果"` 形式で、見出しの要約は `"= 結果"`。実行時に例外は投げない。
  */
 export const calculateTool: Tool = {
   definition: {
@@ -28,27 +29,33 @@ export const calculateTool: Tool = {
       typeof args.expression === 'string' ? args.expression : '';
 
     if (!expression.trim()) {
-      return 'エラー: 計算式が空です';
+      return toolError('計算式が空です');
     }
 
     // 前処理: 許可する文字のみかチェック（数字、四則演算子、括弧、小数点、空白）
     if (!/^[\d\s+\-*/().]+$/.test(expression)) {
-      return 'エラー: 使用できない文字が含まれています。数字と四則演算子(+ - * /)と括弧のみ使用できます';
+      return toolError(
+        '使用できない文字が含まれています。数字と四則演算子(+ - * /)と括弧のみ使用できます'
+      );
     }
 
     try {
       const result = parseExpression(expression.replace(/\s/g, ''));
       if (!isFinite(result)) {
-        return 'エラー: 計算結果が不正です（ゼロ除算等）';
+        return toolError('計算結果が不正です（ゼロ除算等）');
       }
       // 浮動小数点の誤差を考慮して適切な精度で返す
       const formatted = Number.isInteger(result)
         ? String(result)
         : String(parseFloat(result.toPrecision(12)));
-      return `${expression.trim()} = ${formatted}`;
+      return {
+        result: `${expression.trim()} = ${formatted}`,
+        isError: false,
+        summary: `= ${formatted}`,
+      };
     } catch (e) {
       const msg = e instanceof Error ? e.message : '不明なエラー';
-      return `エラー: ${msg}`;
+      return toolError(msg);
     }
   },
 };

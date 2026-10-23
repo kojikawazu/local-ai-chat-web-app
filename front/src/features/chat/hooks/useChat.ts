@@ -424,6 +424,8 @@ export function useChat({
                     arguments: resolvedArgs,
                     result: event.result,
                     isError: event.isError,
+                    summary: event.summary,
+                    isEmpty: event.isEmpty,
                     durationMs: 0,
                   };
                   toolCallRecords.push(record);
@@ -440,6 +442,8 @@ export function useChat({
                           ...toolCalls[idx],
                           result: event.result,
                           isError: event.isError,
+                          summary: event.summary,
+                          isEmpty: event.isEmpty,
                         };
                       }
                       return {

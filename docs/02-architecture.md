@@ -154,6 +154,7 @@ front/src/
 │   └── tools/                 #   ツール実装
 │       ├── types.ts           #     ツール関連型定義
 │       ├── index.ts           #     ツールレジストリ（register/get/execute）
+│       ├── output.ts          #     ツールの実行結果の組み立て（失敗の toolError）
 │       ├── registry.ts        #     ツール登録の初期化（initializeTools）
 │       ├── get-current-datetime.ts # 現在日時取得ツール
 │       ├── calculate.ts       #     数式計算ツール
@@ -201,6 +202,7 @@ front/tests/
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
+    ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```

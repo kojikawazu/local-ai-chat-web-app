@@ -154,6 +154,11 @@ describe('機能名', () => {
 - 準正常系: ツール呼び出しが無く思考過程だけの応答も復元される
 - 異常系: metadata の不正な項目は表示せず、残りの項目と本文は表示する
 
+**ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
+- 正常系: 検索の件数が見出しに ✅ とともに出る
+- 準正常系: 0 件は ✅ ではなく ⚠️ で出る。要約を持たない古いデータは、これまでどおり成否と所要時間だけを出す
+- 異常系: 失敗は ❌ と理由が出て、長い理由の全文はツールチップで読める。展開すると結果の全文がエラーとして出る
+
 ### ストリーミング表示
 
 **正常系**
@@ -346,12 +351,13 @@ front/tests/
 │   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限）
 │   ├── conversation-history.test.ts # 会話履歴の組み立て（失敗した user の除外・件数／長さの上限）
 │   ├── regenerate.test.ts        # 再生成できる応答の判定（最後・保存済み）と送り直す質問・履歴
-│   ├── calculate.test.ts         # calculateTool 式評価パーサー
+│   ├── calculate.test.ts         # calculateTool 式評価パーサー・要約・失敗の isError
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
-│   ├── web-search.test.ts        # SearXNG の応答の整形（上位 5 件・0 件と失敗の区別・不正な形）
+│   ├── web-search.test.ts        # SearXNG の応答の整形（上位 5 件・0 件と失敗の区別・不正な形・件数の要約）
+│   ├── url-fetch.test.ts         # 取得した本文の整形（文字数の要約・5,000 文字での省略・本文なし）
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 │   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
-│   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
+│   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果を含む）
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
@@ -367,7 +373,7 @@ front/tests/
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
 │   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
-│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン）
+│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
@@ -396,6 +402,7 @@ front/tests/
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
     ├── agent-metadata.spec.ts    # エージェント応答の付随情報（思考過程・ツール結果・ラウンド数・所要時間）の復元
+    ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件の ⚠️・失敗の ❌ と理由・要約なしの古いデータ）
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```

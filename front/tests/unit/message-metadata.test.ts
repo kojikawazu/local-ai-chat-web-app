@@ -95,6 +95,21 @@ describe('parseMessageMetadata', () => {
       expect(parseMessageMetadata(saved)).toEqual(saved);
     });
 
+    it('ツール呼び出しの要約・空の結果・失敗を復元する（#150）', () => {
+      const toolCalls = [
+        { ...TOOL_CALL, name: 'web_search', summary: '5 件' },
+        { ...TOOL_CALL, name: 'web_search', summary: '0 件', isEmpty: true },
+        {
+          ...TOOL_CALL,
+          name: 'url_fetch',
+          result: 'エラー: HTTP 404 Not Found',
+          isError: true,
+          summary: 'HTTP 404 Not Found',
+        },
+      ];
+      expect(parseMessageMetadata({ toolCalls })).toEqual({ toolCalls });
+    });
+
     it('中断マークを復元する（#8）', () => {
       expect(
         parseMessageMetadata({ thinkingText: '考えた', interrupted: true })
@@ -136,6 +151,18 @@ describe('parseMessageMetadata', () => {
       expect(
         parseMessageMetadata({ thinkingText: '考えた', interrupted: 'true' })
       ).toEqual({ thinkingText: '考えた' });
+    });
+
+    it('要約が空・文字列でない、空の結果が true でないなら、その項目だけを捨てる（#150）', () => {
+      expect(
+        parseMessageMetadata({
+          toolCalls: [
+            { ...TOOL_CALL, summary: '' },
+            { ...TOOL_CALL, summary: 5, isEmpty: 'true' },
+            { ...TOOL_CALL, isEmpty: false },
+          ],
+        })
+      ).toEqual({ toolCalls: [TOOL_CALL, TOOL_CALL, TOOL_CALL] });
     });
 
     it('ツール呼び出しのうち名前か結果が文字列でないものだけを捨てる', () => {

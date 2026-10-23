@@ -38,19 +38,30 @@ function isPositiveInteger(value: unknown): value is number {
  *
  * ツール名と結果が文字列なら有効とし、欠けた項目は既定値で補う（引数 `{}`・成功・所要時間 0）。
  * 項目が揃っていない古いデータでも、表示に必要な名前と結果があれば復元するため。
+ * 要約（`summary`）と空の結果（`isEmpty`）は型が合うときだけ含める（#150 より前のデータは持たない）。
  *
  * @param value - 保存済みのツール呼び出し（外部入力）
  * @returns 復元したツール呼び出し。名前か結果が文字列でなければ `null`
  */
 function parseToolCall(value: unknown): ToolCallInfo | null {
   if (!isRecord(value)) return null;
-  const { name, result, arguments: args, isError, durationMs } = value;
+  const {
+    name,
+    result,
+    arguments: args,
+    isError,
+    summary,
+    isEmpty,
+    durationMs,
+  } = value;
   if (typeof name !== 'string' || typeof result !== 'string') return null;
   return {
     name,
     result,
     arguments: isRecord(args) ? args : {},
     isError: typeof isError === 'boolean' ? isError : false,
+    ...(typeof summary === 'string' && summary && { summary }),
+    ...(isEmpty === true && { isEmpty: true }),
     durationMs: isNonNegativeNumber(durationMs) ? durationMs : 0,
   };
 }

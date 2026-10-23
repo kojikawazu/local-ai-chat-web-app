@@ -320,7 +320,7 @@ Content-Type: application/x-ndjson
 
 {"type":"text_delta","content":"調べてみますね。"}
 {"type":"tool_call_start","name":"web_search","arguments":{"query":"Rust async"}}
-{"type":"tool_call_result","name":"web_search","result":"...検索結果...","isError":false}
+{"type":"tool_call_result","name":"web_search","result":"...検索結果...","isError":false,"summary":"5 件"}
 {"type":"text_delta","content":"Rustの非同期処理は..."}
 {"type":"done","metadata":{"toolCalls":[...]}}
 ```
@@ -331,8 +331,8 @@ Content-Type: application/x-ndjson
 |------|-----------|------|-------|
 | `text_delta` | `content: string` | テキスト差分（1チャンク分） | A |
 | `tool_call_start` | `name: string`, `arguments: object` | ツール呼び出し開始 | A |
-| `tool_call_result` | `name: string`, `result: string`, `isError: boolean` | ツール実行結果 | A |
-| `done` | `metadata?: { toolCalls: ToolCallRecord[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
+| `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150） | A |
+| `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
 | `error` | `message: string` | エラー発生 | A |
 | `thinking` | `content: string` | エージェントの思考過程 | C |
 
@@ -369,9 +369,28 @@ interface ToolDefinition {
 
 interface Tool {
   definition: ToolDefinition;
-  execute: (args: Record<string, unknown>) => Promise<string>;
+  execute: (args: Record<string, unknown>, signal: AbortSignal) => Promise<ToolOutput>;
 }
+
+// ツールの実行結果（#150）
+type ToolOutput = {
+  result: string;     // モデルへ返す文章。失敗は "エラー: <理由>"
+  isError: boolean;   // 失敗なら true（画面に ❌）
+  summary?: string;   // 結果パネルの見出しに出す要約
+  isEmpty?: boolean;  // 成功だが結果が空（画面に ⚠️）
+};
 ```
+
+**失敗は例外ではなく `isError: true` で返す（#150）。** モデルは `result` の文章で失敗を理解し、画面は `isError` で成否を出す。失敗の結果は `lib/tools/output.ts` の `toolError(理由)` で作る（文章は `"エラー: <理由>"`、要約は理由）。`runTool` が `isError: true` にするのは例外（タイムアウト・未登録のツール）だけで、このときも理由を要約にする。成否を文章の先頭（`エラー: `）で判定しないのは、取得したページの本文がたまたまそう始まるだけで失敗と誤判定するため。
+
+| ツール | 要約（成功） | 空の結果（`isEmpty`） | 失敗（`isError`） |
+|---|---|---|---|
+| `web_search` | `5 件` | `0 件`（すべての検索エンジンが応答したうえでの 0 件） | 理由（応答しない検索エンジン・未起動・403 等） |
+| `url_fetch` | `3,214 文字` / `12,345 文字（5,000 文字に省略）` | `本文なし` | 理由（SSRF・HTTP エラー・サイズ超過等） |
+| `calculate` | `= 14` | — | 理由（ゼロ除算・不正な文字等） |
+| `get_current_datetime` | 取得した日時 | — | —（不正なタイムゾーンは UTC で返す） |
+
+結果パネル（`ToolCallResult`）の見出しは、失敗 ❌・空の結果 ⚠️・それ以外 ✅ のアイコンに要約を添える。失敗の理由は赤字の 1 行に収め、全文はツールチップ（`title`）で見せる。要約は `tool_call_result` と `done` の `toolCalls` に載り、そのまま metadata に保存されるため、会話を開き直しても同じ見出しになる。
 
 ### ツールレジストリ
 
@@ -382,7 +401,7 @@ const toolRegistry: Map<string, Tool> = new Map();
 function registerTool(tool: Tool): void;
 function getTool(name: string): Tool | undefined;
 function getAllToolDefinitions(): OllamaToolDefinition[];
-function executeTool(name: string, args: Record<string, unknown>): Promise<string>;
+function executeTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolOutput>;
 ```
 
 ---
@@ -585,13 +604,15 @@ model Message {
       "arguments": { "timezone": "Asia/Tokyo" },
       "result": "2026-04-02T15:30:00+09:00",
       "isError": false,
+      "summary": "2026-04-02T15:30:00+09:00",
       "durationMs": 5
     },
     {
       "name": "web_search",
       "arguments": { "query": "天気 東京" },
-      "result": "[{\"title\":\"...\",\"url\":\"...\",\"snippet\":\"...\"}]",
+      "result": "\"天気 東京\" の検索結果 (上位5件):\n...",
       "isError": false,
+      "summary": "5 件",
       "durationMs": 1200
     }
   ]
@@ -659,21 +680,15 @@ export interface OllamaToolCall {
   };
 }
 
-// ツール実行記録
-export interface ToolCallRecord {
-  name: string;
-  arguments: Record<string, unknown>;
-  result: string;
-  isError: boolean;
-  durationMs: number;
-}
+// ツールの実行結果（#150）。ツール実行記録は types/index.ts の ToolCallInfo に一本化した
+export type ToolOutput = Pick<ToolCallInfo, 'result' | 'isError' | 'summary' | 'isEmpty'>;
 
 // クライアント向けストリーミングイベント
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'tool_call_start'; name: string; arguments: Record<string, unknown> }
-  | { type: 'tool_call_result'; name: string; result: string; isError: boolean }
-  | { type: 'done'; metadata?: { toolCalls: ToolCallRecord[]; agentRounds?: number; agentDurationMs?: number } }
+  | ({ type: 'tool_call_result'; name: string } & ToolOutput)
+  | { type: 'done'; metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number } }
   | { type: 'error'; message: string }
   | { type: 'thinking'; content: string };  // Phase C
 ```
@@ -681,13 +696,15 @@ export type AgentStreamEvent =
 ### フロントエンド型（types/index.ts 拡張）
 
 ```typescript
-export interface ToolCallInfo {
+export type ToolCallInfo = {
   name: string;
   arguments: Record<string, unknown>;
-  result: string;
+  result: string;          // モデルへ返した文章
   isError: boolean;
+  summary?: string;        // 見出しの要約（#150。古いデータは持たない）
+  isEmpty?: boolean;       // 成功だが結果が空（#150）
   durationMs: number;
-}
+};
 
 export interface Message {
   id: string;

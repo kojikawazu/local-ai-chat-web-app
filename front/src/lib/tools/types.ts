@@ -1,3 +1,5 @@
+import type { ToolCallInfo } from '@/types';
+
 /**
  * Ollama API の function calling へ渡すツール定義。
  *
@@ -51,20 +53,16 @@ export interface OllamaToolCall {
 }
 
 /**
- * ツール実行の記録。DB の `metadata.toolCalls` に保存され、後から実行履歴を再現するのに使う。
+ * ツールの実行結果。モデルへ返す文章と、画面に出す成否・要約を分けて持つ（#150）。
+ *
+ * 失敗も例外ではなくこの形で返す。モデルは `result` の文章で失敗を理解し、
+ * 画面は `isError` で ❌ を出す（文章の先頭が「エラー: 」かで判定すると、
+ * 取得したページの本文がたまたまそう始まるだけで失敗と誤判定するため）。
  */
-export interface ToolCallRecord {
-  /** 実行したツール名 */
-  name: string;
-  /** 実行時に渡した引数 */
-  arguments: Record<string, unknown>;
-  /** ツールが返した結果文字列 */
-  result: string;
-  /** 実行がエラーで終わったか */
-  isError: boolean;
-  /** 実行に要した時間（ミリ秒） */
-  durationMs: number;
-}
+export type ToolOutput = Pick<
+  ToolCallInfo,
+  'result' | 'isError' | 'summary' | 'isEmpty'
+>;
 
 /**
  * エージェント実行中にサーバーからクライアントへ送るストリーミングイベント（NDJSON 1 行 = 1 イベント）。
@@ -72,7 +70,7 @@ export interface ToolCallRecord {
  * 各バリアントの意味:
  * - `text_delta`: LLM 応答テキストの増分。逐次的に画面へ追記する。
  * - `tool_call_start`: ツール実行の開始通知。どのツールをどの引数で呼ぶかを含む。
- * - `tool_call_result`: ツール実行の完了通知。結果文字列とエラー有無を含む。
+ * - `tool_call_result`: ツール実行の完了通知。結果文字列・エラー有無・要約を含む。
  * - `done`: エージェントループ完了。ツール呼び出し履歴・ラウンド数・総所要時間を含みうる。
  * - `error`: 処理中に発生したエラー内容。
  * - `thinking`: LLM の思考過程テキスト（Phase C で追加）。
@@ -84,11 +82,11 @@ export type AgentStreamEvent =
       name: string;
       arguments: Record<string, unknown>;
     }
-  | { type: 'tool_call_result'; name: string; result: string; isError: boolean }
+  | ({ type: 'tool_call_result'; name: string } & ToolOutput)
   | {
       type: 'done';
       metadata?: {
-        toolCalls: ToolCallRecord[];
+        toolCalls: ToolCallInfo[];
         agentRounds?: number;
         agentDurationMs?: number;
       };
@@ -142,10 +140,10 @@ export type Tool = {
    *
    * @param args - LLM から渡された引数（キー→値のマップ）
    * @param signal - エージェントのツールタイムアウトで中断される signal
-   * @returns 実行結果を表す文字列（エラー時もエラー内容を文字列で返す）
+   * @returns 実行結果。失敗も例外にせず `isError: true` で返す（`output.ts` の `toolError`）
    */
   execute: (
     args: Record<string, unknown>,
     signal: AbortSignal
-  ) => Promise<string>;
+  ) => Promise<ToolOutput>;
 };
