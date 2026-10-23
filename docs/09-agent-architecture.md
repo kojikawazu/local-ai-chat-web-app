@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-22
+> 最終更新: 2026-10-23
 
 ## 目次
 
@@ -442,6 +442,8 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 > `html.duckduckgo.com/html/` は非公式エンドポイントであり、HTML 内の CSS クラス名（`result__a`・`result__snippet`）が変更された場合、検索結果をサイレントに取得できなくなるリスクがある。
 > 正規 JSON API（`api.duckduckgo.com/?format=json`）は安定しているが返せる情報量が限られる。
 > 安定性問題が顕在化した場合は SearXNG への移行を推奨する。
+>
+> **2026-10-23 に顕在化した**: DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202）を返し、検索結果を取得できなくなった。ブラウザの User-Agent・POST・lite 版でも同じだった。確認ページは拒否のエラーとして返すようにした（#151）。検索の手段の切り替え（SearXNG）は #151 の続きで扱う。
 
 **リトライ条件**:
 
@@ -452,6 +454,7 @@ function executeTool(name: string, args: Record<string, unknown>): Promise<strin
 | HTTP 429（レートリミット） | ✅ 最大2回（Exponential Backoff: 2秒 → 4秒） | 時間を置けば回復する可能性 |
 | HTTP 4xx（Bad Request 等） | ❌ リトライしない | クエリや設定の問題のためリトライしても無意味 |
 | パースエラー（HTML 構造変化等） | ❌ リトライしない | リトライしても同じ結果になる |
+| ボット判定の確認ページ（HTTP 202、本文に `anomaly-modal` / `challenge-form` / `anomaly.js`） | ❌ リトライしない。0 件ではなく**拒否のエラー**を返す | 同じ IP からは時間をおくまで拒否が続く。0 件として返すと、モデルが言い換えた検索を繰り返す（#151） |
 
 #### 4. url_fetch（URL取得）
 

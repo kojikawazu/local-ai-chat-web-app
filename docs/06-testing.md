@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-22
+> 最終更新: 2026-10-23
 
 ## 目次
 
@@ -348,6 +348,7 @@ front/tests/
 │   ├── regenerate.test.ts        # 再生成できる応答の判定（最後・保存済み）と送り直す質問・履歴
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー
 │   ├── read-body.test.ts         # 本文のバイト上限付きストリーム読み取り・中断
+│   ├── web-search.test.ts        # 検索の応答がボット判定の確認ページか（0 件との区別）
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 │   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
@@ -365,7 +366,7 @@ front/tests/
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
 │   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
-│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止）
+│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・確認ページの拒否）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）

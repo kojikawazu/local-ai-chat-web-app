@@ -238,6 +238,27 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       expect(search).toHaveBeenCalledTimes(1);
     });
 
+    it('web_search は DuckDuckGo の確認ページ（HTTP 202）を 0 件ではなく拒否として返し、リトライしない', async () => {
+      const search = vi.fn(
+        () =>
+          new Response(
+            '<form id="challenge-form" action="//duckduckgo.com/anomaly.js?sv=html"></form>',
+            { status: 202, headers: { 'content-type': 'text/html' } }
+          )
+      );
+      stubAgentFetch(webSearchCall('php 2025'), search);
+
+      const events = await runAgent();
+
+      const { result } = toolResultOf(events, 'web_search');
+      expect(result).toMatch(
+        /^エラー: Web検索サービス（DuckDuckGo）に自動アクセスと判定され、検索を拒否されました。/
+      );
+      expect(result).not.toContain('検索結果が見つかりませんでした');
+      // 確認ページは同じ IP からは再試行しても変わらないため 1 回で諦める
+      expect(search).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
       ['プライベート IP', 'http://192.168.1.1/'],
       ['localhost', 'http://localhost:3000/'],
