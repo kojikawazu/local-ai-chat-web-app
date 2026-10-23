@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-22
+> 最終更新: 2026-10-24
 
 ## 目次
 
@@ -31,12 +31,14 @@
     ↓ fetch (streaming)
 Next.js Route Handlers (API層)
     ├──→ Prisma ORM ──→ PostgreSQL (Docker)
-    └──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
+    ├──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
+    └──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
 ```
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
+- Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
 
 ## ディレクトリ構成
 
@@ -71,7 +73,8 @@ local-ai-chat-web-app/
 │   ├── playwright.config.ts   #   Playwright設定
 │   ├── package.json
 │   └── pnpm-lock.yaml
-├── docker-compose.yml         # PostgreSQLコンテナ定義
+├── docker-compose.yml         # PostgreSQL・SearXNG のコンテナ定義
+├── searxng/settings.yml       # SearXNG の設定（JSON API の有効化等）
 ├── CLAUDE.md
 └── README.md
 ```
@@ -153,7 +156,7 @@ front/src/
 │       ├── registry.ts        #     ツール登録の初期化（initializeTools）
 │       ├── get-current-datetime.ts # 現在日時取得ツール
 │       ├── calculate.ts       #     数式計算ツール
-│       ├── web-search.ts      #     Web検索ツール（DuckDuckGo）
+│       ├── web-search.ts      #     Web検索ツール（SearXNG）
 │       ├── url-fetch.ts       #     URL取得ツール（SSRF防止）
 │       └── read-body.ts       #     本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
 └── types/
@@ -306,6 +309,7 @@ model Message {
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
+| `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 
 ## 状態管理
 

@@ -5,85 +5,115 @@ const MAX_RESULTS = 5;
 const MAX_CHARS = 3000;
 // 1 回の試行（ヘッダー受信から本文の読了まで）の期限（ミリ秒）
 const SEARCH_TIMEOUT_MS = 10000;
-// 1 MiB: 検索結果ページの受信バイト数の上限。DuckDuckGo の結果 HTML は数十 KB のため十分な余裕を持たせた値
+// 1 MiB: 検索結果の受信バイト数の上限。SearXNG の JSON は 1 回の検索で数十 KB のため十分な余裕を持たせた値
 const MAX_INPUT_BYTES = 1024 * 1024;
+// ネットワークエラー・429・5xx を再試行する回数（初回を除く）
+const MAX_RETRIES = 2;
 
-// DuckDuckGo HTML API エンドポイント（API キー不要）
-const DDG_URL = 'https://html.duckduckgo.com/html/';
+// SearXNG の接続先の既定値。docker-compose.yml の searxng サービスの公開ポートと一致させる
+const DEFAULT_SEARXNG_URL = 'http://localhost:8888';
 
-// DuckDuckGo のボット判定の確認ページが返すステータス（2xx のため res.ok では弾けない）
-const BOT_CHALLENGE_STATUS = 202;
-// 確認ページの目印（確認用モーダル・画像選択フォーム・判定スクリプト）。検索結果のページには現れない
-const BOT_CHALLENGE_PATTERN =
-  /id="(?:anomaly-modal|challenge-form)"|anomaly\.js/;
-// 確認ページを受けたときにモデルへ返す理由。同じ IP からは時間をおくまで拒否が続くため、
-// 言い換えた検索の繰り返し（#151 では 1 回の応答で 17 回）を止める指示まで含める
-const BOT_CHALLENGE_MESSAGE =
-  'Web検索サービス（DuckDuckGo）に自動アクセスと判定され、検索を拒否されました。' +
-  '時間をおくまでは、言い換えて検索し直しても結果は得られません。Web検索を使わずに回答してください。';
+/** 検索結果 1 件。モデルへ渡す文章に整形する前の形。 */
+type SearchResult = {
+  /** ページのタイトル */
+  title: string;
+  /** ページの URL（http / https のみ） */
+  url: string;
+  /** 検索エンジンが返した概要。無ければ空文字 */
+  snippet: string;
+};
 
 /**
- * 検索の応答が、検索結果ではなく DuckDuckGo のボット判定の確認ページかを判定する。
+ * SearXNG の接続先を環境変数 `SEARXNG_URL` から解決する。
  *
- * 確認ページは HTTP 202 で返り、結果のリンク（`result__a`）を含まないため、
- * 判定しないと「0 件」と区別できない（#151）。ステータスが 200 でも本文に
- * 確認ページの目印があれば確認ページとみなす。
+ * 呼び出しのたびに読む（テストで差し替えられるようにし、モジュール読み込み時に固定しない）。
  *
- * @param status - 検索の応答の HTTP ステータス
- * @param html - 検索の応答の本文
- * @returns 確認ページなら `true`
+ * @returns 接続先のベース URL。未設定・空なら {@link DEFAULT_SEARXNG_URL}
  */
-export function isBotChallenge(status: number, html: string): boolean {
-  return status === BOT_CHALLENGE_STATUS || BOT_CHALLENGE_PATTERN.test(html);
+function getSearxngUrl(): string {
+  return process.env.SEARXNG_URL?.trim() || DEFAULT_SEARXNG_URL;
 }
 
-interface SearchResult {
-  title: string;
-  url: string;
-  snippet: string;
+/**
+ * 値が文字列ならそのまま、そうでなければ空文字を返す。
+ *
+ * @param value - SearXNG の応答から取り出した値（型を信用しない）
+ * @returns 文字列の値、または空文字
+ */
+function stringOf(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
-// HTML から検索結果を抽出する（正規表現ベース、外部パーサー不要）
-function parseSearchResults(html: string): SearchResult[] {
-  const results: SearchResult[] = [];
+/**
+ * SearXNG の JSON 応答から、検索結果と応答しなかった検索エンジンを取り出す。
+ *
+ * 応答の型は信用せず、`results` の各要素はタイトルと http / https の URL を持つものだけを採る。
+ * `unresponsive_engines` は `[エンジン名, 理由]` の配列。
+ *
+ * @param json - `JSON.parse` した応答
+ * @returns 上位 {@link MAX_RESULTS} 件の結果と、応答しなかった検索エンジン名。応答の形が想定と違えば `null`
+ */
+function parseSearxngResponse(
+  json: unknown
+): { results: SearchResult[]; unresponsiveEngines: string[] } | null {
+  if (typeof json !== 'object' || json === null) return null;
+  // object であることは上で確かめた。各プロパティは unknown のまま受け、使う前に検証する
+  const { results, unresponsive_engines: unresponsive } = json as Record<
+    string,
+    unknown
+  >;
+  if (!Array.isArray(results)) return null;
 
-  // result__a クラスのリンクからタイトルと URL を抽出
-  const linkPattern =
-    /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-  const snippetPattern = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-
-  const links: { url: string; title: string }[] = [];
-  let m: RegExpExecArray | null;
-
-  while ((m = linkPattern.exec(html)) !== null && links.length < MAX_RESULTS) {
-    const url = m[1].trim();
-    const title = m[2].replace(/<[^>]+>/g, '').trim();
-    if (url && title && url.startsWith('http')) {
-      links.push({ url, title });
-    }
+  const parsed: SearchResult[] = [];
+  for (const item of results) {
+    if (parsed.length >= MAX_RESULTS) break;
+    if (typeof item !== 'object' || item === null) continue;
+    // object であることは上で確かめた。各プロパティは stringOf で文字列か検証する
+    const { title, url, content } = item as Record<string, unknown>;
+    const titleText = stringOf(title);
+    const urlText = stringOf(url);
+    if (!titleText || !/^https?:\/\//.test(urlText)) continue;
+    parsed.push({ title: titleText, url: urlText, snippet: stringOf(content) });
   }
 
-  const snippets: string[] = [];
-  while (
-    (m = snippetPattern.exec(html)) !== null &&
-    snippets.length < MAX_RESULTS
-  ) {
-    snippets.push(m[1].replace(/<[^>]+>/g, '').trim());
-  }
+  const unresponsiveEngines = Array.isArray(unresponsive)
+    ? unresponsive
+        .map((entry) => (Array.isArray(entry) ? stringOf(entry[0]) : ''))
+        .filter(Boolean)
+    : [];
 
-  for (let i = 0; i < links.length; i++) {
-    results.push({
-      title: links[i].title,
-      url: links[i].url,
-      snippet: snippets[i] ?? '',
-    });
-  }
-
-  return results;
+  return { results: parsed, unresponsiveEngines };
 }
 
-function formatResults(query: string, results: SearchResult[]): string {
+/**
+ * SearXNG の応答本文を、モデルへ返すツールの結果の文章にする。
+ *
+ * 結果があれば `[N] タイトル / URL / 概要` の一覧（UI の `WebSearchResult` がこの形を読む）。
+ * 0 件のときは、検索エンジンが 1 つでも応答しなかったなら失敗として理由を返し、
+ * すべて応答したうえでの 0 件だけを「見つかりませんでした」とする。0 件と失敗を
+ * 区別しないと、モデルは言い換えた検索を繰り返す（#151）。
+ *
+ * @param query - 検索クエリ（結果の見出しに使う）
+ * @param body - SearXNG の応答本文（JSON 文字列）
+ * @returns ツールの結果の文章。失敗は `"エラー: ..."` で始まる。最大 {@link MAX_CHARS} 文字で、超過分は省略する
+ */
+export function formatSearchResponse(query: string, body: string): string {
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return 'エラー: SearXNG の応答を解釈できませんでした（JSON ではありません）';
+  }
+  const parsed = parseSearxngResponse(json);
+  if (!parsed) {
+    return 'エラー: SearXNG の応答を解釈できませんでした（results がありません）';
+  }
+
+  const { results, unresponsiveEngines } = parsed;
   if (results.length === 0) {
+    if (unresponsiveEngines.length > 0) {
+      return `エラー: "${query}" の検索で、検索エンジンが応答しませんでした（${unresponsiveEngines.join(', ')}）。しばらく時間をおいてから検索し直してください。`;
+    }
     return `"${query}" の検索結果が見つかりませんでした。`;
   }
 
@@ -121,18 +151,42 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * fetch の失敗が「接続を拒否された」（SearXNG が起動していない）ものかを判定する。
+ *
+ * Node の fetch（undici）は接続の失敗を `TypeError('fetch failed')` で投げ、
+ * 原因のエラーの `code` に `ECONNREFUSED` を持たせる。
+ *
+ * @param error - fetch が投げた値
+ * @returns 接続を拒否されたなら `true`
+ */
+function isConnectionRefused(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const { cause } = error;
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'code' in cause &&
+    cause.code === 'ECONNREFUSED'
+  );
+}
+
 // signal はエージェントの全体タイムアウト。中断されたらリトライせず即座に失敗させる
 async function fetchWithRetry(
   query: string,
   signal: AbortSignal
 ): Promise<string> {
-  const url = `${DDG_URL}?q=${encodeURIComponent(query)}&kl=jp-jp`;
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (compatible; LocalAIChatBot/1.0)',
-    Accept: 'text/html',
-  };
-
-  const MAX_RETRIES = 2;
+  const baseUrl = getSearxngUrl();
+  let url: URL;
+  try {
+    url = new URL('/search', baseUrl);
+  } catch {
+    throw new Error(`SEARXNG_URL が URL として不正です（${baseUrl}）`);
+  }
+  url.searchParams.set('q', query);
+  url.searchParams.set('format', 'json');
+  // クエリの言語から自動で判定させる（日本語・英語のどちらのクエリも来るため）
+  url.searchParams.set('language', 'auto');
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     signal.throwIfAborted();
@@ -145,13 +199,18 @@ async function fetchWithRetry(
     let res: Response;
     try {
       res = await fetch(url, {
-        headers,
-        redirect: 'follow',
+        headers: { Accept: 'application/json' },
         signal: attemptSignal,
       });
     } catch (e) {
       // 全体タイムアウトによる中断はリトライしない
       if (signal.aborted) throw e;
+      // 起動していないなら、再試行しても変わらない
+      if (isConnectionRefused(e)) {
+        throw new Error(
+          `SearXNG（${baseUrl}）に接続できません。プロジェクトのルートで \`docker compose up -d\` を実行して起動してください。起動するまで、検索し直しても結果は得られません。`
+        );
+      }
       // ネットワークエラー・試行の期限切れ → リトライ対象
       if (attempt < MAX_RETRIES) {
         await sleep(1000, signal);
@@ -184,19 +243,26 @@ async function fetchWithRetry(
       throw new Error(`Web検索サーバーエラー (HTTP ${res.status})`);
     }
 
+    if (res.status === 403) {
+      discardBody(res);
+      // 設定の誤りのため、リトライしても同じ結果になる
+      throw new Error(
+        'SearXNG が JSON の応答を返しません（HTTP 403）。searxng/settings.yml の search.formats に json があるか確認してください。'
+      );
+    }
+
     if (!res.ok) {
       discardBody(res);
       // 4xx などはリトライしない
       throw new Error(`Web検索リクエスト失敗 (HTTP ${res.status})`);
     }
 
-    let html: string;
     try {
-      html = await readBodyWithLimit(res, MAX_INPUT_BYTES, attemptSignal);
+      return await readBodyWithLimit(res, MAX_INPUT_BYTES, attemptSignal);
     } catch (e) {
       // サイズ超過はリトライしても同じ結果になる
       if (e instanceof BodyTooLargeError) {
-        throw new Error('検索結果ページが大きすぎます（1MB 超）');
+        throw new Error('検索結果が大きすぎます（1MB 超）');
       }
       if (signal.aborted) throw e;
       // 本文受信中のネットワークエラー・試行の期限切れ → リトライ対象
@@ -208,12 +274,6 @@ async function fetchWithRetry(
         `Web検索に失敗しました: ${e instanceof Error ? e.message : String(e)}`
       );
     }
-
-    // 確認ページは同じ IP からは再試行しても変わらないため、リトライせずに失敗にする
-    if (isBotChallenge(res.status, html)) {
-      throw new Error(BOT_CHALLENGE_MESSAGE);
-    }
-    return html;
   }
 
   throw new Error('Web検索に失敗しました');
@@ -222,12 +282,13 @@ async function fetchWithRetry(
 /**
  * Web を検索して関連ページのタイトル・URL・概要を返すエージェントツール。
  *
- * 引数 `query`（自然言語または検索キーワード）を受け取り、API キー不要の
- * DuckDuckGo HTML エンドポイントへ問い合わせる。ネットワークエラー・レート
- * リミット（429）・サーバーエラー（5xx）はリトライ（バックオフ）し、上位
- * 最大 5 件を整形して返す。結果は最大 3,000 文字で、超過分は省略する。
- * ボット判定の確認ページ（{@link isBotChallenge}）は 0 件ではなく失敗として返し、
- * リトライしない。
+ * 引数 `query`（自然言語または検索キーワード）を受け取り、ローカルの SearXNG
+ * （`SEARXNG_URL`、既定 `http://localhost:8888`。docker-compose.yml で起動する）の
+ * JSON API へ問い合わせる。SearXNG は複数の検索エンジンに代わりに問い合わせるため、
+ * 1 つの検索エンジンがブロックされても結果を返せる（#151）。ネットワークエラー・
+ * レートリミット（429）・サーバーエラー（5xx）はリトライ（バックオフ）し、上位
+ * 最大 5 件を整形して返す（{@link formatSearchResponse}）。SearXNG が起動していない・
+ * JSON の API が無効（403）の場合はリトライせず、直し方を含むエラーを返す。
  * 各試行の期限は本文の読了まで有効で、受信は 1 MiB で打ち切る。呼び出し元の
  * `signal` が中断されるとリトライ待機中でも即座に処理を止める。
  * エラーはすべて `"エラー: ..."` 形式の文字列で返し、例外は投げない。
@@ -253,9 +314,8 @@ export const webSearchTool: Tool = {
     if (!query) return 'エラー: 検索クエリが空です';
 
     try {
-      const html = await fetchWithRetry(query, signal);
-      const results = parseSearchResults(html);
-      return formatResults(query, results);
+      const body = await fetchWithRetry(query, signal);
+      return formatSearchResponse(query, body);
     } catch (e) {
       return `エラー: ${e instanceof Error ? e.message : String(e)}`;
     }

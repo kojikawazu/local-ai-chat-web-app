@@ -62,7 +62,7 @@ globs: "front/tests/**"
   - DB 依存（`/api/conversations` 系の CRUD・messages・cascade 削除・404/400）→ 実 DB で検証。
   - 外部依存（`/api/chat`・`/api/models`）→ Ollama を fetch スタブして**エラー契約**（接続失敗→502、バリデーション→400）と正常応答の中継を検証。
 - **実依存**: PostgreSQL を **Testcontainers で使い捨てコンテナとして起動**し、`prisma migrate deploy` でスキーマ適用。開発 DB には一切触れない。
-- **mock 方針**: 真の外部 3rd-party（Ollama / DuckDuckGo / 任意 Web）**のみ**手製 fetch スタブ（`helpers/ollama-stub.ts` の `stubFetch`）で差し替える。DB はモックしない（配線検証が目的）。
+- **mock 方針**: 真の外部 3rd-party（Ollama / SearXNG / 任意 Web）**のみ**手製 fetch スタブ（`helpers/ollama-stub.ts` の `stubFetch`）で差し替える。DB はモックしない（配線検証が目的）。
 
 ## エラーハンドリングの層分担
 

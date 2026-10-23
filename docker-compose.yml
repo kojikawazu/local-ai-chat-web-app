@@ -12,5 +12,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # Web 検索（web_search ツール）の検索エンジン。Google・DuckDuckGo 等へ代わりに問い合わせ、
+  # 結果を JSON で返すメタ検索エンジン（#151。DuckDuckGo への直接の問い合わせはボット判定で拒否された）
+  searxng:
+    # latest は破壊的に上がるため固定する
+    image: searxng/searxng:2026.10.2-a5659a536
+    container_name: chat_searxng
+    restart: unless-stopped
+    # server.secret_key が既定値のままだと起動しないため、SEARXNG_SECRET が空なら起動ごとに
+    # ランダムな鍵を作る。鍵は Cookie 等の署名にしか使わず、ローカルでは起動ごとに変わっても困らない。
+    # リポジトリにも .env にも秘密を置かずに済む
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        [ -n "$$SEARXNG_SECRET" ] || export SEARXNG_SECRET=$$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+        exec /usr/local/searxng/entrypoint.sh
+    # 同時アクセスの制限（limiter）を止めているため、この PC の中からだけつながるようにする
+    ports:
+      - '127.0.0.1:8888:8080'
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+
 volumes:
   postgres_data:

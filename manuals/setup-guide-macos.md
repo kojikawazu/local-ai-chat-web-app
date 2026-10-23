@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-24
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -12,7 +12,7 @@
 4. [Docker Desktop のインストール](#4-docker-desktop-のインストール)
 5. [Ollama のインストールとモデル取得](#5-ollama-のインストールとモデル取得)
 6. [リポジトリのクローン](#6-リポジトリのクローン)
-7. [PostgreSQL の起動](#7-postgresql-の起動)
+7. [PostgreSQL と SearXNG の起動](#7-postgresql-と-searxng-の起動)
 8. [アプリケーションのセットアップ](#8-アプリケーションのセットアップ)
 9. [アプリケーションの起動](#9-アプリケーションの起動)
 10. [動作確認](#10-動作確認)
@@ -227,12 +227,12 @@ cd local-ai-chat-web-app
 
 ---
 
-## 7. PostgreSQL の起動
+## 7. PostgreSQL と SearXNG の起動
 
-プロジェクトルートディレクトリで実行します。
+プロジェクトルートディレクトリで実行します。会話履歴を保存する PostgreSQL と、Web検索（エージェントの `web_search` ツール）に使う SearXNG が起動します。
 
 ```bash
-# PostgreSQLコンテナを起動
+# PostgreSQL・SearXNG のコンテナを起動
 docker compose up -d
 ```
 
@@ -246,9 +246,12 @@ docker compose ps
 以下のように表示されれば成功です:
 
 ```
-NAME       IMAGE         STATUS         PORTS
-chat_db    postgres:16   Up ...         0.0.0.0:5499->5432/tcp
+NAME           IMAGE                                 STATUS    PORTS
+chat_db        postgres:16                           Up ...    0.0.0.0:5499->5432/tcp
+chat_searxng   searxng/searxng:2026.10.2-a5659a536   Up ...    127.0.0.1:8888->8080/tcp
 ```
+
+SearXNG はブラウザで `http://localhost:8888` を開くと検索画面が表示されます（この PC の中からだけアクセスできます）。
 
 ---
 
@@ -269,6 +272,7 @@ cat <<'EOF' > .env.local
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=gemma3:4b
 DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
+SEARXNG_URL=http://localhost:8888
 EOF
 ```
 
@@ -337,7 +341,7 @@ Nordic Frostデザインのチャット画面が表示されます。
 
 開発サーバーが動作しているターミナルで `Ctrl + C` を押してください。
 
-### PostgreSQL の停止
+### PostgreSQL・SearXNG の停止
 
 ```bash
 # プロジェクトルートディレクトリで実行
@@ -390,6 +394,25 @@ docker compose up -d
 # ポートが別プロセスに使用されていないか確認
 lsof -i :5499
 ```
+
+### Web検索の結果が返らない
+
+エージェントの Web検索で「SearXNG（http://localhost:8888）に接続できません」と表示される場合は、SearXNG が起動していません。
+
+**対処法:**
+
+```bash
+# プロジェクトルートで、コンテナの状態を確認（chat_searxng が Up か）
+docker compose ps
+
+# 停止している場合は起動
+docker compose up -d
+
+# JSON の API が応答するか確認（results に結果が入っていれば OK）
+curl -s "http://localhost:8888/search?q=test&format=json" | head -c 300
+```
+
+「検索エンジンが応答しませんでした」と表示される場合は、SearXNG が問い合わせる検索エンジン側の一時的な制限です。しばらく時間をおいてから検索し直してください。
 
 ### pnpm install でエラーが出る
 
@@ -462,7 +485,7 @@ xcode-select --install
 セットアップ完了後、以下を確認してください:
 
 - [ ] Docker Desktop が起動中
-- [ ] `docker compose ps` で PostgreSQL が `Up` 状態
+- [ ] `docker compose ps` で PostgreSQL・SearXNG が `Up` 状態
 - [ ] Ollama が起動中（メニューバーにアイコン表示）
 - [ ] `ollama list` でモデルがダウンロード済み
 - [ ] `pnpm dev` で開発サーバーが起動
