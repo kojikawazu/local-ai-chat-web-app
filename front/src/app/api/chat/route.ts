@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
 import { streamChat, withSystemPrompt } from '@/lib/ollama';
 import { runAgentLoop } from '@/lib/agent';
+import { getLocalTimeZone, withCurrentDate } from '@/lib/current-date';
 import { initializeTools } from '@/lib/tools/registry';
 import { parseChatBody, readJsonBody } from '@/lib/request-body';
 
@@ -17,7 +18,8 @@ const CLIENT_CLOSED_REQUEST = 499;
  * Ollama にチャットメッセージを送信し、応答をストリーミングで中継する。
  *
  * `systemPrompt`（会話の役割と、エージェントモードならそのプリセットを連結したもの。#10）があれば、
- * どちらのモードでも会話履歴の先頭に system メッセージとして付ける。
+ * どちらのモードでも会話履歴の先頭に system メッセージとして付ける。その後ろには現在の日時の節を
+ * 必ず足す（{@link withCurrentDate}。#154）ため、`systemPrompt` が空でも system メッセージは付く。
  * 通常モードでは Ollama の生成テキストをそのまま `text/event-stream` で逐次返す。
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
  * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
@@ -43,15 +45,16 @@ export async function POST(request: NextRequest) {
     ...conversationHistory,
     { role: 'user', content: message },
   ];
+  // 今日の日付を必ず知らせる。知らせないと「最新」を学習時点の年で検索・回答する（#154）
+  const prompt = withCurrentDate(systemPrompt, {
+    now: new Date(),
+    timeZone: getLocalTimeZone(),
+    enableTools,
+  });
 
   // エージェントモード: NDJSON イベントストリームを返す
   if (enableTools) {
-    const agentStream = runAgentLoop(
-      messages,
-      model,
-      systemPrompt,
-      request.signal
-    );
+    const agentStream = runAgentLoop(messages, model, prompt, request.signal);
     return new Response(agentStream, {
       headers: {
         'Content-Type': 'application/x-ndjson',
@@ -66,7 +69,7 @@ export async function POST(request: NextRequest) {
     // 通常チャットは思考させない（#116）。思考に対応したモデルは既定で考えてから答えるため、
     // 最初の文字が出るまで数秒、画面に何も出ない。考えさせたい場合はエージェントモードを使う
     ollamaResponse = await streamChat(
-      withSystemPrompt(messages, systemPrompt),
+      withSystemPrompt(messages, prompt),
       model,
       undefined,
       {

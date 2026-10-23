@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-10-22
+> 最終更新: 2026-10-24
 
 ## 目次
 
@@ -47,13 +47,13 @@
   }[];
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
-  systemPrompt?: string;   // システムプロンプト。通常・エージェントとも先頭の system メッセージにする。最大 10,000 文字
+  systemPrompt?: string;   // システムプロンプト。通常・エージェントとも先頭の system メッセージにする（後ろに現在の日時を足す）。最大 10,000 文字
 }
 ```
 
 履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。
 
-`systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、空でなければ会話履歴の先頭に `role: 'system'` として付ける（`lib/ollama.ts` の `withSystemPrompt`）。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
+`systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、その後ろに「現在の日時」の節（日付・曜日・時刻・サーバーのタイムゾーンと、モードごとの「最新」の扱いの指示）を空行で区切って足し、会話履歴の先頭に `role: 'system'` として付ける（`lib/current-date.ts` の `withCurrentDate` と `lib/ollama.ts` の `withSystemPrompt`。#154）。`systemPrompt` が空でも、日時の節だけの system メッセージを付ける。日時はリクエストごとに作る。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
 **レスポンス**
 

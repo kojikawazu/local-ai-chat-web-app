@@ -17,6 +17,7 @@ const URL = 'http://localhost/api/chat';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('POST /api/chat（通常チャット）', () => {
@@ -42,6 +43,27 @@ describe('POST /api/chat（通常チャット）', () => {
       const [, init] = fetchMock.mock.calls[0];
       expect(JSON.parse(init!.body as string).think).toBe(false);
     });
+
+    it('先頭の system メッセージに、現在の日時と「検索できない」ことを入れる（#154）', async () => {
+      // Date だけを偽る（タイマーまで偽るとストリームの読み取りが進まない）。
+      // UTC 03:00 は UTC-3〜UTC+14 のどこでも 1 月 15 日のため、実行環境のタイムゾーンに左右されない
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2025-01-15T03:00:00Z'));
+      const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
+
+      await POST(
+        jsonRequest(URL, 'POST', {
+          message: '今日は何日？',
+          enableTools: false,
+        })
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      const [system] = JSON.parse(init!.body as string).messages;
+      expect(system.role).toBe('system');
+      expect(system.content).toMatch(/^## 現在の日時\n2025年1月15日/);
+      expect(system.content).toContain('この会話では Web 検索ができない');
+    });
   });
 
   describe('準正常系', () => {
@@ -61,12 +83,13 @@ describe('POST /api/chat（通常チャット）', () => {
       const [, init] = fetchMock.mock.calls[0];
       const sent = JSON.parse(init!.body as string);
       expect(sent.messages).toEqual([
+        { role: 'system', content: expect.stringMatching(/^## 現在の日時\n/) },
         { role: 'user', content: '前の発言' },
         { role: 'user', content: '次は？' },
       ]);
     });
 
-    it('systemPrompt（会話の役割）を先頭の system メッセージとして Ollama へ渡す（#10）', async () => {
+    it('systemPrompt（会話の役割）を先頭の system メッセージとして Ollama へ渡し、後ろに現在の日時を足す（#10・#154）', async () => {
       const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
 
       const res = await POST(
@@ -81,13 +104,18 @@ describe('POST /api/chat（通常チャット）', () => {
 
       const [, init] = fetchMock.mock.calls[0];
       expect(JSON.parse(init!.body as string).messages).toEqual([
-        { role: 'system', content: 'あなたは翻訳者です。' },
+        {
+          role: 'system',
+          content: expect.stringMatching(
+            /^あなたは翻訳者です。\n\n## 現在の日時\n/
+          ),
+        },
         { role: 'user', content: '前の発言' },
         { role: 'user', content: 'Hello' },
       ]);
     });
 
-    it('systemPrompt が空白のみなら system メッセージを付けない', async () => {
+    it('systemPrompt が空白のみなら、現在の日時だけを system メッセージにする', async () => {
       const fetchMock = stubFetch(() => ollamaStreamResponse(['ok']));
 
       await POST(
@@ -100,6 +128,7 @@ describe('POST /api/chat（通常チャット）', () => {
 
       const [, init] = fetchMock.mock.calls[0];
       expect(JSON.parse(init!.body as string).messages).toEqual([
+        { role: 'system', content: expect.stringMatching(/^## 現在の日時\n/) },
         { role: 'user', content: 'Hello' },
       ]);
     });
@@ -121,7 +150,8 @@ describe('POST /api/chat（通常チャット）', () => {
       );
 
       const [, init] = fetchMock.mock.calls[0];
-      expect(JSON.parse(init!.body as string).messages[0]).toEqual({
+      // 先頭（[0]）は現在の日時の system メッセージ
+      expect(JSON.parse(init!.body as string).messages[1]).toEqual({
         role: 'assistant',
         content: '前の回答',
       });

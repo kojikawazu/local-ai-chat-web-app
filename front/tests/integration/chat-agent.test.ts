@@ -534,3 +534,31 @@ describe('POST /api/chat（エージェント・思考過程）', () => {
     });
   });
 });
+
+describe('POST /api/chat（エージェント・現在の日時）', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  describe('正常系', () => {
+    it('先頭の system メッセージに、現在の日時と検索語の年の指示を入れる（#154）', async () => {
+      // Date だけを偽る（タイマーまで偽るとストリームの読み取りが進まない）。
+      // UTC 03:00 は UTC-3〜UTC+14 のどこでも 1 月 15 日のため、実行環境のタイムゾーンに左右されない
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2025-01-15T03:00:00Z'));
+      const fetchMock = stubOllamaSequence([
+        () => ollamaStreamResponse(['完了']),
+      ]);
+
+      await runAgent();
+
+      const [, init] = fetchMock.mock.calls[0];
+      const [system] = JSON.parse(init!.body as string).messages;
+      expect(system.role).toBe('system');
+      expect(system.content).toMatch(/^## 現在の日時\n2025年1月15日/);
+      expect(system.content).toContain(
+        '検索語に年を入れる場合は、この日時の年を使うこと'
+      );
+    });
+  });
+});
