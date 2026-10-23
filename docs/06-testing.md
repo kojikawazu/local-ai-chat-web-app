@@ -354,7 +354,8 @@ front/tests/
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
-│   └── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
+│   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
+│   └── current-date.test.ts      # システムプロンプトに足す現在の日時（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン）
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
