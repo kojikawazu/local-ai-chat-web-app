@@ -167,7 +167,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ToolCallResult, AgentThinking）
+  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
 - **`constants/`** — 定数（`chat/toolLabels.ts`）
@@ -177,10 +177,10 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/server/` — サーバー専用（prisma.ts, request-body.ts）
-  - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts）
+  - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts）
 - **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）

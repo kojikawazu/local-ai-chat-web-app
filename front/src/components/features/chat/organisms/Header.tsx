@@ -1,6 +1,13 @@
 'use client';
 
-import { Cpu, Activity, ChevronDown, Menu, UserRoundCog } from 'lucide-react';
+import {
+  Cpu,
+  Activity,
+  ChevronDown,
+  FileDown,
+  Menu,
+  UserRoundCog,
+} from 'lucide-react';
 import IconButton from '@/components/common/atoms/IconButton';
 import Select from '@/components/common/atoms/Select';
 import StatusDot from '@/components/common/atoms/StatusDot';
@@ -23,10 +30,14 @@ type HeaderProps = {
   roleLabel: string;
   /** 役割ボタン押下時のコールバック（役割の編集ダイアログを開く）。 */
   onOpenRole: () => void;
+  /** 会話を書き出せるか。false の間（会話が無い・生成中）は書き出すボタンを押せない（#12）。 */
+  canExport: boolean;
+  /** 書き出すボタン押下時のコールバック（書き出しのダイアログを開く）。 */
+  onOpenExport: () => void;
 };
 
 /**
- * アプリ上部のヘッダー。接続状態の表示・会話の役割の表示と編集の入口・モデル選択セレクトボックスを提供する。
+ * アプリ上部のヘッダー。接続状態の表示・会話の役割の表示と編集の入口・会話の書き出しの入口・モデル選択セレクトボックスを提供する。
  *
  * モバイル幅（md 未満）ではサイドバーが隠れるため、先頭にメニューボタンを出し、
  * 会話管理・設定を持つドロワーを開けるようにする。
@@ -36,7 +47,7 @@ type HeaderProps = {
  * 左側も縮めると `whitespace-nowrap` の「Node: Local」が隣の役割ボタンに重なり、
  * 幅指定の無い select は縮んだ親からはみ出すため。
  *
- * @param props - モデル一覧・選択中モデル・変更コールバック・メニューの開閉状態・役割の表示名と編集の入口を持つ props
+ * @param props - モデル一覧・選択中モデル・変更コールバック・メニューの開閉状態・役割の表示名と編集の入口・書き出しの入口を持つ props
  */
 export default function Header({
   models,
@@ -47,6 +58,8 @@ export default function Header({
   onOpenMenu,
   roleLabel,
   onOpenRole,
+  canExport,
+  onOpenExport,
 }: HeaderProps) {
   const displayName = selectedModel.replace(/:latest$/, '');
 
@@ -97,6 +110,16 @@ export default function Header({
             {roleLabel}
           </span>
         </button>
+        <IconButton
+          label="会話を書き出す"
+          tone="default"
+          onClick={onOpenExport}
+          disabled={!canExport}
+          aria-haspopup="dialog"
+          className="shrink-0"
+        >
+          <FileDown size={18} />
+        </IconButton>
         <div className="relative min-w-0">
           <Select
             variant="compact"
