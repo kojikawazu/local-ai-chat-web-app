@@ -1,7 +1,10 @@
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'qwen3.8:27b';
 
-import type { OllamaToolDefinition, OllamaToolCall } from './tools/types';
+import type {
+  OllamaToolDefinition,
+  OllamaToolCall,
+} from '@/lib/agent/tools/types';
 
 /**
  * Ollama `/api/chat` に送受信する 1 件のチャットメッセージ。

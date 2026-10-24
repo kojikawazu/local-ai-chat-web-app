@@ -51,7 +51,7 @@ globs: "front/tests/**"
 
 ## UT（Vitest）方針
 
-- **対象**: 外部 I/O 非依存の純ロジック（例: `lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts`）。
+- **対象**: 外部 I/O 非依存の純ロジック（例: `lib/shared/validation.ts`・`lib/agent/tools/calculate.ts`・`lib/agent/agent-prompts.ts`）。
 - **モック方針**: 外部 I/O（fetch / DB 等）のみモック。**ビジネスロジックはモックしない**（実装追認・ハッピーパス偏重を避ける）。今回の初期対象は純関数のため mock を一切使わない。
 - **実行**: `pnpm test:unit`（CI では専用 `unit-test` ジョブ。Ollama / DB 不要で数十秒で完了、E2E と独立）。
 - **設定**: `front/vitest.config.ts`（`tests/unit/**` のみ対象、`@/*` エイリアス解決）。

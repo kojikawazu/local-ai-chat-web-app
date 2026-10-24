@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import type { Conversation } from '@/types';
+import type { Conversation } from '@/types/conversation/conversation';
 
 /**
  * 会話一覧と選択中の会話 ID を管理し、会話の取得・作成・削除・選択を提供するフック。

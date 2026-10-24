@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAllToolDefinitions } from '@/lib/tools/index';
-import { initializeTools } from '@/lib/tools/registry';
+import { getAllToolDefinitions } from '@/lib/agent/tools/index';
+import { initializeTools } from '@/lib/agent/tools/registry';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();

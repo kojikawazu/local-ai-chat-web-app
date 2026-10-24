@@ -3,7 +3,7 @@ import {
   BodyTooLargeError,
   isTimeoutError,
   readBodyWithLimit,
-} from '@/lib/tools/read-body';
+} from '@/lib/agent/tools/read-body';
 
 /**
  * `readBodyWithLimit` の UT。fetch を介さず `ReadableStream` から `Response` を直接組むため mock は使わない。

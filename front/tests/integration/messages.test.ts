@@ -4,7 +4,7 @@ import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
 import {
   MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_MESSAGE_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
  * `/api/conversations/[id]/messages`（取得・保存）の IT。

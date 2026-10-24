@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
-import { getCodeLanguage, hastToText } from '@/lib/code-block';
-import type { HastNode } from '@/lib/code-block';
+import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
+import type { HastNode } from '@/lib/chat/code-block';
 import { CopyButton } from './CopyButton';
 
 /** {@link MarkdownContent} の props。 */

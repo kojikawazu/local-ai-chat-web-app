@@ -942,11 +942,11 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 - [x] UT（`web-search.test.ts`）・IT（`chat-agent.test.ts`。修正前の `agent.ts` で呼び直しの 3 件が落ちることを確認）。画面は変えないため E2E は追加しない
 - [x] `docs/02`・`docs/06`・`docs/09`・`manuals/setup-guide-macos.md`・`CLAUDE.md` を同期
 
-## フェーズ33: front/src の機能ごとの整理（未着手）
+## フェーズ33: front/src の機能ごとの整理
 
-`front/src/` 直下の `components/`・`hooks/`・`lib/`・`types/` に機能ごとのディレクトリを切って配置し直す。`lib/` に関心の違うファイルが平らに並び、`types/index.ts` に全ドメインの型が集まっているため。移動だけの変更にし、#11 のマージ後に着手する。 — #160
+`front/src/` 直下の `components/`・`hooks/`・`lib/`・`types/` に機能ごとのディレクトリを切って配置し直す。`lib/` に関心の違うファイルが平らに並び、`types/index.ts` に全ドメインの型が集まっているため。移動だけの変更にする。 — #160（2026-10-24 着手）
 
-- [ ] 配置の設計（機能の切り方・`features/` との役割分担・サーバー専用とクライアント共通の分け方・`types` の分け方）とレビュー
-- [ ] ファイルの移動と import の書き換え（`git mv`。動作は変えない）
-- [ ] lint / typecheck / UT / IT / E2E
-- [ ] `CLAUDE.md`・`docs/02`・`.claude/rules/`（`frontend.md`・`typescript.md`・`documentation.md`）を同期
+- [x] 配置の設計とレビュー（`lib/` は `agent/`・`llm/`・`chat/`・`conversation/`・`server/`（サーバー専用）・`shared/`（両方で使う）。`types/index.ts` は `types/agent/tool-call.ts`・`types/chat/message.ts`・`types/conversation/conversation.ts` に分ける。ファイル名は変えない。`tests/unit/` は平らなまま）
+- [x] ファイルの移動と import の書き換え（`git mv`。動作は変えない。`@/types` の import は型ごとに実ファイルへ分けた）
+- [x] lint / typecheck / build / UT（305 件）/ IT（178 件）/ E2E 全件（146 件通過・5 件は軽量モデルでスキップ）。件数は移動前と同じ
+- [x] `CLAUDE.md`・`docs/02`・`docs/03`・`docs/06`・`docs/09`・`docs/11`・`docs/models/README.md`・`.claude/rules/`（`frontend.md`・`typescript.md`・`documentation.md`・`api.md`・`error-handling.md`・`testing.md`・`database.md`）を同期。配置の規則（`src/<層>/<機能>/`）を `frontend.md`・`typescript.md` に書いた。`docs/07`・`docs/08` の過去の記述は履歴なので書き換えない

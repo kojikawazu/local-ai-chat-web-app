@@ -106,8 +106,9 @@ front/src/
 │                   ├── route.ts #   メッセージ取得・保存
 │                   └── [messageId]/
 │                       └── route.ts # 応答の置き換え（再生成）
-├── components/                # 共通UIコンポーネント
-│   └── SettingsModal.tsx      #   設定モーダル（モデル選択・テーマ切替）
+├── components/                # 共通UIコンポーネント（機能ごとのディレクトリ。#160）
+│   └── settings/
+│       └── SettingsModal.tsx  #     設定モーダル（モデル選択・テーマ切替）
 ├── features/                  # 機能固有モジュール
 │   ├── chat/
 │   │   ├── components/
@@ -138,38 +139,51 @@ front/src/
 │           └── useDrawerDialog.ts  # ドロワーのフォーカス管理・Escape・スクロール固定
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
-├── hooks/
-│   └── useTheme.ts            #   テーマ切替フック（localStorage永続化）
-├── lib/
-│   ├── ollama.ts              #   Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
-│   ├── prisma.ts              #   Prismaクライアントインスタンス
-│   ├── clipboard.ts           #   クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
-│   ├── validation.ts          #   バリデーションユーティリティ
-│   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
-│   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
-│   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
-│   ├── chat-state.ts          #   会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
-│   ├── search.ts              #   会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
-│   ├── code-block.ts          #   コードブロックの構文木から言語名・コピーする本文を取り出す
-│   ├── system-prompt.ts       #   会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
-│   ├── current-date.ts        #   システムプロンプトの後ろに足す「現在の日時」の節（#154）
-│   ├── agent.ts               #   エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
-│   ├── agent-config.ts        #   エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
-│   ├── agent-prompts.ts       #   エージェントモードのシステムプロンプトプリセット定義
-│   ├── message-metadata.ts    #   メッセージ metadata の組み立て・取得時の実行時検証
-│   └── tools/                 #   ツール実装
-│       ├── types.ts           #     ツール関連型定義
-│       ├── index.ts           #     ツールレジストリ（register/get/execute）
-│       ├── output.ts          #     ツールの実行結果の組み立て（失敗の toolError・接続先ごと使えない失敗の toolUnavailable）
-│       ├── registry.ts        #     ツール登録の初期化（initializeTools）
-│       ├── get-current-datetime.ts # 現在日時取得ツール
-│       ├── calculate.ts       #     数式計算ツール
-│       ├── web-search.ts      #     Web検索ツール（SearXNG）
-│       ├── url-fetch.ts       #     URL取得ツール（SSRF防止）
-│       └── read-body.ts       #     本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
-└── types/
-    ├── index.ts               #   共通型定義（Message, Conversation, ToolCallInfo等）
-    └── theme.ts               #   テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
+├── hooks/                     # 共通カスタムフック（機能ごとのディレクトリ）
+│   └── theme/
+│       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
+├── lib/                       # ユーティリティ・外部連携（機能ごとのディレクトリ）
+│   ├── agent/                 #   エージェント
+│   │   ├── agent.ts           #     エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
+│   │   ├── agent-config.ts    #     エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
+│   │   ├── agent-prompts.ts   #     エージェントモードのシステムプロンプトプリセット定義
+│   │   └── tools/             #     ツール実装
+│   │       ├── types.ts       #       ツール関連型定義
+│   │       ├── index.ts       #       ツールレジストリ（register/get/execute）
+│   │       ├── output.ts      #       ツールの実行結果の組み立て（失敗の toolError・接続先ごと使えない失敗の toolUnavailable）
+│   │       ├── registry.ts    #       ツール登録の初期化（initializeTools）
+│   │       ├── get-current-datetime.ts # 現在日時取得ツール
+│   │       ├── calculate.ts   #       数式計算ツール
+│   │       ├── web-search.ts  #       Web検索ツール（SearXNG）
+│   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
+│   │       └── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   ├── llm/                   #   LLM（Ollama）との通信
+│   │   ├── ollama.ts          #     Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
+│   │   └── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
+│   ├── chat/                  #   チャット（features/chat から使う）
+│   │   ├── chat-state.ts      #     会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
+│   │   ├── conversation-history.ts # 表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
+│   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
+│   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
+│   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
+│   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
+│   │   └── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
+│   ├── conversation/          #   会話
+│   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   ├── server/                #   サーバー専用（app/api/** から使う）
+│   │   ├── prisma.ts          #     Prismaクライアントインスタンス
+│   │   └── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
+│   └── shared/                #   サーバー・クライアント共通
+│       └── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
+└── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
+    ├── agent/
+    │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
+    ├── chat/
+    │   └── message.ts         #     Message・MessageSaveState・HistoryEntry
+    ├── conversation/
+    │   └── conversation.ts    #     Conversation・ConversationSearchResult
+    └── theme/
+        └── theme.ts           #     テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
 ```
 
 ### front/prisma/
@@ -222,6 +236,7 @@ front/tests/
 - **`hooks/`**: 複数機能で共有されるカスタムフックを配置
 - **`lib/`**: 外部サービス連携やユーティリティ関数を配置
 - **`types/`**: 複数機能で共有される型定義を配置
+- **`components/`・`hooks/`・`lib/`・`types/` の中は、機能ごとのディレクトリに分ける**（`src/<components|hooks|lib|types>/<機能>/`。#160）。直下にファイルを置かない。`lib/` は機能（`agent`・`llm`・`chat`・`conversation`）に加え、サーバー専用の `server/` と、サーバー・クライアント共通の `shared/` を持つ。re-export だけの `index.ts`（barrel）は作らず、実ファイルを直接 import する
 - 機能固有のコンポーネント・フック・型は `features/<機能名>/` 内に閉じる
 - **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、機能内の 2 箇所以上なら `features/<機能名>/`、機能をまたぐなら `types/`・`constants/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）
 
@@ -281,7 +296,7 @@ model Message {
 
 ### 応答の再生成フロー
 
-1. 最後の AI 応答の「再生成」ボタンを押す（`lib/regenerate.ts` が対象と送り直す質問・履歴を求める）
+1. 最後の AI 応答の「再生成」ボタンを押す（`lib/chat/regenerate.ts` が対象と送り直す質問・履歴を求める）
 2. 旧応答を同じ ID の空の応答に差し替え、直前の質問で `/api/chat` に送り直す
 3. ストリーミング完了後、`PUT /api/conversations/[id]/messages/[messageId]` で DB の旧応答を置き換える
 4. 生成に失敗した場合・本文が出る前に停止した場合は旧応答に戻す（DB は書き換えない）
@@ -327,7 +342,7 @@ model Message {
 
 - React `useState` によるローカルstate管理
 - グローバルstate管理ライブラリは使用しない
-- チャットの状態（メッセージ一覧・生成中・エラー・実行中のツール・停止用の `AbortController`）は `useChat` が**会話ごとに**持ち、表示中の会話の分を返す（#147）。生成中に別の会話へ切り替えても応答は送信した会話に届き続け、戻ると途中までの応答と続きが表示される。停止ボタンは表示中の会話の生成だけを止め、生成中の会話を削除するとその生成を止めて応答を保存しない。会話ごとの更新は `lib/chat-state.ts` の純関数で行う
+- チャットの状態（メッセージ一覧・生成中・エラー・実行中のツール・停止用の `AbortController`）は `useChat` が**会話ごとに**持ち、表示中の会話の分を返す（#147）。生成中に別の会話へ切り替えても応答は送信した会話に届き続け、戻ると途中までの応答と続きが表示される。停止ボタンは表示中の会話の生成だけを止め、生成中の会話を削除するとその生成を止めて応答を保存しない。会話ごとの更新は `lib/chat/chat-state.ts` の純関数で行う
   - 生成中の会話はサイドバーに点滅する印を出す。同時に生成できる会話の数に上限は設けない（Ollama が順に処理する）
   - 表示していない会話の状態は、生成中・保存に失敗したメッセージ・エラーを持つものだけを残し、他は捨てる（開き直したときに DB から読む）
 - 会話履歴はPostgreSQLに永続化し、API経由で取得・保存

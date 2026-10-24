@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ChatState, ChatStates } from '@/lib/chat-state';
+import type { ChatState, ChatStates } from '@/lib/chat/chat-state';
 import {
   EMPTY_CHAT,
   NEW_CONVERSATION_KEY,
@@ -11,11 +11,11 @@ import {
   removeChat,
   retainChats,
   updateChat,
-} from '@/lib/chat-state';
-import type { Message } from '@/types';
+} from '@/lib/chat/chat-state';
+import type { Message } from '@/types/chat/message';
 
 /**
- * 会話ごとのチャット状態（`lib/chat-state.ts`）の UT。状態を受け取って新しい状態を返す純関数のため
+ * 会話ごとのチャット状態（`lib/chat/chat-state.ts`）の UT。状態を受け取って新しい状態を返す純関数のため
  * mock は使わない。
  * 契約: 生成中に会話を切り替えても、送信した会話の状態（生成中の応答・保存失敗・エラー）が失われず、
  * DB から読み直せる会話の状態だけを捨てる（#147）。

@@ -4,7 +4,7 @@ import { prisma, resetDb, jsonRequest } from './helpers/db';
 import {
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
  * `/api/conversations`（一覧取得・新規作成）の IT。

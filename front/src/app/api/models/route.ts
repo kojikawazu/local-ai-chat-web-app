@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listModels, getDefaultModel } from '@/lib/ollama';
+import { listModels, getDefaultModel } from '@/lib/llm/ollama';
 
 /**
  * Ollama で利用可能なモデル一覧と既定モデル名を取得する。

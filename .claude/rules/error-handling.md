@@ -6,7 +6,7 @@ globs:
 # エラーハンドリング
 
 - **バリデーション必須**: ユーザー入力・外部入力は必ずバリデーションする（フロントエンド + API 両方）。
-- **入力制限**: 上限値の定義は `lib/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
+- **入力制限**: 上限値の定義は `lib/shared/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
 - **HTTP ステータスコード**: 適切なステータスコードで返す（400/401/403/404/500）。
 - **ログ**: エラー時はスタックトレースを含むログを出力する。センシティブ情報はログに含めない。
 - **ローカル利用のため**: エラー詳細をクライアントに返してよい（本番向けサービスでは要注意）。
@@ -19,10 +19,10 @@ globs:
 return NextResponse.json({ error: '無効な会話IDです' }, { status: 400 });
 ```
 
-- **現状ヘルパー関数は無く、各 Route Handler で `NextResponse.json()` を直接組む**。`lib/validation.ts` は上限定数・`isValidUUID`・`getMaxMessageLength` を持つだけで、エラー応答の生成はしない。
-- **JSON ボディの検証は `lib/request-body.ts` に集約する**（#95）。route はボディを `unknown` で受け、`readJsonBody` と route ごとの `parseXxxBody` が返す `{ ok: false, error }` をそのまま 400 で返す。`null`・配列・型違いのフィールドを型注釈だけで受けると、分割代入や `.trim()` が実行時に例外を投げて 500 になるため。新しい POST route を足すときも、ここに検証関数を足す。
+- **現状ヘルパー関数は無く、各 Route Handler で `NextResponse.json()` を直接組む**。`lib/shared/validation.ts` は上限定数・`isValidUUID`・`getMaxMessageLength` を持つだけで、エラー応答の生成はしない。
+- **JSON ボディの検証は `lib/server/request-body.ts` に集約する**（#95）。route はボディを `unknown` で受け、`readJsonBody` と route ごとの `parseXxxBody` が返す `{ ok: false, error }` をそのまま 400 で返す。`null`・配列・型違いのフィールドを型注釈だけで受けると、分割代入や `.trim()` が実行時に例外を投げて 500 になるため。新しい POST route を足すときも、ここに検証関数を足す。
 - 形状は全 Route Handler で一致していること（IT で契約を検証する）。**新しい形状（`code` や `details` の追加など）を導入する場合は全 Route Handler を同時に揃える**。
-- ヘルパーを導入する場合は `lib/` に置き、`lib/validation.ts` には**入れない**。同ファイルはクライアントコンポーネント（`ChatBar` 等）からも import されるため、`next/server` 依存を持ち込むとクライアントバンドルが壊れる。
+- ヘルパーを導入する場合は `lib/` に置き、`lib/shared/validation.ts` には**入れない**。同ファイルはクライアントコンポーネント（`ChatBar` 等）からも import されるため、`next/server` 依存を持ち込むとクライアントバンドルが壊れる。
 
 ## バリデーションの実施順序
 

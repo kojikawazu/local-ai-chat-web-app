@@ -3,7 +3,7 @@ import {
   AGENT_PROMPT_PRESETS,
   DEFAULT_PRESET_ID,
   getPresetById,
-} from '@/lib/agent-prompts';
+} from '@/lib/agent/agent-prompts';
 
 /**
  * `agent-prompts` の UT。純粋な配列探索のため mock は使わない。

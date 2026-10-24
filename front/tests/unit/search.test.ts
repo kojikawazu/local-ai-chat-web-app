@@ -5,11 +5,14 @@ import {
   parseSearchQuery,
   parseSearchTerms,
   splitHighlights,
-} from '@/lib/search';
-import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from '@/lib/validation';
+} from '@/lib/conversation/search';
+import {
+  MAX_SEARCH_QUERY_LENGTH,
+  MAX_SEARCH_TERMS,
+} from '@/lib/shared/validation';
 
 /**
- * 会話検索（`lib/search.ts`。#11）の UT。文字列を受け取る純関数のため mock は使わない。
+ * 会話検索（`lib/conversation/search.ts`。#11）の UT。文字列を受け取る純関数のため mock は使わない。
  * 契約: キーワードは空白で区切って AND で探し、抜粋は最初の一致箇所の前後を切り出し、
  * 強調は一致した片とそれ以外に分ける。LIKE の記号（`%`・`_`）は文字として扱う。
  */

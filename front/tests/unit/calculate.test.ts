@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTool } from '@/lib/tools/calculate';
+import { calculateTool } from '@/lib/agent/tools/calculate';
 
 /**
  * `calculateTool` の UT。自前の再帰下降パーサーは外部 I/O を持たないため mock は使わない。

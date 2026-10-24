@@ -11,11 +11,11 @@ import ChatBar, {
   type ChatBarHandle,
 } from '@/features/chat/components/ChatBar';
 import Footer from '@/features/chat/components/Footer';
-import SettingsModal from '@/components/SettingsModal';
+import SettingsModal from '@/components/settings/SettingsModal';
 import RoleDialog from '@/features/chat/components/RoleDialog';
-import { useTheme } from '@/hooks/useTheme';
-import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent-prompts';
-import { getRoleLabel } from '@/lib/system-prompt';
+import { useTheme } from '@/hooks/theme/useTheme';
+import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent/agent-prompts';
+import { getRoleLabel } from '@/lib/chat/system-prompt';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。

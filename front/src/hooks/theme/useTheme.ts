@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import type { ThemeId } from '@/types/theme';
-import { THEMES } from '@/types/theme';
+import type { ThemeId } from '@/types/theme/theme';
+import { THEMES } from '@/types/theme/theme';
 
 const STORAGE_KEY = 'nordic-chat-theme';
 

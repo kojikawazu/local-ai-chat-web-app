@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { MessageSquare, Search, X } from 'lucide-react';
-import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/validation';
-import { parseSearchTerms, splitHighlights } from '@/lib/search';
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/shared/validation';
+import { parseSearchTerms, splitHighlights } from '@/lib/conversation/search';
 import { useConversationSearch } from '../hooks/useConversationSearch';
 
 /** {@link ConversationSearch} の props。 */

@@ -25,12 +25,12 @@
 
 ### リクエストボディの検証（全 POST・PUT・PATCH 共通）
 
-ボディは `unknown` として読み取り、`front/src/lib/request-body.ts` の検証関数（`parseChatBody` 等）を通してから DB・Ollama へ渡す（#95）。JSON として構文が正しくても API の形に合わない入力は、すべて `{ error: string }` + 400 で返す。
+ボディは `unknown` として読み取り、`front/src/lib/server/request-body.ts` の検証関数（`parseChatBody` 等）を通してから DB・Ollama へ渡す（#95）。JSON として構文が正しくても API の形に合わない入力は、すべて `{ error: string }` + 400 で返す。
 
 - ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
 - 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
 - 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
-- 上限値は `front/src/lib/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`）
+- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`）
 
 ### POST /api/chat
 
@@ -54,7 +54,7 @@
 
 履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。
 
-`systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、その後ろに「現在の日時」の節（日付・曜日・時刻・サーバーのタイムゾーンと、モードごとの「最新」の扱いの指示）を空行で区切って足し、会話履歴の先頭に `role: 'system'` として付ける（`lib/current-date.ts` の `withCurrentDate` と `lib/ollama.ts` の `withSystemPrompt`。#154）。`systemPrompt` が空でも、日時の節だけの system メッセージを付ける。日時はリクエストごとに作る。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
+`systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/chat/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、その後ろに「現在の日時」の節（日付・曜日・時刻・サーバーのタイムゾーンと、モードごとの「最新」の扱いの指示）を空行で区切って足し、会話履歴の先頭に `role: 'system'` として付ける（`lib/llm/current-date.ts` の `withCurrentDate` と `lib/llm/ollama.ts` の `withSystemPrompt`。#154）。`systemPrompt` が空でも、日時の節だけの system メッセージを付ける。日時はリクエストごとに作る。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/chat/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
 **レスポンス**
 
@@ -108,7 +108,7 @@
 
 会話をキーワードで検索する（#11）。空白（全角を含む）で区切った語の**すべて**を、会話のタイトルかメッセージの本文（質問・応答）のどこかに含む会話を、更新日時の新しい順に返す（AND）。思考過程・ツールの結果（`metadata`）は対象外。
 
-- 一致は大文字・小文字を区別しない部分一致（PostgreSQL の `ILIKE`）。`%`・`_` は文字そのものとして扱う（Prisma の `contains` はエスケープしないため、`lib/search.ts` の `escapeLikePattern` でエスケープする）
+- 一致は大文字・小文字を区別しない部分一致（PostgreSQL の `ILIKE`）。`%`・`_` は文字そのものとして扱う（Prisma の `contains` はエスケープしないため、`lib/conversation/search.ts` の `escapeLikePattern` でエスケープする）
 - 大文字・小文字だけが違う語の重複は 1 つにまとめる
 
 **クエリパラメータ**
@@ -180,7 +180,7 @@
 | 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title / systemPrompt が文字列でない・title が100文字超・systemPrompt が 5,000 文字超） |
 | 500 | サーバー内部エラー |
 
-上限値は `front/src/lib/validation.ts` の `MAX_TITLE_LENGTH`・`MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` が正準。
+上限値は `front/src/lib/shared/validation.ts` の `MAX_TITLE_LENGTH`・`MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` が正準。
 
 ---
 
@@ -295,7 +295,7 @@
 | 409 | 同じ `id` のメッセージが既に存在する |
 | 500 | サーバー内部エラー |
 
-上限値は `front/src/lib/validation.ts` が正準。user は `MAX_MESSAGE_LENGTH`（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）、assistant は `MAX_ASSISTANT_MESSAGE_LENGTH`（LLM 出力は長さを制御できないため入力上限と分ける）。
+上限値は `front/src/lib/shared/validation.ts` が正準。user は `MAX_MESSAGE_LENGTH`（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）、assistant は `MAX_ASSISTANT_MESSAGE_LENGTH`（LLM 出力は長さを制御できないため入力上限と分ける）。
 
 メッセージの作成と会話の `updatedAt` 更新は同一トランザクションで行い、片方だけが成功する部分成功を起こさない。
 

@@ -7,7 +7,7 @@ import {
   parseSaveMessageBody,
   parseUpdateConversationBody,
   readJsonBody,
-} from '@/lib/request-body';
+} from '@/lib/server/request-body';
 import {
   MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
@@ -15,10 +15,10 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
- * `lib/request-body` の UT（#95）。
+ * `lib/server/request-body` の UT（#95）。
  * 各 route がボディを `unknown` で受けてここで検証する前提で、JSON としては正しいが
  * API の形に合わない値（`null`・配列・数値・型違いのフィールド）がすべて失敗になることを確かめる。
  * 純関数のため mock は使わない（`readJsonBody` は標準の `Request` を組んで渡すだけ）。

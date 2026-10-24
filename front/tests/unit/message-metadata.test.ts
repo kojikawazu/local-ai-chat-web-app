@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildMessageMetadata,
   parseMessageMetadata,
-} from '@/lib/message-metadata';
+} from '@/lib/chat/message-metadata';
 
 /**
  * `message-metadata` の UT。純関数のため mock は使わない。

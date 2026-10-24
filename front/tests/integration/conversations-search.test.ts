@@ -2,8 +2,11 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/conversations/search/route';
 import { prisma, resetDb } from './helpers/db';
-import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from '@/lib/validation';
-import type { ConversationSearchResult } from '@/types';
+import {
+  MAX_SEARCH_QUERY_LENGTH,
+  MAX_SEARCH_TERMS,
+} from '@/lib/shared/validation';
+import type { ConversationSearchResult } from '@/types/conversation/conversation';
 
 /**
  * `GET /api/conversations/search`（会話検索。#11）の IT。

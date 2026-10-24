@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { POST } from '@/app/api/chat/route';
-import type { AgentStreamEvent } from '@/lib/tools/types';
+import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { jsonRequest } from './helpers/db';
 import { stubFetch } from './helpers/ollama-stub';
 

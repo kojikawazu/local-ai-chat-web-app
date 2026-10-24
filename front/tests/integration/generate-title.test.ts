@@ -10,8 +10,8 @@ import {
 import { POST } from '@/app/api/conversations/[id]/generate-title/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
 import { stubFetch } from './helpers/ollama-stub';
-import { getDefaultModel } from '@/lib/ollama';
-import { MAX_TITLE_LENGTH } from '@/lib/validation';
+import { getDefaultModel } from '@/lib/llm/ollama';
+import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
 
 /**
  * `/api/conversations/[id]/generate-title` の IT。

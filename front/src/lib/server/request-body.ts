@@ -1,5 +1,5 @@
 import type { Prisma } from '@/generated/prisma/client';
-import type { OllamaChatMessage } from '@/lib/ollama';
+import type { OllamaChatMessage } from '@/lib/llm/ollama';
 import {
   getMaxMessageLength,
   isValidUUID,
@@ -9,7 +9,7 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
  * Route Handler の JSON ボディを実行時に検証する関数群（#95）。
@@ -31,7 +31,7 @@ export type ChatBody = {
   message: string;
   /** 会話履歴。`role` と `content` だけに詰め直してある */
   conversationHistory: OllamaChatMessage[];
-  /** 使用モデル。未指定なら `lib/ollama.ts` の既定に任せる */
+  /** 使用モデル。未指定なら `lib/llm/ollama.ts` の既定に任せる */
   model?: string;
   /** エージェントモードで実行するか（未指定は false） */
   enableTools: boolean;
@@ -80,7 +80,7 @@ export type ReplaceMessageBody = {
 export type GenerateTitleBody = {
   /** タイトル生成の元となるメッセージ */
   message: string;
-  /** 使用モデル。未指定なら `lib/ollama.ts` の既定に任せる */
+  /** 使用モデル。未指定なら `lib/llm/ollama.ts` の既定に任せる */
   model?: string;
 };
 

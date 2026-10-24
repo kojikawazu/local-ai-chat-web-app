@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getCodeLanguage, hastToText } from '@/lib/code-block';
-import type { HastNode } from '@/lib/code-block';
+import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
+import type { HastNode } from '@/lib/chat/code-block';
 
 /**
- * `lib/code-block` の UT（#144）。
+ * `lib/chat/code-block` の UT（#144）。
  * コードブロックの言語名ラベルとコピーする本文を、構文木（hast）から取り出す処理を確かめる。
  * 入力は react-markdown（mdast-util-to-hast）と rehype-highlight が作る形に合わせる。純関数のため mock は使わない。
  */

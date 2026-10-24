@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildCurrentDateNotice, withCurrentDate } from '@/lib/current-date';
+import {
+  buildCurrentDateNotice,
+  withCurrentDate,
+} from '@/lib/llm/current-date';
 
 /**
  * システムプロンプトに付ける「現在の日時」の UT（#154）。

@@ -1,4 +1,5 @@
-import type { Message, ToolCallInfo } from '@/types';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type { Message } from '@/types/chat/message';
 
 /**
  * 新規会話の画面（会話を作る前）の状態を置くキー。会話 ID は UUID のため衝突しない。

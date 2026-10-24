@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { Prisma } from '@/generated/prisma/client';
-import { prisma } from '@/lib/prisma';
-import { parseSaveMessageBody, readJsonBody } from '@/lib/request-body';
-import { isValidUUID } from '@/lib/validation';
+import { prisma } from '@/lib/server/prisma';
+import { parseSaveMessageBody, readJsonBody } from '@/lib/server/request-body';
+import { isValidUUID } from '@/lib/shared/validation';
 
 /**
  * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。

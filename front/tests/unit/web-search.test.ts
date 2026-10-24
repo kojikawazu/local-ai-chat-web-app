@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSearchResponse } from '@/lib/tools/web-search';
+import { formatSearchResponse } from '@/lib/agent/tools/web-search';
 
 /**
  * `formatSearchResponse` の UT。SearXNG の応答本文を受け取る純関数のため mock は使わない。

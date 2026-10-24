@@ -5,18 +5,18 @@ import {
   getRoleLabel,
   NO_ROLE_LABEL,
   ROLE_PRESETS,
-} from '@/lib/system-prompt';
-import { AGENT_PROMPT_PRESETS } from '@/lib/agent-prompts';
-import { withSystemPrompt } from '@/lib/ollama';
+} from '@/lib/chat/system-prompt';
+import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
+import { withSystemPrompt } from '@/lib/llm/ollama';
 import {
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
  * 会話の役割（システムプロンプト。#10）の UT。
- * クライアント側の組み立て（`lib/system-prompt`）と、サーバー側で会話履歴の先頭に付ける処理
- * （`lib/ollama` の `withSystemPrompt`）を確かめる。どちらも純関数のため mock は使わない。
+ * クライアント側の組み立て（`lib/chat/system-prompt`）と、サーバー側で会話履歴の先頭に付ける処理
+ * （`lib/llm/ollama` の `withSystemPrompt`）を確かめる。どちらも純関数のため mock は使わない。
  */
 
 describe('buildSystemPrompt', () => {

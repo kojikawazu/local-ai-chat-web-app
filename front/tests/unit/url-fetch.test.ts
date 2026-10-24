@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatFetchedText } from '@/lib/tools/url-fetch';
+import { formatFetchedText } from '@/lib/agent/tools/url-fetch';
 
 /**
  * `formatFetchedText` の UT。取得済みの本文を受け取る純関数のため mock は使わない。

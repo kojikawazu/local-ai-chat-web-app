@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/ollama';
-import { streamChat, withSystemPrompt } from '@/lib/ollama';
-import { runAgentLoop } from '@/lib/agent';
-import { getLocalTimeZone, withCurrentDate } from '@/lib/current-date';
-import { initializeTools } from '@/lib/tools/registry';
-import { parseChatBody, readJsonBody } from '@/lib/request-body';
+import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
+import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
+import { runAgentLoop } from '@/lib/agent/agent';
+import { getLocalTimeZone, withCurrentDate } from '@/lib/llm/current-date';
+import { initializeTools } from '@/lib/agent/tools/registry';
+import { parseChatBody, readJsonBody } from '@/lib/server/request-body';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();

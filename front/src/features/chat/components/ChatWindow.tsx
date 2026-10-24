@@ -9,8 +9,8 @@ import {
   CircleStop,
   RefreshCw,
 } from 'lucide-react';
-import type { Message } from '@/types';
-import { findRegenerateTarget } from '@/lib/regenerate';
+import type { Message } from '@/types/chat/message';
+import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import MarkdownContent from './MarkdownContent';
 import { CopyButton } from './CopyButton';
 import { ToolCallIndicator } from './ToolCallIndicator';

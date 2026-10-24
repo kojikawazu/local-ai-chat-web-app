@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConversationSearchResult } from '@/types';
+import type { ConversationSearchResult } from '@/types/conversation/conversation';
 
 // 入力が止まってから検索するまでの待ち時間（ms）。1 文字ごとに API を呼ばないため
 const SEARCH_DEBOUNCE_MS = 300;

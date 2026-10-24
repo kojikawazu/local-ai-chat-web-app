@@ -44,12 +44,12 @@ globs:
 
 | 事実 | 正準（source of truth） | 転記されている箇所（要同期） |
 |---|---|---|
-| デフォルトLLMモデル名 | `front/src/lib/ollama.ts`（`OLLAMA_DEFAULT_MODEL`） | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`front/.env.example`、`manuals/setup-guide-macos.md`、`docs/models/README.md`（モデル一覧の役割）（※ `docs/07`・`docs/08` の履歴記述と `docs/models/` の各モデルのファイルは除く） |
-| Ollama 接続情報（ベース URL・モデル解決） | `front/src/lib/ollama.ts` のみ | **転記先なし**。`process.env.OLLAMA_*` を読むのは同ファイルだけとし、Route Handler は `getDefaultModel()` / `streamChat()` / `chatOnce()` を経由する |
+| デフォルトLLMモデル名 | `front/src/lib/llm/ollama.ts`（`OLLAMA_DEFAULT_MODEL`） | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`front/.env.example`、`manuals/setup-guide-macos.md`、`docs/models/README.md`（モデル一覧の役割）（※ `docs/07`・`docs/08` の履歴記述と `docs/models/` の各モデルのファイルは除く） |
+| Ollama 接続情報（ベース URL・モデル解決） | `front/src/lib/llm/ollama.ts` のみ | **転記先なし**。`process.env.OLLAMA_*` を読むのは同ファイルだけとし、Route Handler は `getDefaultModel()` / `streamChat()` / `chatOnce()` を経由する |
 | E2E テストファイル一覧 | `front/tests/e2e/*.spec.ts`（実体） | `docs/02`、`docs/04`、`docs/06` の3箇所のツリー |
 | API エンドポイント一覧 | `front/src/app/api/**/route.ts`（実体） | `CLAUDE.md`、`docs/03`、`.claude/rules/api.md` |
 | 環境変数一覧 | `front/.env.example` | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`manuals/setup-guide-macos.md` |
-| SearXNG の接続先（ポート `8888`） | `docker-compose.yml`（`searxng` の `ports`） | `front/src/lib/tools/web-search.ts`（`DEFAULT_SEARXNG_URL`）、`front/.env.example`、`CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`docs/09`、`manuals/setup-guide-macos.md` |
+| SearXNG の接続先（ポート `8888`） | `docker-compose.yml`（`searxng` の `ports`） | `front/src/lib/agent/tools/web-search.ts`（`DEFAULT_SEARXNG_URL`）、`front/.env.example`、`CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`docs/09`、`manuals/setup-guide-macos.md` |
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
 | CI のトリガー定義（`on:` / `paths-ignore`） | `.github/workflows/quality.yml` | `unit-test.yml`・`integration-test.yml`・`e2e-test.yml`（**`workflow-lint.yml` が一致を機械検査**） |
