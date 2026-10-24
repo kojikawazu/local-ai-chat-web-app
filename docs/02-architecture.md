@@ -236,7 +236,8 @@ front/tests/
 - **`hooks/`**: 複数機能で共有されるカスタムフックを配置
 - **`lib/`**: 外部サービス連携やユーティリティ関数を配置
 - **`types/`**: 複数機能で共有される型定義を配置
-- **`components/`・`hooks/`・`lib/`・`types/` の中は、機能ごとのディレクトリに分ける**（`src/<components|hooks|lib|types>/<機能>/`。#160）。直下にファイルを置かない。`lib/` は機能（`agent`・`llm`・`chat`・`conversation`）に加え、サーバー専用の `server/` と、サーバー・クライアント共通の `shared/` を持つ。re-export だけの `index.ts`（barrel）は作らず、実ファイルを直接 import する
+- **UI コンポーネントは Atomic Design で整理する**（#163。詳細は `docs/12-ui-components.md`）。共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/` に置き、page（`app/page.tsx`）は組み立てだけを行う。今の `features/` は段階 4 でなくし、フックは `hooks/<機能>/`、定数は `constants/<機能>/` へ移す（移行中は上のツリーのとおり `features/` が残る）
+- **`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<hooks|lib|types|constants>/<機能>/`。#160）。直下にファイルを置かない。`components/` は上の Atomic Design の構成に従う。`lib/` は機能（`agent`・`llm`・`chat`・`conversation`）に加え、サーバー専用の `server/` と、サーバー・クライアント共通の `shared/` を持つ。re-export だけの `index.ts`（barrel）は作らず、実ファイルを直接 import する
 - 機能固有のコンポーネント・フック・型は `features/<機能名>/` 内に閉じる
 - **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、機能内の 2 箇所以上なら `features/<機能名>/`、機能をまたぐなら `types/`・`constants/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）
 
