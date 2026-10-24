@@ -55,3 +55,16 @@ export const MAX_SYSTEM_PROMPT_LENGTH = 10_000;
  * 収まるよう、その半分の 5,000 文字とする（不変条件は UT で検証する）。
  */
 export const MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH = 5_000;
+/**
+ * 会話検索のキーワードの最大文字数（#11）。
+ *
+ * 探したい語を数語並べる用途には十分な長さ。長文を貼り付けて全メッセージへの部分一致を
+ * 走らせないための上限で、検索欄の入力上限にも使う。
+ */
+export const MAX_SEARCH_QUERY_LENGTH = 100;
+/**
+ * 会話検索で、空白で区切って AND で探せる語の最大数（#11）。
+ *
+ * 語ごとに「タイトルかメッセージ本文に含む」条件を足すため、際限なく増やすとクエリが重くなる。
+ */
+export const MAX_SEARCH_TERMS = 5;

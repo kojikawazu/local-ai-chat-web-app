@@ -8,6 +8,7 @@
   - [POST /api/chat](#post-apichat)
   - [GET /api/conversations](#get-apiconversations)
   - [POST /api/conversations](#post-apiconversations)
+  - [GET /api/conversations/search](#get-apiconversationssearch)
   - [PATCH /api/conversations/[id]](#patch-apiconversationsid)
   - [DELETE /api/conversations/[id]](#delete-apiconversationsid)
   - [GET /api/conversations/[id]/messages](#get-apiconversationsidmessages)
@@ -99,6 +100,47 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 成功 |
+| 500 | サーバー内部エラー |
+
+---
+
+### GET /api/conversations/search
+
+会話をキーワードで検索する（#11）。空白（全角を含む）で区切った語の**すべて**を、会話のタイトルかメッセージの本文（質問・応答）のどこかに含む会話を、更新日時の新しい順に返す（AND）。思考過程・ツールの結果（`metadata`）は対象外。
+
+- 一致は大文字・小文字を区別しない部分一致（PostgreSQL の `ILIKE`）。`%`・`_` は文字そのものとして扱う（Prisma の `contains` はエスケープしないため、`lib/search.ts` の `escapeLikePattern` でエスケープする）
+- 大文字・小文字だけが違う語の重複は 1 つにまとめる
+
+**クエリパラメータ**
+
+| パラメータ | 必須 | 説明 |
+|-----------|------|------|
+| `q` | ✅ | キーワード。前後の空白を除いて 1〜`MAX_SEARCH_QUERY_LENGTH`（100）文字、`MAX_SEARCH_TERMS`（5）語まで |
+| `offset` | — | 何件目から返すか（0 以上の整数。省略時 0）。「さらに表示」で使う |
+
+**レスポンス**
+
+```typescript
+{
+  results: {
+    id: string;
+    title: string;
+    updatedAt: string;
+    // 最初にキーワードが現れたメッセージ（作成順）の、一致箇所の前後 40 文字の抜粋。
+    // 途中で切った側に「…」を付け、改行・連続する空白は 1 つの空白にまとめる。
+    // タイトルにしか一致しなかった会話は null
+    snippet: string | null;
+  }[];
+  hasMore: boolean;  // 続き（offset + 20 件目以降）があるか
+}
+```
+
+1 回に返すのは 20 件まで。
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 成功（一致が無ければ `results: []`） |
+| 400 | `q` が無い・空白だけ・長すぎる・語が多すぎる、`offset` が 0 以上の整数でない |
 | 500 | サーバー内部エラー |
 
 ---

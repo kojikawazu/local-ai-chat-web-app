@@ -213,9 +213,13 @@ test.describe('生成中の会話の切り替え', () => {
         .poll(async () => (await answer.textContent())?.length ?? 0)
         .toBeGreaterThan(length);
 
-      // 後続のテストを待たせないよう、生成を止めておく
-      await stopButton(page).click();
-      await expect(page.getByText('生成を中断しました')).toBeVisible();
+      // 後続のテストを待たせないよう、生成中なら止めておく。続きを確かめた直後に生成が
+      // 終わることもあり、そのときは停止ボタンが消えて押せないため、止めずに終える
+      if (await stopButton(page).isVisible()) {
+        await stopButton(page)
+          .click({ timeout: 5000 })
+          .catch(() => {});
+      }
     });
   });
 
