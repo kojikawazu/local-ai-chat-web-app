@@ -8,9 +8,12 @@ import {
   RotateCw,
   CircleStop,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
+import { buildMessageExport } from '@/lib/chat/export';
+import { downloadTextFile } from '@/lib/shared/download';
 import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
@@ -18,6 +21,7 @@ import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 import Button from '@/components/common/atoms/Button';
 import LoadingDots from '@/components/common/atoms/LoadingDots';
+import IconButton from '@/components/common/atoms/IconButton';
 
 /** {@link ChatWindow} の props。 */
 type ChatWindowProps = {
@@ -31,13 +35,15 @@ type ChatWindowProps = {
   onRetrySave?: (messageId: string) => void;
   /** 再生成ボタン押下時のコールバック。再生成する応答の ID を受け取る。省略時はボタンを出さない。 */
   onRegenerate?: (messageId: string) => void;
+  /** 応答を Markdown で保存するときのファイル名に使う会話のタイトル（#12）。会話が一覧に無い間は空でよい。 */
+  conversationTitle?: string;
 };
 
 /**
  * チャットのメッセージ一覧を描画するスクロール領域。
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
- * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピーボタンを付随表示する。停止した応答には
+ * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピー・Markdown で保存のボタンを付随表示する。停止した応答には
  * 「生成を中断しました」を添える。最初のチャンク
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
@@ -51,6 +57,7 @@ export default function ChatWindow({
   isLoading,
   onRetrySave,
   onRegenerate,
+  conversationTitle = '',
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -197,6 +204,26 @@ export default function ChatWindow({
                     {msg.role === 'assistant' && (
                       // 表示ではなく Markdown の原文をコピーする（貼り付け先で書式を再現できる）
                       <CopyButton text={msg.content} label="コピー" />
+                    )}
+                    {msg.role === 'assistant' && (
+                      <IconButton
+                        label="Markdown で保存"
+                        tone="inherit"
+                        size="xs"
+                        onClick={() => {
+                          const file = buildMessageExport(
+                            msg,
+                            conversationTitle
+                          );
+                          downloadTextFile(
+                            file.fileName,
+                            file.content,
+                            file.mimeType
+                          );
+                        }}
+                      >
+                        <Download size={14} />
+                      </IconButton>
                     )}
                     {onRegenerate && msg.id === regenerableId && (
                       <Button
