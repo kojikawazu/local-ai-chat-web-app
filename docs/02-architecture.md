@@ -74,7 +74,7 @@ local-ai-chat-web-app/
 │   ├── package.json
 │   └── pnpm-lock.yaml
 ├── docker-compose.yml         # PostgreSQL・SearXNG のコンテナ定義
-├── searxng/settings.yml       # SearXNG の設定（JSON API の有効化等）
+├── searxng/settings.yml       # SearXNG の設定（JSON API の有効化・Web 検索のエンジンの追加等）
 ├── CLAUDE.md
 └── README.md
 ```
@@ -155,7 +155,7 @@ front/src/
 │   └── tools/                 #   ツール実装
 │       ├── types.ts           #     ツール関連型定義
 │       ├── index.ts           #     ツールレジストリ（register/get/execute）
-│       ├── output.ts          #     ツールの実行結果の組み立て（失敗の toolError）
+│       ├── output.ts          #     ツールの実行結果の組み立て（失敗の toolError・接続先ごと使えない失敗の toolUnavailable）
 │       ├── registry.ts        #     ツール登録の初期化（initializeTools）
 │       ├── get-current-datetime.ts # 現在日時取得ツール
 │       ├── calculate.ts       #     数式計算ツール

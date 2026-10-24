@@ -412,7 +412,13 @@ docker compose up -d
 curl -s "http://localhost:8888/search?q=test&format=json" | head -c 300
 ```
 
-「検索エンジンが応答しませんでした」と表示される場合は、SearXNG が問い合わせる検索エンジン側の一時的な制限です。しばらく時間をおいてから検索し直してください。
+「検索エンジンが応答しませんでした」と表示される場合は、SearXNG が問い合わせる検索エンジン側の一時的な制限です（アクセスが続くと止められます）。しばらく時間をおいてから質問し直してください。同じ応答の中では、エージェントは検索し直しません（止められる時間を延ばさないため）。
+
+どのエンジンが応答していないかは、次で確かめられます。`unresponsive_engines` に理由（`too many requests`・`CAPTCHA` 等）が出ます。
+
+```bash
+curl -s "http://localhost:8888/search?q=test&format=json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["unresponsive_engines"])'
+```
 
 ### pnpm install でエラーが出る
 

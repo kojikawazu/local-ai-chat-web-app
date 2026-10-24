@@ -16,3 +16,21 @@ search:
   formats:
     - html
     - json
+
+# 既定で有効な Web 検索エンジン（Brave・DuckDuckGo・Google CSE）は、アクセスが続くと
+# 止められる（Brave・Google CSE は too many requests、DuckDuckGo の html 版は毎回 CAPTCHA）。
+# すべて止められると検索できなくなるため、日本語のクエリでも結果を返すエンジンを足し、
+# 1 つが止められても残りで結果を返せるようにする（#157）
+engines:
+  - name: yahoo
+    disabled: false
+  # duckduckgo.com を使う版。html 版（duckduckgo）とは別に止められる
+  - name: duckduckgo web
+    disabled: false
+  # 単独では関係の薄い結果も返すが、複数のエンジンが共通して返した結果が上位に並ぶため補助として使う
+  - name: bing
+    disabled: false
+  # html.duckduckgo.com を使う版。毎回 CAPTCHA で応答しない。応答しないエンジンが残ると、
+  # 他のエンジンの 0 件を「検索エンジンが応答しなかった」失敗として扱うことになるため外す
+  - name: duckduckgo
+    disabled: true

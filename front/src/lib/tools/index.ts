@@ -1,4 +1,4 @@
-import type { Tool, OllamaToolDefinition, ToolOutput } from './types';
+import type { Tool, OllamaToolDefinition, ToolExecution } from './types';
 
 const toolRegistry = new Map<string, Tool>();
 
@@ -43,14 +43,14 @@ export function getAllToolDefinitions(): OllamaToolDefinition[] {
  * @param name - 実行するツール名
  * @param args - ツールへ渡す引数（キー→値のマップ）
  * @param signal - ツールの実処理（fetch 等）を中断する signal
- * @returns ツールの実行結果（モデルへ返す文章・成否・要約）
+ * @returns ツールの実行結果（モデルへ返す文章・成否・要約と、接続先ごと使えないかの印）
  * @throws {Error} 指定名のツールが未登録の場合
  */
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   signal: AbortSignal
-): Promise<ToolOutput> {
+): Promise<ToolExecution> {
   const tool = toolRegistry.get(name);
   if (!tool) {
     throw new Error(`Unknown tool: "${name}"`);

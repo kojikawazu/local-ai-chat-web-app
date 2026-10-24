@@ -150,7 +150,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
 - **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）のコンテナ定義（プロジェクトルート）
-- **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化等。`docker-compose.yml` がマウントする）
+- **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化・Web 検索のエンジンの追加等。`docker-compose.yml` がマウントする）
 
 ### front/src/ ソースコード構成（ハイブリッド方式）
 

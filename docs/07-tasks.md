@@ -928,3 +928,13 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 - [x] サイドバーに生成中の印を出す
 - [x] UT（`chat-state.test.ts`）・E2E（`conversation-switch.spec.ts`）。E2E は 4 周連続（24 件）で安定することを確認。サーバー側は変えないため IT は追加しない
 - [x] `docs/01`・`docs/02`・`docs/04`・`docs/06`・`CLAUDE.md` を同期
+
+## フェーズ32: Web 検索の失敗の繰り返し
+
+エージェントモードで「java の最新バージョンを教えて」と聞くと、`web_search` が 1 回の応答の中で 7 回以上続けて失敗した。SearXNG が既定で使う Web 検索エンジン（Brave・DuckDuckGo の html 版・Google CSE）がすべて止められていたうえ、失敗の文章が「しばらく時間をおいてから検索し直してください」だったため、モデルが待たずに言い換えて検索し続け、止められる時間を延ばしていた。 — #157
+
+- [x] `searxng/settings.yml` で、日本語・英語のクエリで結果を返す Yahoo・`duckduckgo web`・Bing を有効にし、毎回 CAPTCHA の `duckduckgo`（html 版）を無効にする。止められたエンジンが残っていても、3 種のクエリで 11〜22 件が返ることを確認
+- [x] すべての検索エンジンが応答しないときは、この応答の中で検索し直さず、検索できなかったことを伝えたうえで回答するようモデルに伝える
+- [x] 接続先ごと使えない失敗（`ToolExecution.unavailable`・`toolUnavailable`）を返したツールは、同じ応答の中では再び実行しない（`agent.ts`）。印は画面・DB へ送らない
+- [x] UT（`web-search.test.ts`）・IT（`chat-agent.test.ts`。修正前の `agent.ts` で呼び直しの 3 件が落ちることを確認）。画面は変えないため E2E は追加しない
+- [x] `docs/02`・`docs/06`・`docs/09`・`manuals/setup-guide-macos.md`・`CLAUDE.md` を同期
