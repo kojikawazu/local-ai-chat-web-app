@@ -5,6 +5,10 @@ import { MessageSquare, Search, X } from 'lucide-react';
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/shared/validation';
 import { parseSearchTerms, splitHighlights } from '@/lib/conversation/search';
 import { useConversationSearch } from '../hooks/useConversationSearch';
+import Button from '@/components/common/atoms/Button';
+import IconButton from '@/components/common/atoms/IconButton';
+import Mark from '@/components/common/atoms/Mark';
+import TextInput from '@/components/common/atoms/TextInput';
 
 /** {@link ConversationSearch} の props。 */
 type ConversationSearchProps = {
@@ -17,7 +21,7 @@ type ConversationSearchProps = {
 };
 
 /**
- * 文字列のうち、キーワードに一致した箇所を `<mark>` で強調して描く。
+ * 文字列のうち、キーワードに一致した箇所を {@link Mark} で強調して描く。
  *
  * HTML を組み立てずに、分割した片を React の要素として並べる（XSS 対策。`security.md`）。
  *
@@ -28,12 +32,7 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
     <>
       {splitHighlights(text, terms).map((part, i) =>
         part.match ? (
-          <mark
-            key={i}
-            className="rounded-sm bg-nord-frost-1/30 px-0.5 text-nord-6"
-          >
-            {part.text}
-          </mark>
+          <Mark key={i}>{part.text}</Mark>
         ) : (
           <span key={i}>{part.text}</span>
         )
@@ -74,8 +73,7 @@ export default function ConversationSearch({
           size={16}
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-nord-4/60"
         />
-        <input
-          type="text"
+        <TextInput
           value={query}
           onChange={(e) => changeQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -88,17 +86,18 @@ export default function ConversationSearch({
           maxLength={MAX_SEARCH_QUERY_LENGTH}
           placeholder="会話を検索"
           aria-label="会話を検索"
-          className="w-full rounded-lg border border-nord-3 bg-nord-0 py-2 pl-9 pr-9 text-sm text-nord-6 placeholder:text-nord-4/40 focus:border-nord-frost-1 focus:outline-none"
+          // 左右のアイコン（虫眼鏡・×）の分だけ余白を空ける
+          className="w-full pl-9 pr-9"
         />
         {query && (
-          <button
-            type="button"
+          <IconButton
+            label="検索をやめる"
+            size="sm"
             onClick={clear}
-            aria-label="検索をやめる"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-nord-4/60 hover:bg-white/5 hover:text-nord-6"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2"
           >
             <X size={14} />
-          </button>
+          </IconButton>
         )}
       </div>
 
@@ -150,13 +149,14 @@ export default function ConversationSearch({
               )}
             </div>
             {status === 'done' && hasMore && (
-              <button
-                type="button"
+              <Button
+                variant="subtle"
+                size="sm"
                 onClick={loadMore}
-                className="w-full rounded-lg px-3 py-2 text-sm text-nord-frost-1 hover:bg-white/5"
+                className="w-full"
               >
                 さらに表示
-              </button>
+              </Button>
             )}
           </div>
         </section>

@@ -162,8 +162,8 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
-- **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。今の `features/` は移行の段階 4 でなくす（移行中）
-- **`components/`** — 共通UIコンポーネント（`settings/SettingsModal`、複数機能で再利用）
+- **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。今の `features/` は移行の段階 4 でなくす（移行中）
+- **`components/`** — UIコンポーネント（Atomic Design。`common/atoms/`: Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots。`settings/SettingsModal` は段階 4 で `features/settings/organisms/` へ移す）
 - **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
   - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, RoleDialog, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch / hooks: useConversations, useConversationSearch, useDrawerDialog）
@@ -176,7 +176,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, clipboard.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/server/` — サーバー専用（prisma.ts, request-body.ts）
-  - `lib/shared/` — サーバー・クライアント共通（validation.ts）
+  - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts）
 - **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）

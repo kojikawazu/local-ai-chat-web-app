@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
+import IconButton from '@/components/common/atoms/IconButton';
+import StatusDot from '@/components/common/atoms/StatusDot';
 
 /**
  * SidebarContent コンポーネントの props。
@@ -117,23 +119,20 @@ export default function SidebarContent({
                     <span className="truncate">{conv.title}</span>
                     {/* 別の会話を見ていても、裏で生成が続いていることがわかるようにする */}
                     {generatingConversationIds.includes(conv.id) && (
-                      <span
-                        role="img"
-                        aria-label="生成中"
-                        className="ml-auto h-2 w-2 shrink-0 rounded-full bg-nord-frost-1 animate-pulse"
-                      />
+                      <StatusDot pulse label="生成中" className="ml-auto" />
                     )}
                   </button>
-                  <button
+                  <IconButton
+                    label={`「${conv.title}」を削除`}
+                    tone="danger"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteConversation(conv.id);
                     }}
-                    aria-label={`「${conv.title}」を削除`}
-                    className={`p-2 mr-1 rounded-lg text-nord-4/40 hover:text-nord-aurora-red transition-all ${deleteVisibility}`}
+                    className={`mr-1 ${deleteVisibility}`}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </IconButton>
                 </div>
               ))}
             </div>
@@ -143,13 +142,9 @@ export default function SidebarContent({
 
       <div className="mt-auto p-6">
         <div className="flex gap-2 justify-center">
-          <button
-            onClick={onOpenSettings}
-            aria-label="設定を開く"
-            className="p-2 rounded-lg text-nord-4/60 hover:bg-white/5 transition-colors"
-          >
+          <IconButton label="設定を開く" onClick={onOpenSettings}>
             <Settings size={20} />
-          </button>
+          </IconButton>
         </div>
       </div>
     </>

@@ -1,6 +1,9 @@
 'use client';
 
 import { Cpu, Activity, ChevronDown, Menu, UserRoundCog } from 'lucide-react';
+import IconButton from '@/components/common/atoms/IconButton';
+import Select from '@/components/common/atoms/Select';
+import StatusDot from '@/components/common/atoms/StatusDot';
 
 /** {@link Header} の props。 */
 type HeaderProps = {
@@ -50,20 +53,20 @@ export default function Header({
   return (
     <header className="h-16 px-4 md:px-6 flex items-center justify-between gap-3 sticky top-0 z-10 bg-nord-1 border-b border-nord-3">
       <div className="flex items-center gap-3 md:gap-6 shrink-0">
-        <button
-          type="button"
+        <IconButton
+          label="メニューを開く"
+          tone="default"
           onClick={onOpenMenu}
-          aria-label="メニューを開く"
           aria-haspopup="dialog"
           aria-expanded={isMenuOpen}
           aria-controls={menuId}
-          className="md:hidden -ml-2 p-2 rounded-lg text-nord-4 hover:bg-white/5 transition-colors"
+          className="md:hidden -ml-2"
         >
           <Menu size={22} />
-        </button>
+        </IconButton>
 
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-2.5 h-2.5 shrink-0 rounded-full bg-nord-aurora-green shadow-[0_0_8px_#a3be8c]" />
+          <StatusDot tone="green" size="md" />
           <span className="text-sm font-semibold text-nord-6 whitespace-nowrap">
             Node: Local
           </span>
@@ -95,11 +98,12 @@ export default function Header({
           </span>
         </button>
         <div className="relative min-w-0">
-          <select
+          <Select
+            variant="compact"
             value={selectedModel}
             onChange={(e) => onModelChange(e.target.value)}
             aria-label="モデルを選択"
-            className="w-full max-w-36 md:max-w-none truncate appearance-none pl-4 pr-8 py-1.5 rounded-lg text-xs font-bold border border-nord-3 bg-nord-2 text-nord-6 cursor-pointer hover:bg-nord-3 transition-colors focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+            className="w-full max-w-36 md:max-w-none truncate"
           >
             {models.length > 0 ? (
               models.map((model) => (
@@ -110,7 +114,7 @@ export default function Header({
             ) : (
               <option value={selectedModel}>{displayName}</option>
             )}
-          </select>
+          </Select>
           <ChevronDown
             size={14}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-nord-4/60 pointer-events-none"

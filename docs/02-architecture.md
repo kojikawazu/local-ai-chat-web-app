@@ -106,7 +106,9 @@ front/src/
 │                   ├── route.ts #   メッセージ取得・保存
 │                   └── [messageId]/
 │                       └── route.ts # 応答の置き換え（再生成）
-├── components/                # 共通UIコンポーネント（機能ごとのディレクトリ。#160）
+├── components/                # UIコンポーネント（Atomic Design。#163。移行中）
+│   ├── common/                #   共通の部品（ドメインを知らない）
+│   │   └── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
 │   └── settings/
 │       └── SettingsModal.tsx  #     設定モーダル（モデル選択・テーマ切替）
 ├── features/                  # 機能固有モジュール
@@ -174,7 +176,8 @@ front/src/
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
 │   │   └── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   └── shared/                #   サーバー・クライアント共通
-│       └── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
+│       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
+│       └── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
 └── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
@@ -236,7 +239,7 @@ front/tests/
 - **`hooks/`**: 複数機能で共有されるカスタムフックを配置
 - **`lib/`**: 外部サービス連携やユーティリティ関数を配置
 - **`types/`**: 複数機能で共有される型定義を配置
-- **UI コンポーネントは Atomic Design で整理する**（#163。詳細は `docs/12-ui-components.md`）。共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/` に置き、page（`app/page.tsx`）は組み立てだけを行う。今の `features/` は段階 4 でなくし、フックは `hooks/<機能>/`、定数は `constants/<機能>/` へ移す（移行中は上のツリーのとおり `features/` が残る）
+- **UI コンポーネントは Atomic Design で整理する**（#163。詳細は `docs/12-ui-components.md`）。共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/` に置き、page（`app/page.tsx`）は組み立てだけを行う。今の `features/` は段階 4 でなくし、フックは `hooks/<機能>/`、定数は `constants/<機能>/` へ移す（移行中は上のツリーのとおり `features/` が残る）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<hooks|lib|types|constants>/<機能>/`。#160）。直下にファイルを置かない。`components/` は上の Atomic Design の構成に従う。`lib/` は機能（`agent`・`llm`・`chat`・`conversation`）に加え、サーバー専用の `server/` と、サーバー・クライアント共通の `shared/` を持つ。re-export だけの `index.ts`（barrel）は作らず、実ファイルを直接 import する
 - 機能固有のコンポーネント・フック・型は `features/<機能名>/` 内に閉じる
 - **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、機能内の 2 箇所以上なら `features/<機能名>/`、機能をまたぐなら `types/`・`constants/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）

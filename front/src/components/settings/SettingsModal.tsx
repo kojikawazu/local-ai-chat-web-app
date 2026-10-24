@@ -4,6 +4,11 @@ import { X, Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
 import type { ThemeId } from '@/types/theme/theme';
 import { THEMES } from '@/types/theme/theme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
+import Button from '@/components/common/atoms/Button';
+import IconButton from '@/components/common/atoms/IconButton';
+import Select from '@/components/common/atoms/Select';
+import StatusDot from '@/components/common/atoms/StatusDot';
+import Switch from '@/components/common/atoms/Switch';
 
 /**
  * SettingsModal コンポーネントの props。
@@ -68,12 +73,9 @@ export default function SettingsModal({
       <div className="relative w-full max-w-lg mx-4 rounded-2xl bg-nord-1 border border-nord-3 shadow-2xl shadow-black/40">
         <div className="flex items-center justify-between p-6 border-b border-nord-3">
           <h2 className="text-lg font-bold text-nord-6">Settings</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-nord-4/60 hover:bg-white/5 hover:text-nord-6 transition-colors"
-          >
+          <IconButton label="閉じる" size="sm" onClick={onClose}>
             <X size={20} />
-          </button>
+          </IconButton>
         </div>
 
         <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-12rem)]">
@@ -82,10 +84,10 @@ export default function SettingsModal({
               <Bot size={16} className="text-nord-frost-1" />
               Model
             </label>
-            <select
+            <Select
               value={selectedModel}
               onChange={(e) => onModelChange(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg text-sm border border-nord-3 bg-nord-2 text-nord-6 focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+              className="w-full"
             >
               {models.length > 0 ? (
                 models.map((model) => (
@@ -96,7 +98,7 @@ export default function SettingsModal({
               ) : (
                 <option value={selectedModel}>{selectedModel}</option>
               )}
-            </select>
+            </Select>
             <p className="text-xs text-nord-4/60">
               Ollamaで利用可能なモデルを選択します
             </p>
@@ -123,17 +125,7 @@ export default function SettingsModal({
                   AIが日時取得・計算などのツールを自律的に使用します
                 </p>
               </div>
-              <div
-                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ml-4 ${
-                  enableTools ? 'bg-nord-frost-1' : 'bg-nord-3'
-                }`}
-              >
-                <div
-                  className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                    enableTools ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </div>
+              <Switch checked={enableTools} className="ml-4" />
             </button>
           </div>
 
@@ -162,9 +154,7 @@ export default function SettingsModal({
                         {preset.description}
                       </p>
                     </div>
-                    {agentPromptPresetId === preset.id && (
-                      <div className="w-2 h-2 rounded-full bg-nord-frost-1 shrink-0" />
-                    )}
+                    {agentPromptPresetId === preset.id && <StatusDot />}
                   </button>
                 ))}
               </div>
@@ -193,9 +183,7 @@ export default function SettingsModal({
                     </p>
                     <p className="text-xs text-nord-4/60">{t.description}</p>
                   </div>
-                  {theme === t.id && (
-                    <div className="w-2 h-2 rounded-full bg-nord-frost-1" />
-                  )}
+                  {theme === t.id && <StatusDot />}
                 </button>
               ))}
             </div>
@@ -203,12 +191,9 @@ export default function SettingsModal({
         </div>
 
         <div className="flex justify-end p-6 border-t border-nord-3">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 rounded-lg text-sm font-bold bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 transition-colors"
-          >
+          <Button size="lg" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

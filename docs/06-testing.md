@@ -373,7 +373,8 @@ front/tests/
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
 │   ├── current-date.test.ts      # システムプロンプトに足す現在の日時（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン）
 │   ├── chat-state.test.ts        # 会話ごとのチャット状態（移す・残す・読み込みの反映・生成中の会話の一覧・捨てる）
-│   └── search.test.ts            # 会話検索のクエリの検証・キーワードの分解・抜粋の切り出し・強調の分割・LIKE のエスケープ
+│   ├── search.test.ts            # 会話検索のクエリの検証・キーワードの分解・抜粋の切り出し・強調の分割・LIKE のエスケープ
+│   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy

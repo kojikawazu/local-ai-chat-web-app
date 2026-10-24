@@ -955,8 +955,8 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 
 UI コンポーネントに Atomic Design（atoms / molecules / organisms / templates / pages）を導入する。素の `<button>` などに同じクラスが繰り返され、モーダルの作りが 3 通りあるため。見た目・挙動を変えない整理を基本とし、段階ごとに PR を分ける。 — #163（2026-10-24 着手）
 
-- [x] 1. 設計・規則（`docs/12-ui-components.md` を新設。`frontend.md`・`typescript.md`・`docs/02`・`CLAUDE.md`・`docs/README.md`）のレビュー。共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。依存の向きは lint で強制、モーダルはネイティブの `<dialog>` に揃える
-- [ ] 2. atoms の追加と、既存の素の `<button>`・入力欄の置き換え
+- [x] 1. 設計・規則（`docs/12-ui-components.md` を新設。`frontend.md`・`typescript.md`・`docs/02`・`CLAUDE.md`・`docs/README.md`）のレビュー。共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。依存の向きは lint で強制、モーダルはネイティブの `<dialog>` に揃える
+- [x] 2. 共通の atoms（`components/common/atoms/` の 10 個）の追加と、素の `<button>`・入力欄・小さな丸・強調の置き換え。クラス名の連結（`lib/shared/class-names.ts`）と UT。依存の向きの ESLint（`atomicDesignRules`。違反の import を検出できることを確認）。共通の部品の置き場所を `components/common/` に変更
 - [ ] 3. molecules の切り出し（`SearchBox`・`Modal` 等。モーダルの挙動を揃える）
 - [ ] 4. `src/features/` をなくす（部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/`）。機能専用の molecules の切り出し・`ChatLayout` の作成と、`page.tsx` を template への受け渡しだけにする
 - [ ] 各段階で、スクリーンショットの E2E と既存の E2E が通ること

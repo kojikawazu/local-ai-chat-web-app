@@ -4,6 +4,87 @@ import nextTs from 'eslint-config-next/typescript';
 import prettier from 'eslint-config-prettier';
 import jsdoc from 'eslint-plugin-jsdoc';
 
+// UI 部品（Atomic Design）の依存の向き（#163・docs/12-ui-components.md「依存の向き」）。
+// 下の階層は上を import しない・共通の部品は機能の部品を import しない・機能の部品は他の機能を
+// import しない。flat config では同じファイルに当たる設定の no-restricted-imports は後勝ちで
+// 置き換わる（合成されない）ため、ディレクトリの組み合わせごとに禁止を全部まとめて 1 つの設定にする。
+const UI_FEATURES = ['chat', 'sidebar', 'settings'];
+
+/** 自分より上の階層（相対・エイリアスどちらの import も、パスの途中の階層名で判定する） */
+const ABOVE = {
+  atoms: '(^|/)(molecules|organisms|templates)/',
+  molecules: '(^|/)(organisms|templates)/',
+  organisms: '(^|/)templates/',
+};
+
+/**
+ * no-restricted-imports の設定を作る。
+ *
+ * @param files - 対象のファイル
+ * @param patterns - 禁止する import の正規表現と、その理由
+ * @returns flat config の 1 要素
+ */
+function restrictImports(files, patterns) {
+  return {
+    files,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: patterns.map(([regex, message]) => ({ regex, message })) },
+      ],
+    },
+  };
+}
+
+const NO_UPPER_LAYER =
+  '下の階層から上の階層は import しない（atoms ← molecules ← organisms ← page。templates は page だけが使う）';
+const NO_FEATURE_FROM_COMMON =
+  '共通の部品（components/common）は機能の部品・機能のフックを import しない';
+const NO_OTHER_FEATURE =
+  '機能の部品は他の機能の部品を import しない。機能をまたいで使うものは components/common へ移す';
+
+const atomicDesignRules = [
+  ...['atoms', 'molecules'].map((layer) =>
+    restrictImports(
+      [`src/components/common/${layer}/**/*.{ts,tsx}`],
+      [
+        [ABOVE[layer], NO_UPPER_LAYER],
+        ['^@/components/features/', NO_FEATURE_FROM_COMMON],
+        ['^@/features/', NO_FEATURE_FROM_COMMON],
+        [`^@/hooks/(${UI_FEATURES.join('|')})/`, NO_FEATURE_FROM_COMMON],
+      ]
+    )
+  ),
+  restrictImports(
+    ['src/components/common/templates/**/*.{ts,tsx}'],
+    [
+      ['(^|/)organisms/', NO_UPPER_LAYER],
+      ['^@/components/features/', NO_FEATURE_FROM_COMMON],
+      ['^@/features/', NO_FEATURE_FROM_COMMON],
+      [`^@/hooks/(${UI_FEATURES.join('|')})/`, NO_FEATURE_FROM_COMMON],
+    ]
+  ),
+  ...UI_FEATURES.flatMap((feature) => [
+    ...['atoms', 'molecules', 'organisms'].map((layer) =>
+      restrictImports(
+        [`src/components/features/${feature}/${layer}/**/*.{ts,tsx}`],
+        [
+          [ABOVE[layer], NO_UPPER_LAYER],
+          [`^@/components/features/(?!${feature}/)`, NO_OTHER_FEATURE],
+        ]
+      )
+    ),
+    // 移行中（#163 の段階 4 まで）の今の配置。機能の間の import と templates の import を禁じる
+    restrictImports(
+      [`src/features/${feature}/**/*.{ts,tsx}`],
+      [
+        [`^@/features/(?!${feature}/)`, NO_OTHER_FEATURE],
+        ['(^|/)templates/', NO_UPPER_LAYER],
+      ]
+    ),
+  ]),
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -61,6 +142,7 @@ const eslintConfig = defineConfig([
       'jsdoc/require-returns-description': 'off',
     },
   },
+  ...atomicDesignRules,
   // Prettier と競合する整形系ルールを無効化する。上のルールを上書きするため最後に置く。
   prettier,
   // `.prettierignore` の除外のうち、JS/TS を含みうる生成物・テスト成果物は ESLint でも除外する
