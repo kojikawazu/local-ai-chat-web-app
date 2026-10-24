@@ -95,10 +95,9 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 | 参照範囲 | 置き場所 |
 |---|---|
 | **1 ファイルに閉じる** | その定義ファイルの先頭で `const` 宣言（`export` しない） |
-| **機能内の 2 ファイル以上** | `features/<機能>/constants/`（例: `features/chat/constants/toolLabels.ts`） |
-| **機能をまたぐ 2 ファイル以上** | `src/constants/` に集約して `export` |
+| **2 ファイル以上**（機能内・機能をまたぐ） | `src/constants/<機能>/` に集約して `export`（例: `constants/chat/toolLabels.ts`） |
 
-**現状 `src/constants/` は存在しない**（機能をまたぐ定数がまだ無いため）。上表は「機能横断の定数が 2 箇所目の参照を得た時点で作る」という前向きの指針であり、先回りして空のディレクトリを作る必要はない。
+`src/features/` をなくす移行（#163 の段階 4）が済むまでは、機能内の定数が `features/<機能>/constants/`（`features/chat/constants/toolLabels.ts`）に残る。新しく足す定数は `src/constants/<機能>/` に置く（#160 の `src/<層>/<機能>/` の規則）。
 
 なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/shared/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
 
@@ -106,7 +105,7 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 
 - **`lib/` に定数を混ぜない。** 「関数の置き場」と「値の置き場」を分けると、変更時に探す範囲が狭まる（上記 `validation.ts` は検証の関心事に属する例外）。
 - 昇格の運用は型と同じ: まず使う場所に書き、**2 箇所目の参照が発生した時点で `constants/` へ移す**。移動時は元ファイルに残さない（re-export も含む）。
-- `constants/` はドメイン単位でファイルを分ける（`constants/chat.ts` / `constants/api.ts`）。**barrel（`constants/index.ts`）は作らない**（理由は型と同じ）。
+- `constants/` は機能ごとのディレクトリに分け、その中をドメイン単位のファイルにする（`constants/chat/toolLabels.ts`）。**barrel（`index.ts`）は作らない**（理由は型と同じ）。
 - **`as const` を付ける。** 付けないとリテラル型が `string` / `number` に広がり、union の導出や補完が効かなくなる。
 - 命名は `UPPER_SNAKE_CASE`。オブジェクト定数のキーも同様に揃える。
 

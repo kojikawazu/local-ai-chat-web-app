@@ -950,3 +950,13 @@ DuckDuckGo がすべての検索にボット判定の確認ページ（HTTP 202�
 - [x] ファイルの移動と import の書き換え（`git mv`。動作は変えない。`@/types` の import は型ごとに実ファイルへ分けた）
 - [x] lint / typecheck / build / UT（305 件）/ IT（178 件）/ E2E 全件（146 件通過・5 件は軽量モデルでスキップ）。件数は移動前と同じ
 - [x] `CLAUDE.md`・`docs/02`・`docs/03`・`docs/06`・`docs/09`・`docs/11`・`docs/models/README.md`・`.claude/rules/`（`frontend.md`・`typescript.md`・`documentation.md`・`api.md`・`error-handling.md`・`testing.md`・`database.md`）を同期。配置の規則（`src/<層>/<機能>/`）を `frontend.md`・`typescript.md` に書いた。`docs/07`・`docs/08` の過去の記述は履歴なので書き換えない
+
+## フェーズ34: Atomic Design の導入
+
+UI コンポーネントに Atomic Design（atoms / molecules / organisms / templates / pages）を導入する。素の `<button>` などに同じクラスが繰り返され、モーダルの作りが 3 通りあるため。見た目・挙動を変えない整理を基本とし、段階ごとに PR を分ける。 — #163（2026-10-24 着手）
+
+- [x] 1. 設計・規則（`docs/12-ui-components.md` を新設。`frontend.md`・`typescript.md`・`docs/02`・`CLAUDE.md`・`docs/README.md`）のレビュー。共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。依存の向きは lint で強制、モーダルはネイティブの `<dialog>` に揃える
+- [ ] 2. atoms の追加と、既存の素の `<button>`・入力欄の置き換え
+- [ ] 3. molecules の切り出し（`SearchBox`・`Modal` 等。モーダルの挙動を揃える）
+- [ ] 4. `src/features/` をなくす（部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/`）。機能専用の molecules の切り出し・`ChatLayout` の作成と、`page.tsx` を template への受け渡しだけにする
+- [ ] 各段階で、スクリーンショットの E2E と既存の E2E が通ること

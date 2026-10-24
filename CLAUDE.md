@@ -161,7 +161,8 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/` — 会話CRUD
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
-- **`components/`・`hooks/`・`lib/`・`types/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
+- **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
+- **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。今の `features/` は移行の段階 4 でなくす（移行中）
 - **`components/`** — 共通UIコンポーネント（`settings/SettingsModal`、複数機能で再利用）
 - **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
   - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, RoleDialog, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
@@ -214,10 +215,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/09-agent-architecture.md` | エージェント機能 設計書 |
 | `docs/10-roadmap.md` | 開発ロードマップ |
 | `docs/11-syntax-highlight-diagrams.md` | シンタックスハイライト・図表レンダリング 設計書 |
+| `docs/12-ui-components.md` | UI コンポーネント 設計書（Atomic Design） |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`12-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`13-`〜）を付与する。
 
 ## Instruction Shortcuts
 
