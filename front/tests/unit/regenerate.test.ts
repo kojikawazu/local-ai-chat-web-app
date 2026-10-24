@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { findRegenerateTarget } from '@/lib/regenerate';
-import type { Message } from '@/types';
+import { findRegenerateTarget } from '@/lib/chat/regenerate';
+import type { Message } from '@/types/chat/message';
 
 /**
- * `lib/regenerate` の UT（#9）。
+ * `lib/chat/regenerate` の UT（#9）。
  * 再生成できる応答の判定（最後・assistant・保存済み・直前に保存済みの質問）と、送り直す
  * 質問・履歴の範囲を確かめる。ボタンの表示（`ChatWindow`）と実行（`useChat`）が同じ判定を使うため、
  * 判定の食い違いはここで検出する。純関数のため mock は使わない。

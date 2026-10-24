@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { copyText } from '@/lib/clipboard';
+import { copyText } from '@/lib/chat/clipboard';
 
 /**
- * `lib/clipboard` の UT。Clipboard API と代わりのコピー（execCommand）はブラウザの
+ * `lib/chat/clipboard` の UT。Clipboard API と代わりのコピー（execCommand）はブラウザの
  * 外部 I/O のため偽物を渡し、「どの手段をどの順で試し、いつ失敗とするか」の判断だけを
  * 検証する。代わりのコピーが実際のブラウザで動くことは E2E（copy.spec.ts）が担う。
  */

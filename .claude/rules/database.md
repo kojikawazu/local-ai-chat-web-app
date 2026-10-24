@@ -1,6 +1,6 @@
 ---
 description: Prisma ORM 命名規約・マイグレーション・クエリ規約
-globs: "front/prisma/**,front/src/lib/prisma.ts,front/src/generated/**"
+globs: "front/prisma/**,front/src/lib/server/prisma.ts,front/src/generated/**"
 ---
 
 # データベースルール（Prisma）

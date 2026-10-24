@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ToolCallInfo } from '@/types';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
 /** {@link ToolCallResult} の props。 */

@@ -40,7 +40,7 @@ type OnSend = (content: string) => void;
 
 ### 既存コードへの適用
 
-**既存の `interface` は 15 ファイル・約 24 箇所に分布している**（`types/index.ts` のドメイン型、各コンポーネントの props 型、`lib/tools/types.ts` のツール定義型など）。いずれも class 契約・宣言マージには該当せず、本来 `type` で書くべきものだが、**一括置換はしない**（差分が大きく、レビューの費用対効果が悪い）。
+**既存の `interface` は 15 ファイル・約 24 箇所に分布している**（`types/` のドメイン型、各コンポーネントの props 型、`lib/agent/tools/types.ts` のツール定義型など）。いずれも class 契約・宣言マージには該当せず、本来 `type` で書くべきものだが、**一括置換はしない**（差分が大きく、レビューの費用対効果が悪い）。
 
 - **新規に追加する型は `type`** で書く。
 - 既存 `interface` は、**その型を触る変更のついでに** `type` へ寄せる。
@@ -54,7 +54,7 @@ type OnSend = (content: string) => void;
 | 参照範囲 | 置き場所 |
 |---|---|
 | **1 ファイルに閉じる** | その定義ファイル内にコロケーション（`export` しない） |
-| **2 ファイル以上** / レイヤ・機能をまたぐ | `src/types/` に集約して `export` |
+| **2 ファイル以上** / レイヤ・機能をまたぐ | `src/types/<機能>/<ドメイン>.ts` に集約して `export` |
 
 機能内（`features/chat/` 等）で複数ファイルが参照するが機能外からは参照されない型は、その機能ディレクトリ内に置いてよい。`src/types/` は**機能をまたぐ共通型**の置き場とする。
 
@@ -62,9 +62,8 @@ type OnSend = (content: string) => void;
 
 - **最初から `types/` に置かない。** まず定義ファイル内に書き、**2 箇所目の参照が発生した時点で `types/` へ昇格**させる。先回りの集約は、使われない共通型と不要な依存を増やす。
 - **昇格時は元ファイルに型を残さない**（re-export も含む）。定義は常に 1 箇所。
-- `types/` はドメイン単位でファイルを分ける（`types/chat.ts` / `types/conversation.ts`）。1 ファイルに全ドメインを詰めない。
-- **barrel（他ファイルを一括 re-export するだけの `index.ts`）は作らない。** 循環参照・バンドル肥大・tree-shaking 阻害の原因になる。`import type { ChatMessage } from '@/types/chat'` と**実ファイルを直接 import** する。
-  - 現状の `front/src/types/index.ts` は re-export を持たない**定義ファイル本体**であり、この禁止に該当しない。ただしドメインが増えたら `types/chat.ts` 等へ分割し、`index.ts` を re-export の受け皿に変えないこと。
+- `types/` は機能ごとのディレクトリに分け、その中をドメイン単位のファイルにする（`types/chat/message.ts`・`types/conversation/conversation.ts`・`types/agent/tool-call.ts`。#160）。1 ファイルに全ドメインを詰めない。
+- **barrel（他ファイルを一括 re-export するだけの `index.ts`）は作らない。** 循環参照・バンドル肥大・tree-shaking 阻害の原因になる。`import type { Message } from '@/types/chat/message'` と**実ファイルを直接 import** する（`@/types` だけの import は無い）。
 - Prisma の生成型（`@/generated/prisma/client`）を `types/` に再定義しない。DB の形と API/UI の形が違う場合のみ、変換先の型を `types/` に定義する。
 
 ### 分類の目安
@@ -77,8 +76,8 @@ type OnSend = (content: string) => void;
 type ChatBarProps = { onSend: (content: string) => void; disabled: boolean };
 export function ChatBar({ onSend, disabled }: ChatBarProps) { /* ... */ }
 
-// 複数箇所から参照 → types/chat.ts に集約
-// types/chat.ts
+// 複数箇所から参照 → types/chat/message.ts に集約
+// types/chat/message.ts
 export type MessageRole = 'user' | 'assistant';
 export type ChatMessage = { id: string; role: MessageRole; content: string };
 ```
@@ -101,7 +100,7 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 
 **現状 `src/constants/` は存在しない**（機能をまたぐ定数がまだ無いため）。上表は「機能横断の定数が 2 箇所目の参照を得た時点で作る」という前向きの指針であり、先回りして空のディレクトリを作る必要はない。
 
-なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
+なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/shared/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
 
 ### 運用ルール
 
@@ -116,7 +115,7 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 union リテラルの元になる配列・オブジェクトは、**導出される型とセットで `types/` 側に置く**。`constants/` と `types/` に分けると、値と型が常に往復参照になり、片方だけ更新される事故が起きる。
 
 ```ts
-// types/theme.ts — 値と型はペアで同居させる
+// types/theme/theme.ts — 値と型はペアで同居させる
 /** 選択可能なテーマ。切替 UI の表示順もこの配列の順序に従う。 */
 export const THEMES = ['nordic', 'aurora', 'ocean'] as const;
 /** 選択可能なテーマ識別子。`data-theme` 属性値と一致させる */
@@ -129,7 +128,7 @@ export const MESSAGE_MAX_LENGTH = 10_000;
 
 ### 環境変数は定数ではない
 
-環境ごとに値が変わるもの（`OLLAMA_BASE_URL`・`OLLAMA_MODEL`・`DATABASE_URL` 等）を `constants/` に置かない。ビルド時に特定環境の値が埋め込まれ、環境差異の事故につながる。環境変数は読み込み層（`lib/ollama.ts` 等）でフォールバック付きに解決する。`constants/` に置くのは**全環境で不変な値**だけ。
+環境ごとに値が変わるもの（`OLLAMA_BASE_URL`・`OLLAMA_MODEL`・`DATABASE_URL` 等）を `constants/` に置かない。ビルド時に特定環境の値が埋め込まれ、環境差異の事故につながる。環境変数は読み込み層（`lib/llm/ollama.ts` 等）でフォールバック付きに解決する。`constants/` に置くのは**全環境で不変な値**だけ。
 
 ### 定数へのコメント
 
@@ -138,7 +137,7 @@ export const MESSAGE_MAX_LENGTH = 10_000;
 ## any 禁止・unknown 優先
 
 - **暗黙・明示を問わず `any` を禁止**する（`strict: true` / `noImplicitAny` 前提）。
-- 外部入力（Ollama のレスポンス・`JSON.parse`・ユーザー入力・Web 取得結果）は **`unknown` で受け**、型ガード・バリデーション（`lib/validation.ts`）で**ナローイング**してから使う。
+- 外部入力（Ollama のレスポンス・`JSON.parse`・ユーザー入力・Web 取得結果）は **`unknown` で受け**、型ガード・バリデーション（`lib/shared/validation.ts`）で**ナローイング**してから使う。
 - どうしても `any` が必要な箇所は根拠コメントを残す（「as/! 抑制」節参照）。
 
 ## enum 回避・union リテラル + as const

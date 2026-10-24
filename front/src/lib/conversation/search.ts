@@ -1,5 +1,8 @@
-import type { ParseResult } from '@/lib/request-body';
-import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from '@/lib/validation';
+import type { ParseResult } from '@/lib/server/request-body';
+import {
+  MAX_SEARCH_QUERY_LENGTH,
+  MAX_SEARCH_TERMS,
+} from '@/lib/shared/validation';
 
 /**
  * 会話検索（#11）のキーワードの解釈・抜粋の切り出し・強調の分割を行う純関数群。

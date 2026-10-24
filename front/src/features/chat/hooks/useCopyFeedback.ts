@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { copyText } from '@/lib/clipboard';
+import { copyText } from '@/lib/chat/clipboard';
 
 /** コピー結果の表示を元に戻すまでの時間（ms）。読み取れて、次の操作の邪魔にならない長さ */
 const COPY_FEEDBACK_RESET_MS = 2000;

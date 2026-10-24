@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 /**
  * テーマ切替の E2E。
  *
- * `types/theme.ts` の THEMES / ThemeId と `globals.css` の `[data-theme='...']`
+ * `types/theme/theme.ts` の THEMES / ThemeId と `globals.css` の `[data-theme='...']`
  * セレクタが一致していること、および localStorage への永続化が働くことを検証する。
  * 既定テーマ（nordic）は `data-theme` 属性を付けないことで表現する契約なので、
  * 「属性なし = nordic」を期待値として扱う。

@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/server/prisma';
 import { NextRequest } from 'next/server';
 
 export { prisma };

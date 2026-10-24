@@ -1,12 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/server/prisma';
 import {
   buildSnippet,
   escapeLikePattern,
   parseSearchQuery,
-} from '@/lib/search';
-import type { ConversationSearchResult } from '@/types';
+} from '@/lib/conversation/search';
+import type { ConversationSearchResult } from '@/types/conversation/conversation';
 
 // 1 回に返す件数。サイドバーに並べて見渡せる量にし、続きは「さらに表示」で取る
 const SEARCH_PAGE_SIZE = 20;

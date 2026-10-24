@@ -1,5 +1,8 @@
-import type { HistoryEntry, Message } from '@/types';
-import { getMaxMessageLength, MAX_HISTORY_MESSAGES } from '@/lib/validation';
+import type { HistoryEntry, Message } from '@/types/chat/message';
+import {
+  getMaxMessageLength,
+  MAX_HISTORY_MESSAGES,
+} from '@/lib/shared/validation';
 
 /**
  * 表示中のメッセージから LLM へ渡す会話履歴を組み立てる。

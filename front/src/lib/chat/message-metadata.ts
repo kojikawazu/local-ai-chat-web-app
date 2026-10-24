@@ -1,4 +1,5 @@
-import type { Message, ToolCallInfo } from '@/types';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type { Message } from '@/types/chat/message';
 
 /** メッセージに付く metadata（`null` を除いた形）。 */
 type MessageMetadata = NonNullable<Message['metadata']>;

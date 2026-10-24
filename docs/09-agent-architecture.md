@@ -44,8 +44,8 @@
   - [metadata フィールドの構造](#metadata-フィールドの構造)
   - [ツールメッセージ（role: 'tool'）の DB 保存方針](#ツールメッセージrole-toolの-db-保存方針)
 - [型定義](#型定義)
-  - [バックエンド型（lib/tools/types.ts）](#バックエンド型libtoolstypests)
-  - [フロントエンド型（types/index.ts 拡張）](#フロントエンド型typesindexts-拡張)
+  - [バックエンド型（lib/agent/tools/types.ts）](#バックエンド型libagenttoolstypests)
+  - [フロントエンド型（types/agent/tool-call.ts・types/chat/message.ts）](#フロントエンド型typesagenttool-callts・typeschatmessagets)
 - [フロントエンド変更](#フロントエンド変更)
   - [Phase A: 基盤](#phase-a-基盤)
     - [useChat フックの拡張](#usechat-フックの拡張)
@@ -56,7 +56,7 @@
   - [Phase C: 自律エージェント化](#phase-c-自律エージェント化-1)
     - [thinking イベントのソース（実装済み）](#thinking-イベントのソース実装済み)
     - [AgentThinking コンポーネント（実装済み）](#agentthinking-コンポーネント実装済み)
-    - [システムプロンプトのプリセット（`lib/agent-prompts.ts`）](#システムプロンプトのプリセットlibagent-promptsts)
+    - [システムプロンプトのプリセット（`lib/agent/agent-prompts.ts`）](#システムプロンプトのプリセットlibagentagent-promptsts)
     - [実行統計の表示](#実行統計の表示)
 - [設定](#設定)
   - [環境変数](#環境変数)
@@ -386,7 +386,7 @@ type ToolExecution = ToolOutput & {
 };
 ```
 
-**失敗は例外ではなく `isError: true` で返す（#150）。** モデルは `result` の文章で失敗を理解し、画面は `isError` で成否を出す。失敗の結果は `lib/tools/output.ts` の `toolError(理由)` で作る（文章は `"エラー: <理由>"`、要約は理由）。`runTool` が `isError: true` にするのは例外（タイムアウト・未登録のツール）だけで、このときも理由を要約にする。成否を文章の先頭（`エラー: `）で判定しないのは、取得したページの本文がたまたまそう始まるだけで失敗と誤判定するため。
+**失敗は例外ではなく `isError: true` で返す（#150）。** モデルは `result` の文章で失敗を理解し、画面は `isError` で成否を出す。失敗の結果は `lib/agent/tools/output.ts` の `toolError(理由)` で作る（文章は `"エラー: <理由>"`、要約は理由）。`runTool` が `isError: true` にするのは例外（タイムアウト・未登録のツール）だけで、このときも理由を要約にする。成否を文章の先頭（`エラー: `）で判定しないのは、取得したページの本文がたまたまそう始まるだけで失敗と誤判定するため。
 
 | ツール | 要約（成功） | 空の結果（`isEmpty`） | 失敗（`isError`） |
 |---|---|---|---|
@@ -407,7 +407,7 @@ type ToolExecution = ToolOutput & {
 ### ツールレジストリ
 
 ```typescript
-// lib/tools/index.ts
+// lib/agent/tools/index.ts
 const toolRegistry: Map<string, Tool> = new Map();
 
 function registerTool(tool: Tool): void;
@@ -566,8 +566,8 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 - `enableTools: false`（デフォルト）: 従来と同じプレーンテキストストリーミング
 - `enableTools: true`: ツール定義を Ollama に渡し、NDJSON イベントストリームで応答
 - `systemPrompt` が指定された場合、エージェントループの先頭に `role: 'system'` メッセージとして挿入
-- **追記（#10）**: 会話の役割（システムプロンプト）の導入で、`systemPrompt` は通常モードでも先頭に付けるようになった。エージェントモードでは、クライアントが会話の役割を先に、下記のプリセットを後に置いて連結したものを送る（`lib/system-prompt.ts` の `buildSystemPrompt`。詳細は `03-api-design.md`）
-- **追記（#154）**: サーバーは `systemPrompt` の後ろに「現在の日時」の節を必ず足す（`lib/current-date.ts` の `withCurrentDate`）。`systemPrompt` が空でも日時の節だけの system メッセージを付ける
+- **追記（#10）**: 会話の役割（システムプロンプト）の導入で、`systemPrompt` は通常モードでも先頭に付けるようになった。エージェントモードでは、クライアントが会話の役割を先に、下記のプリセットを後に置いて連結したものを送る（`lib/chat/system-prompt.ts` の `buildSystemPrompt`。詳細は `03-api-design.md`）
+- **追記（#154）**: サーバーは `systemPrompt` の後ろに「現在の日時」の節を必ず足す（`lib/llm/current-date.ts` の `withCurrentDate`）。`systemPrompt` が空でも日時の節だけの system メッセージを付ける
   - 理由: モデルは学習した時点を「今」と思い込む。日時を知らせないと、「最新」を聞かれたとき最初の検索で古い年を使い（「PHP latest stable version 2025」等）、`get_current_datetime` はその後で呼ばれていた。プリセットなしでは古い記事を根拠に古い版を最新と答えた（2026-10-24、qwen3.8:27b）
   - 節の中身: 日付・曜日・時刻・タイムゾーン（サーバーのもの。localhost で使うためブラウザと同じ）・UTC との差と、「最新」「今年」「現在」をこの日時で解釈する指示。エージェントモードでは「検索語の年はこの年を使う」「知識と検索結果が食い違えば新しい検索結果を優先する」、通常モードでは「検索できないため、この日時の時点の情報として断定せず、学習時点の知識だと前置きする」を足す
   - 別の system メッセージにせず、先頭の 1 つにまとめる（会話の途中の system はテンプレートによって無視・破損されるため。最大ラウンド到達時の指示を user で足すのと同じ理由）
@@ -645,7 +645,7 @@ model Message {
 ```
 
 - 値のある項目だけを保存する。ツールを使わず思考だけした応答でも、`thinkingText`・`agentRounds`・`agentDurationMs` は残る。値のある項目が 1 つも無い場合（通常チャットの応答）は `metadata` は `null`
-- 表示用の state と保存する値は、同じ関数（`lib/message-metadata.ts` の `buildMessageMetadata`）で組み立てる。片方だけ項目が欠けて、再読み込みで表示が消えるのを防ぐ
+- 表示用の state と保存する値は、同じ関数（`lib/chat/message-metadata.ts` の `buildMessageMetadata`）で組み立てる。片方だけ項目が欠けて、再読み込みで表示が消えるのを防ぐ
 - 取得時は `parseMessageMetadata` で項目ごとに実行時検証し、型が合わない項目だけを捨てる（DB の JSON 列は任意の値を持てるため）。ツール呼び出しは名前と結果が文字列なら復元し、欠けた項目は既定値で補う
 - **本文が空の応答は保存されない**（保存 API が `content` を必須とするため）。ツール呼び出し後にモデルが最終回答の本文を返さなかった場合、付随情報ごと再読み込みで消える
 
@@ -665,7 +665,7 @@ Ollama プロトコルでは `role: "tool"` や `role: "assistant"` + `tool_call
 
 ## 型定義
 
-### バックエンド型（lib/tools/types.ts）
+### バックエンド型（lib/agent/tools/types.ts）
 
 ```typescript
 // Ollama API 向けツール定義
@@ -694,7 +694,7 @@ export interface OllamaToolCall {
   };
 }
 
-// ツールの実行結果（#150）。ツール実行記録は types/index.ts の ToolCallInfo に一本化した
+// ツールの実行結果（#150）。ツール実行記録は types/agent/tool-call.ts の ToolCallInfo に一本化した
 export type ToolOutput = Pick<ToolCallInfo, 'result' | 'isError' | 'summary' | 'isEmpty'>;
 
 // ツールが返す値。ループだけが読む印（接続先ごと使えない）を足す（#157）
@@ -710,9 +710,10 @@ export type AgentStreamEvent =
   | { type: 'thinking'; content: string };  // Phase C
 ```
 
-### フロントエンド型（types/index.ts 拡張）
+### フロントエンド型（types/agent/tool-call.ts・types/chat/message.ts）
 
 ```typescript
+// types/agent/tool-call.ts
 export type ToolCallInfo = {
   name: string;
   arguments: Record<string, unknown>;
@@ -723,6 +724,7 @@ export type ToolCallInfo = {
   durationMs: number;
 };
 
+// types/chat/message.ts
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -809,7 +811,7 @@ export interface Message {
 - `aria-expanded` + `aria-label` でアクセシビリティ対応
 - テキストは `<pre>` タグで等幅フォント表示
 
-#### システムプロンプトのプリセット（`lib/agent-prompts.ts`）
+#### システムプロンプトのプリセット（`lib/agent/agent-prompts.ts`）
 
 Phase C では `agent-prompts.ts` に4種のプリセットを定義。設定モーダル（Tools ON 時のみ表示）で選択し、localStorage に `agent-prompt-preset-id` として永続化する。会話の役割（#10）とは別物で、役割が「誰として答えるか」、このプリセットが「どう調べて答えるか」を担い、送信時に役割の後ろへ連結する:
 
@@ -845,7 +847,7 @@ Phase C では `agent-prompts.ts` に4種のプリセットを定義。設定モ
 
 - **`AGENT_MAX_TOOL_ROUNDS = 10`**: エージェントループの無限実行を防止する安全弁。Phase C の自律エージェントでは1つの質問に対し3〜5ラウンド程度のツール呼び出しが想定される。10ラウンドは十分な余裕を持った上限値。上限に達してもツール呼び出しが続く場合は、**ツールを渡さずにもう 1 回問い合わせ**、取得済みのツール結果で最終回答を生成させる（指示は会話途中の system ではなく user の発言として末尾に付ける。テンプレートによって途中の system が無視・破損されるため）。本文の先頭には上限到達の注記を流し、本文の一部として表示・保存する。最終回答の問い合わせ自体が失敗した・空だった場合も `error` にはせず、失敗した旨を本文に流して `done` で閉じる（`error` を受けたクライアントは作成中のメッセージを破棄し、取得済みのツール結果まで失われるため）。`agentRounds` は Ollama への問い合わせ回数として数えるため、上限到達時は `上限 + 1` になる（#96）。
 - **`AGENT_TOOL_TIMEOUT_MS = 30000`**: **リトライを含むツール実行全体**のタイムアウト（1試行ごとではない）。`web_search` のリトライ（最大2回 + 待機）を含めた合計時間が30秒を超えた時点でタイムアウトとする。**全体タイムアウト経過時はリトライ中であっても即時中断する。** 中断は `runTool()` が `AbortSignal` をツールへ渡して abort することで実現する（`Tool.execute(args, signal)`）。ツールは signal を fetch・本文読み取り・リトライ待機へ伝播するため、タイムアウト後に通信がバックグラウンドで残らない。signal を見ないツールに備え、応答自体は `Promise.race` でも打ち切る。 Web 検索や URL 取得はネットワーク遅延を考慮して30秒に設定。ローカルツール（日時取得、計算）は数ミリ秒で完了するため影響しない。
-- **値の検証**（`lib/agent-config.ts` の `parsePositiveIntEnv`）: 両変数とも符号なしの 10 進整数だけを受け付け、`AGENT_MAX_TOOL_ROUNDS` は 1〜50、`AGENT_TOOL_TIMEOUT_MS` は 1〜300000（5 分）の範囲とする。未設定・空文字は既定値を使う。数値でない値・0・負数・小数・`10abc` のような末尾に文字を含む値・範囲外は既定値に戻し、`console.warn` で知らせる（`parseInt` のままだと `NaN` や 0 でループが 1 回も回らず、安全弁が誤設定で無効になるため）。
+- **値の検証**（`lib/agent/agent-config.ts` の `parsePositiveIntEnv`）: 両変数とも符号なしの 10 進整数だけを受け付け、`AGENT_MAX_TOOL_ROUNDS` は 1〜50、`AGENT_TOOL_TIMEOUT_MS` は 1〜300000（5 分）の範囲とする。未設定・空文字は既定値を使う。数値でない値・0・負数・小数・`10abc` のような末尾に文字を含む値・範囲外は既定値に戻し、`console.warn` で知らせる（`parseInt` のままだと `NaN` や 0 でループが 1 回も回らず、安全弁が誤設定で無効になるため）。
 - **リソース消費への配慮**: エージェントループ（最大10ラウンド × ツール実行）は通常チャットより応答が遅くサーバーリソースを多く消費する。個人利用前提のため同時接続によるリソース枯渇の問題はないが、ユーザーにはエージェントモードが通常チャットより遅い旨を UI 上で示す。
 
 ### CI 環境でのエージェントテスト
@@ -881,7 +883,7 @@ CI では `qwen2.5:0.5b`（軽量モデル）を使用しているが、この�
 - **ツール実行はサーバー側のみ**: クライアントからツールを直接呼び出せない
 - **calculate ツール**: 任意コード実行の禁止。手書き再帰下降パーサー（または `mathjs`）を使用し、パーサー自体がセキュリティの主機構となる。正規表現による文字制限はパーサーへの前処理として補助的に使用する（詳細はツール一覧セクション参照）
 - **web_search ツール**: レスポンスサイズを制限（3,000文字）。受信本文は 1 MiB で打ち切る
-- **外部取得の受信制限（web_search / url_fetch 共通）**: 本文は `lib/tools/read-body.ts` の `readBodyWithLimit()` でストリーム読み取りし、受信バイト数が上限を超えた時点・signal が中断された時点で reader を cancel する。`res.text()` で本文全体をバッファしない（巨大な chunked 応答・終端しない slow response によるメモリ枯渇とプロセス占有の防止）
+- **外部取得の受信制限（web_search / url_fetch 共通）**: 本文は `lib/agent/tools/read-body.ts` の `readBodyWithLimit()` でストリーム読み取りし、受信バイト数が上限を超えた時点・signal が中断された時点で reader を cancel する。`res.text()` で本文全体をバッファしない（巨大な chunked 応答・終端しない slow response によるメモリ枯渇とプロセス占有の防止）
 - **url_fetch ツール**: SSRF 防止のため、DNS 解決後の IP アドレスをブロックリストと照合（詳細はツール一覧セクション参照）
 - **入力バリデーション**: ツール引数の型チェック・長さ制限
 - **ツール結果の表示**: XSS 防止のため、React の標準エスケープ機能のみ使用（プロジェクトの既存セキュリティ方針に準拠）

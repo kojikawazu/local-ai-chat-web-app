@@ -1,22 +1,22 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
 import type {
   HistoryEntry,
   Message,
   MessageSaveState,
-  ToolCallInfo,
-} from '@/types';
-import type { AgentStreamEvent } from '@/lib/tools/types';
-import { MAX_TITLE_LENGTH } from '@/lib/validation';
-import { toConversationHistory } from '@/lib/conversation-history';
-import { findRegenerateTarget } from '@/lib/regenerate';
-import { buildSystemPrompt } from '@/lib/system-prompt';
+} from '@/types/chat/message';
+import type { AgentStreamEvent } from '@/lib/agent/tools/types';
+import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
+import { toConversationHistory } from '@/lib/chat/conversation-history';
+import { findRegenerateTarget } from '@/lib/chat/regenerate';
+import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import {
   buildMessageMetadata,
   parseMessageMetadata,
-} from '@/lib/message-metadata';
-import type { ChatState, ChatStates } from '@/lib/chat-state';
+} from '@/lib/chat/message-metadata';
+import type { ChatState, ChatStates } from '@/lib/chat/chat-state';
 import {
   NEW_CONVERSATION_KEY,
   EMPTY_CHAT,
@@ -28,7 +28,7 @@ import {
   removeChat,
   retainChats,
   updateChat,
-} from '@/lib/chat-state';
+} from '@/lib/chat/chat-state';
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {

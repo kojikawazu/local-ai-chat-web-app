@@ -8,7 +8,7 @@ import {
   forwardRef,
 } from 'react';
 import { Send, Square } from 'lucide-react';
-import { MAX_MESSAGE_LENGTH } from '@/lib/validation';
+import { MAX_MESSAGE_LENGTH } from '@/lib/shared/validation';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {

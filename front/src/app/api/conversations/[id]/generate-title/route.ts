@@ -1,9 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { isValidUUID, MAX_TITLE_LENGTH } from '@/lib/validation';
-import { chatOnce } from '@/lib/ollama';
-import { parseGenerateTitleBody, readJsonBody } from '@/lib/request-body';
+import { prisma } from '@/lib/server/prisma';
+import { isValidUUID, MAX_TITLE_LENGTH } from '@/lib/shared/validation';
+import { chatOnce } from '@/lib/llm/ollama';
+import {
+  parseGenerateTitleBody,
+  readJsonBody,
+} from '@/lib/server/request-body';
 
 /** タイトル生成時に LLM へ渡すメッセージの最大文字数。全文は不要なため先頭のみ使う。 */
 const TITLE_SOURCE_MAX_CHARS = 500;

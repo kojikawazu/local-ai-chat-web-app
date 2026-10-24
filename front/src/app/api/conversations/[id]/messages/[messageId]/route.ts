@@ -1,9 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { Prisma } from '@/generated/prisma/client';
-import { prisma } from '@/lib/prisma';
-import { parseReplaceMessageBody, readJsonBody } from '@/lib/request-body';
-import { isValidUUID } from '@/lib/validation';
+import { prisma } from '@/lib/server/prisma';
+import {
+  parseReplaceMessageBody,
+  readJsonBody,
+} from '@/lib/server/request-body';
+import { isValidUUID } from '@/lib/shared/validation';
 
 /**
  * 指定した assistant の応答を、再生成した応答で置き換える（#9）。

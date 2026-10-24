@@ -37,7 +37,7 @@
 ## 基本方針
 
 - **3層構成**: ユニット（UT / Vitest）+ インテグレーション（IT / Vitest + Testcontainers）+ E2E（Playwright）。
-  - **UT**: 外部I/O非依存の純ロジックを対象（`lib/validation.ts`・`lib/tools/calculate.ts`・`lib/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは実施しない（E2Eで担保）。
+  - **UT**: 外部I/O非依存の純ロジックを対象（`lib/shared/validation.ts`・`lib/agent/tools/calculate.ts`・`lib/agent/agent-prompts.ts` 等）。外部I/O（fetch/DB）のみモックし、ビジネスロジックはモックしない。UIコンポーネント単位のユニットテストは実施しない（E2Eで担保）。
   - **IT**: route handler をブラウザ抜きで直接叩き、実PostgreSQL（Testcontainers）相手に handler↔Prisma↔DB を検証。実依存（DB）は使い、mockは真の外部3rd-party（Ollama/Web）のみ。
   - **E2E**: 実際のOllama + PostgreSQLに接続してテストする（実環境・ブラウザ経由）。
 - **エラーハンドリングの層分担**: APIのエラー**契約**（Ollamaダウン→502・バリデーション→4xx）はITで決定的に検証。エラー時のUI**描画・耐性**はE2Eで検証し、境界の障害注入を唯一の許容mock例外とする。対象は通信の境界（`page.route`）と、実ブラウザで安定して起こせないブラウザ API の境界（`page.addInitScript` で `navigator.clipboard` / `document.execCommand` を差し替える等。`copy.spec.ts`）に限り、アプリ側のロジックは差し替えない。

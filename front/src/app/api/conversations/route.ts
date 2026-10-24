@@ -1,7 +1,10 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { parseCreateConversationBody, readJsonBody } from '@/lib/request-body';
+import { prisma } from '@/lib/server/prisma';
+import {
+  parseCreateConversationBody,
+  readJsonBody,
+} from '@/lib/server/request-body';
 
 /**
  * 会話一覧を更新日時の降順（最新順）で取得する。

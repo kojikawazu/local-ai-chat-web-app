@@ -1,5 +1,5 @@
-import type { HistoryEntry, Message } from '@/types';
-import { toConversationHistory } from '@/lib/conversation-history';
+import type { HistoryEntry, Message } from '@/types/chat/message';
+import { toConversationHistory } from '@/lib/chat/conversation-history';
 
 /** 応答を再生成するときに LLM へ送り直す内容（{@link findRegenerateTarget} の結果）。 */
 export type RegenerateTarget = {

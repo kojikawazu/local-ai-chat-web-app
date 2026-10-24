@@ -1,8 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { parseUpdateConversationBody, readJsonBody } from '@/lib/request-body';
-import { isValidUUID } from '@/lib/validation';
+import { prisma } from '@/lib/server/prisma';
+import {
+  parseUpdateConversationBody,
+  readJsonBody,
+} from '@/lib/server/request-body';
+import { isValidUUID } from '@/lib/shared/validation';
 
 /**
  * 会話の役割（システムプロンプト）を変更する（#10）。変更は以降の送信から効く。

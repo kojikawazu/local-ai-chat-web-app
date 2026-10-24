@@ -161,15 +161,22 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/` — 会話CRUD
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
-- **`components/`** — 共通UIコンポーネント（SettingsModal等、複数機能で再利用）
+- **`components/`・`hooks/`・`lib/`・`types/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
+- **`components/`** — 共通UIコンポーネント（`settings/SettingsModal`、複数機能で再利用）
 - **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
   - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, CopyButton, RoleDialog, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat, useCopyFeedback / constants: toolLabels.ts）
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch / hooks: useConversations, useConversationSearch, useDrawerDialog）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — 共通カスタムフック（useTheme等）
-- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, chat-state.ts, search.ts, code-block.ts, system-prompt.ts, current-date.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
-  - `lib/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
-- **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
+- **`hooks/`** — 共通カスタムフック（`theme/useTheme`）
+- **`lib/`** — ユーティリティ・外部連携
+  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
+    - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
+  - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, clipboard.ts）
+  - `lib/conversation/` — 会話（search.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts）
+  - `lib/shared/` — サーバー・クライアント共通（validation.ts）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 

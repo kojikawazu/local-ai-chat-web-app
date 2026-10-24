@@ -1,4 +1,4 @@
-import type { ToolCallInfo } from '@/types';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
 
 /**
  * Ollama API の function calling へ渡すツール定義。

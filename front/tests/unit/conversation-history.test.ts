@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { toConversationHistory } from '@/lib/conversation-history';
+import { toConversationHistory } from '@/lib/chat/conversation-history';
 import {
   MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
-} from '@/lib/validation';
-import type { Message } from '@/types';
+} from '@/lib/shared/validation';
+import type { Message } from '@/types/chat/message';
 
 /**
- * `lib/conversation-history` の UT。
+ * `lib/chat/conversation-history` の UT。
  * `/api/chat` の履歴検証（#95）に合わせ、画面上のメッセージから組み立てた履歴が
  * サーバーの上限（件数・role 別の本文長）を超えないことを確かめる。純関数のため mock は使わない。
  */

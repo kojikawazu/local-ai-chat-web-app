@@ -1,8 +1,8 @@
-import type { OllamaChatMessage, OllamaStreamChunk } from './ollama';
-import { streamChat, withSystemPrompt } from './ollama';
+import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
+import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
 import { parsePositiveIntEnv } from './agent-config';
 import { getAllToolDefinitions, executeTool } from './tools/index';
-import type { ToolCallInfo } from '@/types';
+import type { ToolCallInfo } from '@/types/agent/tool-call';
 import type {
   AgentStreamEvent,
   OllamaToolCall,

@@ -8,7 +8,7 @@ import {
   History,
   Trash2,
 } from 'lucide-react';
-import type { Conversation } from '@/types';
+import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
 
 /**

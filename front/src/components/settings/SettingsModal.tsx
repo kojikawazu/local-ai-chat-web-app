@@ -1,9 +1,9 @@
 'use client';
 
 import { X, Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
-import type { ThemeId } from '@/types/theme';
-import { THEMES } from '@/types/theme';
-import { AGENT_PROMPT_PRESETS } from '@/lib/agent-prompts';
+import type { ThemeId } from '@/types/theme/theme';
+import { THEMES } from '@/types/theme/theme';
+import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
 
 /**
  * SettingsModal コンポーネントの props。

@@ -8,7 +8,7 @@ import {
   vi,
 } from 'vitest';
 import type { NextRequest } from 'next/server';
-import type { AgentStreamEvent } from '@/lib/tools/types';
+import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { jsonRequest } from './helpers/db';
 import { ollamaStreamResponse, stubFetch } from './helpers/ollama-stub';
 

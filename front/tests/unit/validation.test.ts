@@ -3,10 +3,10 @@ import {
   isValidUUID,
   MAX_MESSAGE_LENGTH,
   MAX_TITLE_LENGTH,
-} from '@/lib/validation';
+} from '@/lib/shared/validation';
 
 /**
- * `lib/validation` の UT。外部 I/O を持たない純関数のため mock は使わない。
+ * `lib/shared/validation` の UT。外部 I/O を持たない純関数のため mock は使わない。
  * `isValidUUID` は「UUID の 8-4-4-4-12 16進フォーマット」のみを検証する契約
  * （version/variant ビットの妥当性までは見ない）ことを踏まえて期待値を組む。
  */

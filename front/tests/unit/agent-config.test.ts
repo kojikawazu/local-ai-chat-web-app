@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parsePositiveIntEnv } from '@/lib/agent-config';
+import { parsePositiveIntEnv } from '@/lib/agent/agent-config';
 
 /**
- * `lib/agent-config` の UT。純関数だが、不正値の通知に `console.warn` を使うため、
+ * `lib/agent/agent-config` の UT。純関数だが、不正値の通知に `console.warn` を使うため、
  * その出力（外部 I/O）だけをスパイで受け止めて「警告したか」を検証する。
  */
 const OPTIONS = { fallback: 10, max: 50 };

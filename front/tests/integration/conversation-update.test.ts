@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { PATCH } from '@/app/api/conversations/[id]/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
-import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/validation';
+import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/shared/validation';
 
 /**
  * `PATCH /api/conversations/[id]`（会話の役割の変更。#10）の IT。

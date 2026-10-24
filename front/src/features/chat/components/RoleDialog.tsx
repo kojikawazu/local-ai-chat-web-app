@@ -2,8 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { ROLE_PRESETS } from '@/lib/system-prompt';
-import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/validation';
+import { ROLE_PRESETS } from '@/lib/chat/system-prompt';
+import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/shared/validation';
 
 /** {@link RoleDialog} の props。 */
 type RoleDialogProps = {

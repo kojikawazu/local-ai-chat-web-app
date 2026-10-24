@@ -9,7 +9,7 @@ globs: "front/src/app/api/**"
 
 - Next.js App Router の Route Handlers を API 層として使用する。
 - フロントエンドから Ollama / Prisma への直接通信は禁止。Route Handlers を経由する。
-- **Route Handler から Ollama へ直接 `fetch` しない。** 接続先・モデル解決は `lib/ollama.ts` に集約し、`streamChat()`（ストリーミング）・`chatOnce()`（非ストリーミング）・`listModels()`・`getDefaultModel()` を経由する。`process.env.OLLAMA_*` を読むのも同ファイルのみとする（route ごとに既定値を持つと、チャット本体とタイトル生成で別モデルを呼ぶような不整合が起きる）。
+- **Route Handler から Ollama へ直接 `fetch` しない。** 接続先・モデル解決は `lib/llm/ollama.ts` に集約し、`streamChat()`（ストリーミング）・`chatOnce()`（非ストリーミング）・`listModels()`・`getDefaultModel()` を経由する。`process.env.OLLAMA_*` を読むのも同ファイルのみとする（route ごとに既定値を持つと、チャット本体とタイトル生成で別モデルを呼ぶような不整合が起きる）。
 
 ## ディレクトリ構成
 
@@ -32,7 +32,7 @@ front/src/app/api/
 
 - RESTful 設計（リソース指向エンドポイント）
 - レスポンス形式: JSON（`NextResponse.json()`）または NDJSON（ストリーミング時）
-- 入力バリデーションは Route Handler 内で実施（`lib/validation.ts` 参照）
+- 入力バリデーションは Route Handler 内で実施（`lib/shared/validation.ts` 参照）
 - エラー時は適切な HTTP ステータスコードで返す（400/404/500）
 - UUID フォーマットの検証を行う（パスパラメータの `[id]`）
 
