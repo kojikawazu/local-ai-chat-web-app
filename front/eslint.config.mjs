@@ -50,7 +50,6 @@ const atomicDesignRules = [
       [
         [ABOVE[layer], NO_UPPER_LAYER],
         ['^@/components/features/', NO_FEATURE_FROM_COMMON],
-        ['^@/features/', NO_FEATURE_FROM_COMMON],
         [`^@/hooks/(${UI_FEATURES.join('|')})/`, NO_FEATURE_FROM_COMMON],
       ]
     )
@@ -60,7 +59,6 @@ const atomicDesignRules = [
     [
       ['(^|/)organisms/', NO_UPPER_LAYER],
       ['^@/components/features/', NO_FEATURE_FROM_COMMON],
-      ['^@/features/', NO_FEATURE_FROM_COMMON],
       [`^@/hooks/(${UI_FEATURES.join('|')})/`, NO_FEATURE_FROM_COMMON],
     ]
   ),
@@ -73,14 +71,6 @@ const atomicDesignRules = [
           [`^@/components/features/(?!${feature}/)`, NO_OTHER_FEATURE],
         ]
       )
-    ),
-    // 移行中（#163 の段階 4 まで）の今の配置。機能の間の import と templates の import を禁じる
-    restrictImports(
-      [`src/features/${feature}/**/*.{ts,tsx}`],
-      [
-        [`^@/features/(?!${feature}/)`, NO_OTHER_FEATURE],
-        ['(^|/)templates/', NO_UPPER_LAYER],
-      ]
     ),
   ]),
 ];

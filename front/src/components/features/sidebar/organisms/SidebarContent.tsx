@@ -1,17 +1,10 @@
 'use client';
 
-import {
-  Layout,
-  MessageSquare,
-  Settings,
-  Plus,
-  History,
-  Trash2,
-} from 'lucide-react';
+import { Layout, Settings, Plus, History } from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
+import ConversationListItem from '@/components/features/sidebar/molecules/ConversationListItem';
 import IconButton from '@/components/common/atoms/IconButton';
-import StatusDot from '@/components/common/atoms/StatusDot';
 
 /**
  * SidebarContent コンポーネントの props。
@@ -57,12 +50,6 @@ export default function SidebarContent({
   onDeleteConversation,
   onOpenSettings,
 }: SidebarContentProps) {
-  // デスクトップは hover / キーボードフォーカス時だけ表示し、hover の無いドロワーでは常時表示する
-  const deleteVisibility =
-    variant === 'drawer'
-      ? 'opacity-100'
-      : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100';
-
   return (
     <>
       <div className="p-6">
@@ -97,43 +84,15 @@ export default function SidebarContent({
             </p>
             <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-380px)]">
               {conversations.map((conv) => (
-                <div
+                <ConversationListItem
                   key={conv.id}
-                  className={`group flex items-center rounded-lg transition-all ${
-                    currentConversationId === conv.id
-                      ? 'bg-white/10'
-                      : 'hover:bg-white/5'
-                  }`}
-                >
-                  <button
-                    onClick={() => onSelectConversation(conv.id)}
-                    aria-current={
-                      currentConversationId === conv.id ? 'page' : undefined
-                    }
-                    className="flex-1 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-nord-6 min-w-0"
-                  >
-                    <MessageSquare
-                      size={16}
-                      className="text-nord-4/60 shrink-0"
-                    />
-                    <span className="truncate">{conv.title}</span>
-                    {/* 別の会話を見ていても、裏で生成が続いていることがわかるようにする */}
-                    {generatingConversationIds.includes(conv.id) && (
-                      <StatusDot pulse label="生成中" className="ml-auto" />
-                    )}
-                  </button>
-                  <IconButton
-                    label={`「${conv.title}」を削除`}
-                    tone="danger"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteConversation(conv.id);
-                    }}
-                    className={`mr-1 ${deleteVisibility}`}
-                  >
-                    <Trash2 size={14} />
-                  </IconButton>
-                </div>
+                  conversation={conv}
+                  isCurrent={currentConversationId === conv.id}
+                  isGenerating={generatingConversationIds.includes(conv.id)}
+                  alwaysShowDelete={variant === 'drawer'}
+                  onSelect={() => onSelectConversation(conv.id)}
+                  onDelete={() => onDeleteConversation(conv.id)}
+                />
               ))}
             </div>
           </nav>

@@ -106,43 +106,55 @@ front/src/
 │                   ├── route.ts #   メッセージ取得・保存
 │                   └── [messageId]/
 │                       └── route.ts # 応答の置き換え（再生成）
-├── components/                # UIコンポーネント（Atomic Design。#163。移行中）
+├── components/                # UIコンポーネント（Atomic Design。#163）
 │   ├── common/                #   共通の部品（ドメインを知らない）
 │   │   ├── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
-│   │   └── molecules/         #     Modal（ネイティブの <dialog> の外枠）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）
-│   └── settings/
-│       └── SettingsModal.tsx  #     設定モーダル（モデル選択・テーマ切替）
-├── features/                  # 機能固有モジュール
-│   ├── chat/
-│   │   ├── components/
-│   │   │   ├── ChatBar.tsx    #     メッセージ入力（IME対応、forwardRef）
-│   │   │   ├── ChatWindow.tsx #     メッセージ一覧表示
-│   │   │   ├── Footer.tsx     #     フッター
-│   │   │   ├── Header.tsx     #     ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
-│   │   │   ├── RoleDialog.tsx #     会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
-│   │   │   ├── MarkdownContent.tsx #  Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
-│   │   │   ├── AgentThinking.tsx   #  エージェント思考過程の表示（<think> タグ / message.thinking 対応）
-│   │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
-│   │   │   └── ToolCallResult.tsx  #  ツール実行結果の折りたたみ表示
-│   │   ├── constants/
-│   │   │   └── toolLabels.ts  #     ツール名→表示ラベルのマッピング
-│   │   └── hooks/
-│   │       └── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
-│   └── sidebar/
-│       ├── components/
-│       │   ├── Sidebar.tsx    #     デスクトップのサイドバー（md 以上）
-│       │   ├── SidebarDrawer.tsx #  モバイルのサイドバードロワー（md 未満）
-│       │   ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
-│       │   └── ConversationSearch.tsx # 会話の検索欄と検索結果（一致箇所の強調）
-│       └── hooks/
-│           ├── useConversations.ts # 会話CRUD管理
-│           ├── useConversationSearch.ts # 会話検索（入力の待ち合わせ・前の要求の中断・さらに表示）
-│           └── useDrawerDialog.ts  # ドロワーのフォーカス管理・Escape・スクロール固定
+│   │   ├── molecules/         #     Modal（ネイティブの <dialog> の外枠）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）
+│   │   └── templates/
+│   │       └── ChatLayout.tsx #     画面の枠（サイドバー・ドロワー・ヘッダー・本文・お知らせ・入力欄・フッター）。中身は props で受け取る
+│   └── features/              #   機能の部品
+│       ├── chat/
+│       │   ├── molecules/
+│       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
+│       │   │   └── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
+│       │   └── organisms/
+│       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
+│       │       ├── ChatWindow.tsx # メッセージ一覧表示
+│       │       ├── Footer.tsx     # フッター
+│       │       ├── Header.tsx     # ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
+│       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
+│       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
+│       │       ├── AgentThinking.tsx   # エージェント思考過程の表示（<think> タグ / message.thinking 対応）
+│       │       └── ToolCallResult.tsx  # ツール実行結果の折りたたみ表示
+│       ├── sidebar/
+│       │   ├── molecules/
+│       │   │   ├── ConversationListItem.tsx # 履歴の 1 行（生成中の印・削除ボタン）
+│       │   │   └── SearchResultItem.tsx     # 検索結果の 1 件（タイトル・抜粋の強調）
+│       │   └── organisms/
+│       │       ├── Sidebar.tsx    # デスクトップのサイドバー（md 以上）
+│       │       ├── SidebarDrawer.tsx # モバイルのサイドバードロワー（md 未満）
+│       │       ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
+│       │       └── ConversationSearch.tsx # 会話の検索欄と検索結果
+│       └── settings/
+│           └── organisms/
+│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テーマ切替）
+├── constants/                 # 定数（機能ごとのディレクトリ）
+│   └── chat/
+│       └── toolLabels.ts      #     ツール名→表示ラベルのマッピング
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
-├── hooks/                     # 共通カスタムフック（機能ごとのディレクトリ）
+├── hooks/                     # カスタムフック（機能ごとのディレクトリ）
+│   ├── chat/
+│   │   ├── useChat.ts         #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
+│   │   └── useModels.ts       #     利用可能なモデル一覧の取得と選択中のモデル
 │   ├── clipboard/
 │   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
+│   ├── settings/
+│   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
+│   ├── sidebar/
+│   │   ├── useConversations.ts #    会話CRUD管理
+│   │   ├── useConversationSearch.ts # 会話検索（入力の待ち合わせ・前の要求の中断・さらに表示）
+│   │   └── useDrawerDialog.ts #     ドロワーのフォーカス管理・Escape・スクロール固定
 │   └── theme/
 │       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
 ├── lib/                       # ユーティリティ・外部連携（機能ごとのディレクトリ）
@@ -163,7 +175,7 @@ front/src/
 │   ├── llm/                   #   LLM（Ollama）との通信
 │   │   ├── ollama.ts          #     Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   │   └── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
-│   ├── chat/                  #   チャット（features/chat から使う）
+│   ├── chat/                  #   チャット（チャットの部品・useChat から使う）
 │   │   ├── chat-state.ts      #     会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
 │   │   ├── conversation-history.ts # 表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
@@ -236,15 +248,14 @@ front/tests/
 
 ### ディレクトリ方針
 
-- **`components/`**: 複数機能で再利用される汎用UIコンポーネントを配置
-- **`features/`**: 機能固有のコンポーネント・フック・型を機能単位でまとめる
-- **`hooks/`**: 複数機能で共有されるカスタムフックを配置
+- **`components/`**: UIコンポーネント（`common/` に共通の部品、`features/<機能>/` に機能の部品）
+- **`hooks/`**: カスタムフック（`hooks/<機能>/`）
+- **`constants/`**: 2 ファイル以上から使う定数（`constants/<機能>/`）
 - **`lib/`**: 外部サービス連携やユーティリティ関数を配置
-- **`types/`**: 複数機能で共有される型定義を配置
-- **UI コンポーネントは Atomic Design で整理する**（#163。詳細は `docs/12-ui-components.md`）。共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/` に置き、page（`app/page.tsx`）は組み立てだけを行う。今の `features/` は段階 4 でなくし、フックは `hooks/<機能>/`、定数は `constants/<機能>/` へ移す（移行中は上のツリーのとおり `features/` が残る）
+- **`types/`**: 複数ファイル・機能で共有される型定義を配置
+- **UI コンポーネントは Atomic Design で整理する**（#163。詳細は `docs/12-ui-components.md`）。共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/` に置き、page（`app/page.tsx`）はフックを呼んで organisms を組み立て、template（`ChatLayout`）へ渡すだけにする
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<hooks|lib|types|constants>/<機能>/`。#160）。直下にファイルを置かない。`components/` は上の Atomic Design の構成に従う。`lib/` は機能（`agent`・`llm`・`chat`・`conversation`）に加え、サーバー専用の `server/` と、サーバー・クライアント共通の `shared/` を持つ。re-export だけの `index.ts`（barrel）は作らず、実ファイルを直接 import する
-- 機能固有のコンポーネント・フック・型は `features/<機能名>/` 内に閉じる
-- **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、機能内の 2 箇所以上なら `features/<機能名>/`、機能をまたぐなら `types/`・`constants/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）
+- **型・定数は「参照範囲」で置き場所を決める**: 1 ファイルに閉じるならコロケーション、2 ファイル以上なら `types/<機能>/`・`constants/<機能>/` へ昇格。**先回りで共通化しない**（詳細は `.claude/rules/typescript.md`）
 
 ## データベース設計
 

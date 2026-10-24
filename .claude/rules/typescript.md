@@ -56,7 +56,7 @@ type OnSend = (content: string) => void;
 | **1 ファイルに閉じる** | その定義ファイル内にコロケーション（`export` しない） |
 | **2 ファイル以上** / レイヤ・機能をまたぐ | `src/types/<機能>/<ドメイン>.ts` に集約して `export` |
 
-機能内（`features/chat/` 等）で複数ファイルが参照するが機能外からは参照されない型は、その機能ディレクトリ内に置いてよい。`src/types/` は**機能をまたぐ共通型**の置き場とする。
+機能内（`chat` 等）だけで複数ファイルが参照する型も、`src/types/<機能>/` に置く（#163 で `src/features/` をなくしたため、機能のディレクトリに型を置く場所は無い）。
 
 ### 運用ルール
 
@@ -97,7 +97,7 @@ export type ChatMessage = { id: string; role: MessageRole; content: string };
 | **1 ファイルに閉じる** | その定義ファイルの先頭で `const` 宣言（`export` しない） |
 | **2 ファイル以上**（機能内・機能をまたぐ） | `src/constants/<機能>/` に集約して `export`（例: `constants/chat/toolLabels.ts`） |
 
-`src/features/` をなくす移行（#163 の段階 4）が済むまでは、機能内の定数が `features/<機能>/constants/`（`features/chat/constants/toolLabels.ts`）に残る。新しく足す定数は `src/constants/<機能>/` に置く（#160 の `src/<層>/<機能>/` の規則）。
+機能内だけで使う定数も `src/constants/<機能>/` に置く（#160 の `src/<層>/<機能>/` の規則）。
 
 なお入力上限値（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH`）は例外的に `lib/shared/validation.ts` に置いている。検証関数（`isValidUUID`）と同じ関心事であり、フロント・API 双方から参照される単一の正準として機能しているため（`error-handling.md` 参照）。
 
