@@ -1,7 +1,9 @@
 'use client';
 
 import { Copy, Check, TriangleAlert } from 'lucide-react';
-import { useCopyFeedback } from '../hooks/useCopyFeedback';
+import { cn } from '@/lib/shared/class-names';
+import { useCopyFeedback } from '@/hooks/clipboard/useCopyFeedback';
+import IconButton from '@/components/common/atoms/IconButton';
 
 /** {@link CopyButton} の props。 */
 type CopyButtonProps = {
@@ -14,7 +16,7 @@ type CopyButtonProps = {
 };
 
 /**
- * クリックで文字列をクリップボードへコピーし、結果を一時的に表示するボタン。
+ * クリックで文字列をクリップボードへコピーし、結果を一時的に表示するボタン（共通の molecule。#163）。
  *
  * 成功時はアイコンを Check に替えて「コピーしました」、失敗時は TriangleAlert と
  * 「コピーに失敗しました」を表示し、一定時間後に元へ戻す。結果の文言は
@@ -22,16 +24,20 @@ type CopyButtonProps = {
  *
  * @param props - コピーする文字列・ボタン名・配置用クラスを持つ props
  */
-export function CopyButton({ text, label, className = '' }: CopyButtonProps) {
+export default function CopyButton({
+  text,
+  label,
+  className,
+}: CopyButtonProps) {
   const { status, copy } = useCopyFeedback();
 
   return (
-    <span className={`inline-flex items-center ${className}`}>
-      <button
-        type="button"
-        className="hover:text-nord-frost-1 transition-colors"
+    <span className={cn('inline-flex items-center', className)}>
+      <IconButton
+        label={label}
+        tone="inherit"
+        size="xs"
         onClick={() => copy(text)}
-        aria-label={label}
       >
         {status === 'copied' ? (
           <Check size={14} className="text-nord-aurora-green" />
@@ -40,7 +46,7 @@ export function CopyButton({ text, label, className = '' }: CopyButtonProps) {
         ) : (
           <Copy size={14} />
         )}
-      </button>
+      </IconButton>
       {/* 余白は表示中だけ付ける。空のときに幅を持つと、隣の要素（時刻表示など）がずれる */}
       <span
         role="status"

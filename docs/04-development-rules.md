@@ -91,6 +91,7 @@ front/tests/
     ├── responsive.spec.ts         # レスポンシブテスト
     ├── mobile-navigation.spec.ts  # モバイルのドロワーから会話管理・設定へ到達できるか
     ├── theme.spec.ts              # テーマ切替・localStorage永続化テスト
+    ├── settings-modal.spec.ts     # 設定モーダルの開閉（Close・×・Escape・背景のクリック・フォーカスの戻り先・閉じ込め）
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）

@@ -1,14 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { MessageSquare, Search, X } from 'lucide-react';
+import { MessageSquare, Search } from 'lucide-react';
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/shared/validation';
 import { parseSearchTerms, splitHighlights } from '@/lib/conversation/search';
 import { useConversationSearch } from '../hooks/useConversationSearch';
 import Button from '@/components/common/atoms/Button';
-import IconButton from '@/components/common/atoms/IconButton';
 import Mark from '@/components/common/atoms/Mark';
-import TextInput from '@/components/common/atoms/TextInput';
+import SearchBox from '@/components/common/molecules/SearchBox';
 
 /** {@link ConversationSearch} の props。 */
 type ConversationSearchProps = {
@@ -68,38 +67,15 @@ export default function ConversationSearch({
 
   return (
     <>
-      <div role="search" className="relative mb-6">
-        <Search
-          size={16}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-nord-4/60"
-        />
-        <TextInput
-          value={query}
-          onChange={(e) => changeQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && query) {
-              // ドロワーの Escape（閉じる）より先に、検索をやめるだけにする
-              e.stopPropagation();
-              clear();
-            }
-          }}
-          maxLength={MAX_SEARCH_QUERY_LENGTH}
-          placeholder="会話を検索"
-          aria-label="会話を検索"
-          // 左右のアイコン（虫眼鏡・×）の分だけ余白を空ける
-          className="w-full pl-9 pr-9"
-        />
-        {query && (
-          <IconButton
-            label="検索をやめる"
-            size="sm"
-            onClick={clear}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2"
-          >
-            <X size={14} />
-          </IconButton>
-        )}
-      </div>
+      <SearchBox
+        value={query}
+        onValueChange={changeQuery}
+        onClear={clear}
+        label="会話を検索"
+        clearLabel="検索をやめる"
+        maxLength={MAX_SEARCH_QUERY_LENGTH}
+        className="mb-6"
+      />
 
       {status === 'idle' ? (
         children

@@ -121,7 +121,7 @@ src/
 | 部品 | props | 使っている箇所 |
 |---|---|---|
 | `Button` | `variant: 'primary' \| 'secondary' \| 'subtle' \| 'link'`・`size: 'sm' \| 'md' \| 'lg'`（`link` は余白なし）。`type` の既定は `'button'` | 保存・Close（`primary`）、キャンセル（`secondary`）、さらに表示（`subtle`）、再試行・再送・再生成（`link`） |
-| `IconButton` | `label`（必須。`aria-label` になる）・`tone: 'muted' \| 'default' \| 'danger' \| 'primary'`・`size: 'sm' \| 'md' \| 'lg'` | 閉じる（設定・役割・ドロワー）・検索をやめる・設定を開く・メニューを開く（`default`）・会話の削除（`danger`）・送信と停止（`primary`・`lg`） |
+| `IconButton` | `label`（必須。`aria-label` になる）・`tone: 'muted' \| 'default' \| 'danger' \| 'primary' \| 'inherit'`・`size: 'xs' \| 'sm' \| 'md' \| 'lg'`（`inherit`・`xs` は段階 3 で追加。周りの文字色のまま余白なしで文字の並びに混ぜる） | 閉じる（`Modal`・ドロワー）・検索をやめる・設定を開く・メニューを開く（`default`）・会話の削除（`danger`）・送信と停止（`primary`・`lg`）・コピー（`inherit`・`xs`） |
 | `ToggleChip` | `pressed`（`aria-pressed`） | 役割のプリセット |
 | `Switch` | `checked`。**見た目だけ**（`aria-hidden`）。操作と読み上げは、ラベルごと包む呼び出し側のボタンが持つ（行全体を押せるようにするため） | 設定のツールの ON/OFF |
 | `TextInput`・`TextArea`・`Select` | 素の要素の props。`Select` は `variant: 'default' \| 'compact'`（`compact` はブラウザの矢印を消す。矢印は呼び出し側が重ねる） | 検索欄・役割の入力欄・モデル選択（設定は `default`、ヘッダーは `compact`） |
@@ -134,22 +134,36 @@ src/
 - アイコンボタンの hover の色・角の丸みを揃えた（設定を開く・メニューを開くに hover で文字が明るくなる効果、検索をやめるの角を `rounded-md` → `rounded-lg`）。
 - アイコンボタンの `transition` は、色だけでなく opacity も含む `transition` にした（削除ボタンの表示の切り替えを滑らかに保つため）。
 - 名前の無かったボタンに名前を付けた（設定モーダルの × に「閉じる」、送信ボタンに「送信」）。
+- `Switch` のつまみは段階 2 で枠の右へはみ出していた（`div` を `span` にしたため、`left` の無い絶対配置の起点がボタンの中央寄せになった）。段階 3 で `left-0` を付けて直した（設定モーダルはスクリーンショットの E2E の対象外で、見落とした）。
 
 **段階 2 で置き換えなかったもの**（その機能・その画面に固有の見た目で、共通の atoms に当たらない。段階 3・4 で molecules / organisms として整理する）:
 
 - 設定モーダルの選択カード（エージェントのプリセット・テーマ）と、ツールの ON/OFF の行
 - サイドバーの「New Conversation」・履歴の行・検索結果の行
-- `CopyButton` の中のボタン（段階 3 で共通の molecule にする）
 - ツールの結果・思考過程の開閉の見出し、ヘッダーの役割のボタン
 - 入力欄（`ChatBar` の `textarea`。背景が透明で、送信欄の枠と一体になっている）
 
 ## 共通の molecules
 
-| 部品 | 内容 | 今の場所 |
+段階 3 で作った molecules（`components/common/molecules/`）:
+
+| 部品 | props | 使っている箇所 |
 |---|---|---|
-| `SearchBox` | 虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。Escape でクリア | `ConversationSearch` の検索欄 |
-| `Modal` | ダイアログの外枠（タイトル・本文・フッター）。ネイティブの `<dialog>` で開閉・フォーカス・Escape を受け持つ | `SettingsModal`・`RoleDialog` の外枠 |
-| `CopyButton` | コピーと結果の一時表示 | `features/chat/components/CopyButton.tsx`。フック（`useCopyFeedback`）とコピー処理（`lib/chat/clipboard.ts`）はチャットに依存しないため、`hooks/clipboard/`・`lib/shared/` へ移す |
+| `SearchBox` | `value`・`onValueChange`・`onClear`・`label`（入力欄の名前とプレースホルダー）・`clearLabel`（× の名前）と素の `<input>` の props。虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。入力がある間の Escape はクリアだけにして外へ伝えない（ドロワーを閉じさせない） | `ConversationSearch` の検索欄 |
+| `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
+| `CopyButton` | `text`・`label`・`className`。コピーと結果の一時表示。中のボタンは `IconButton`（`inherit`・`xs`） | 応答・コードブロックのコピー。フック（`useCopyFeedback`）は `hooks/clipboard/`、コピー処理（`clipboard.ts`）は `lib/shared/` へ移した（チャットに依存しないため） |
+
+`SettingsModal` を `Modal` に揃えたことによる差:
+
+| 項目 | 前（`role="dialog"` の自前実装） | 後（`Modal`） |
+|---|---|---|
+| Escape | 閉じなかった | 閉じる |
+| フォーカス | ダイアログへ移さず、閉じ込めない | 開くとダイアログへ移り、Tab で背景へ抜けない |
+| 背景の操作 | 背景の要素を Tab で操作できた | 操作できない（top layer・inert） |
+| 閉じた後のフォーカス | `body` に落ちる | 開いたボタン（「設定を開く」）へ戻る（`RoleDialog` も同じ） |
+| 背景のクリック | 閉じる | 閉じる（中で押して背景で離した場合は閉じない） |
+| 余白 | 見出し・本文・フッターが `p-6` | 見出し・フッターは `px-6 py-4`（`RoleDialog` に揃えた）、本文は `px-6 py-4` |
+| 画面の端との間 | `mx-4` | 幅を `calc(100% - 2rem)` にして左右 1rem（`RoleDialog` も同じになった） |
 
 ## 機能ごとの部品
 
@@ -196,5 +210,5 @@ src/
 |---|---|
 | 1 | 設計・規則（本書・`frontend.md`・`typescript.md`・`docs/02`・`CLAUDE.md`） |
 | 2 | 共通の `components/common/atoms/` の追加と、素の `<button>`・入力欄・小さな丸・強調の置き換え。クラス名の連結の関数。依存の向きの lint |
-| 3 | 共通の `components/common/molecules/` の切り出し（`SearchBox`・`Modal`・`CopyButton`）。`SettingsModal`・`RoleDialog` を `Modal` に揃える |
+| 3 | 共通の `components/common/molecules/` の切り出し（`SearchBox`・`Modal`・`CopyButton`）。`SettingsModal`・`RoleDialog` を `Modal` に揃える。モーダルの開閉の E2E（`settings-modal.spec.ts`） |
 | 4 | `src/features/` をなくす（部品を `components/features/<機能>/<階層>/`、フックを `hooks/<機能>/`、定数を `constants/<機能>/` へ）。機能専用の molecules（`ToolCallIndicator`・`WebSearchResult`・`ConversationListItem`・`SearchResultItem`）を切り出す。`SettingsModal` を `components/features/settings/organisms/` へ。`ChatLayout` を作り、`page.tsx` を組み立てだけにする |

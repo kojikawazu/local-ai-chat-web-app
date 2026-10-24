@@ -957,6 +957,6 @@ UI コンポーネントに Atomic Design（atoms / molecules / organisms / temp
 
 - [x] 1. 設計・規則（`docs/12-ui-components.md` を新設。`frontend.md`・`typescript.md`・`docs/02`・`CLAUDE.md`・`docs/README.md`）のレビュー。共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。依存の向きは lint で強制、モーダルはネイティブの `<dialog>` に揃える
 - [x] 2. 共通の atoms（`components/common/atoms/` の 10 個）の追加と、素の `<button>`・入力欄・小さな丸・強調の置き換え。クラス名の連結（`lib/shared/class-names.ts`）と UT。依存の向きの ESLint（`atomicDesignRules`。違反の import を検出できることを確認）。共通の部品の置き場所を `components/common/` に変更
-- [ ] 3. molecules の切り出し（`SearchBox`・`Modal` 等。モーダルの挙動を揃える）
+- [x] 3. 共通の molecules（`components/common/molecules/` の `Modal`・`SearchBox`・`CopyButton`）の追加と、設定モーダル・役割ダイアログ・会話検索の置き換え。`useCopyFeedback` を `hooks/clipboard/`、`clipboard.ts` を `lib/shared/` へ移動。モーダルの開閉の E2E（`settings-modal.spec.ts`、役割ダイアログの背景のクリック）。段階 2 の `Switch` のつまみのはみ出しを修正
 - [ ] 4. `src/features/` をなくす（部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/`）。機能専用の molecules の切り出し・`ChatLayout` の作成と、`page.tsx` を template への受け渡しだけにする
 - [ ] 各段階で、スクリーンショットの E2E と既存の E2E が通ること
