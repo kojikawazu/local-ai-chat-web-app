@@ -13,7 +13,7 @@ import type { Conversation } from '@/types';
  * @returns 会話一覧と操作関数。`conversations` は会話一覧、
  *   `currentConversationId` は選択中の会話 ID（未選択時は `null`）、
  *   `createConversation` は新規会話を作成し作成した ID を返す（失敗時 `null`）、
- *   `deleteConversation` は会話を削除する、`selectConversation` は選択中の会話を
+ *   `deleteConversation` は会話を削除し、削除できたかを返す、`selectConversation` は選択中の会話を
  *   切り替える、`updateSystemPrompt` は会話の役割を変更する（失敗時は例外を投げる）、
  *   `refreshConversations` は会話一覧を再取得する
  */
@@ -81,19 +81,21 @@ export function useConversations() {
   );
 
   const deleteConversation = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
       try {
         const res = await fetch(`/api/conversations/${id}`, {
           method: 'DELETE',
         });
         // 404 は別タブ等で既に削除済み。一覧に残すと消せない項目になるため、削除できたものとして扱う
-        if (!res.ok && res.status !== 404) return;
+        if (!res.ok && res.status !== 404) return false;
         setConversations((prev) => prev.filter((c) => c.id !== id));
         if (currentConversationId === id) {
           setCurrentConversationId(null);
         }
+        return true;
       } catch (error) {
         console.error('Failed to delete conversation:', error);
+        return false;
       }
     },
     [currentConversationId]

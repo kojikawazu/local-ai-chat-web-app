@@ -126,12 +126,14 @@ export default function Home() {
     isLoading,
     error,
     activeToolCall,
+    generatingConversationIds,
     sendMessage,
     stopGeneration,
     regenerate,
     retrySave,
     clearMessages,
     loadMessages,
+    discardConversation,
   } = useChat({
     conversationId: currentConversationId,
     model: selectedModel,
@@ -167,19 +169,27 @@ export default function Home() {
 
   const handleDeleteConversation = useCallback(
     async (id: string) => {
-      await deleteConversation(id);
+      if (!(await deleteConversation(id))) return;
+      // 生成中なら止める。消した会話へ応答を保存しようとして失敗するのを防ぐ
+      discardConversation(id);
       if (currentConversationId === id) {
         clearMessages();
         // 消した会話の作成時の下書きが、次の新規会話に持ち越されないようにする
         setDraftSystemPrompt('');
       }
     },
-    [deleteConversation, currentConversationId, clearMessages]
+    [
+      deleteConversation,
+      discardConversation,
+      currentConversationId,
+      clearMessages,
+    ]
   );
 
   const sidebarProps = {
     conversations,
     currentConversationId,
+    generatingConversationIds,
     isNewConversationMode,
     onSelectConversation: selectConversation,
     onNewConversation: handleNewConversation,

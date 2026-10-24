@@ -16,6 +16,19 @@ import {
   buildMessageMetadata,
   parseMessageMetadata,
 } from '@/lib/message-metadata';
+import type { ChatState, ChatStates } from '@/lib/chat-state';
+import {
+  NEW_CONVERSATION_KEY,
+  EMPTY_CHAT,
+  applyLoadedMessages,
+  chatKey,
+  generatingConversationIds,
+  getChat,
+  moveChat,
+  removeChat,
+  retainChats,
+  updateChat,
+} from '@/lib/chat-state';
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
@@ -110,17 +123,21 @@ async function saveMessage(
  * 保存する（本文が空なら応答を残さない）。中断は内部の `AbortController` で扱う。
  * `regenerate` は最後の応答を同じ質問で作り直し、生成し終えてから旧応答を置き換える
  * （失敗・本文が空のまま停止した場合は旧応答に戻し、DB には触れない）。
+ * 状態（メッセージ・生成中・エラー・実行中ツール）は会話ごとに持ち、返す値は表示中の会話のもの
+ * （#147）。生成中に会話を切り替えても、応答は送信した会話に届き続ける。停止は表示中の会話だけに効く。
  *
  * @param options - フックの設定（{@link UseChatOptions}）。会話 ID・モデル・
  *   エージェント有効化・会話の役割・エージェントのプリセットと、会話作成／タイトル生成完了時の
  *   コールバックを含む。各フィールドの意味は {@link UseChatOptions} を参照。
- * @returns チャット状態と操作関数。`messages` は現在のメッセージ一覧、`isLoading` は
+ * @returns 表示中の会話のチャット状態と操作関数。`messages` はメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
- *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`sendMessage` は
- *   本文を送信して応答をストリーム受信する関数、`stopGeneration` は生成中の応答を
+ *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`generatingConversationIds` は
+ *   応答を生成中の会話 ID の一覧（表示中でない会話も含む）、`sendMessage` は
+ *   本文を送信して応答をストリーム受信する関数、`stopGeneration` は表示中の会話の生成中の応答を
  *   止める関数、`regenerate` は最後の応答を ID 指定で再生成する関数、`retrySave` は保存に失敗した
- *   メッセージを ID 指定で再送する関数、`clearMessages` はメッセージ・エラー・
- *   実行中ツールを初期化する関数、`loadMessages` は指定会話のメッセージを読み込む関数
+ *   メッセージを ID 指定で再送する関数、`clearMessages` は新規会話の画面の状態を初期化する関数、
+ *   `loadMessages` は指定会話のメッセージを読み込む関数、`discardConversation` は削除した会話の
+ *   生成を止めて状態を捨てる関数（応答は保存しない）
  */
 export function useChat({
   conversationId,
@@ -131,24 +148,71 @@ export function useChat({
   onConversationCreated,
   onTitleGenerated,
 }: UseChatOptions) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeToolCall, setActiveToolCall] = useState<{
-    name: string;
-    arguments: Record<string, unknown>;
-  } | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [chats, setChats] = useState<ChatStates>({});
+  const currentKey = chatKey(conversationId);
+  const { messages, isLoading, error, activeToolCall } = getChat(
+    chats,
+    currentKey
+  );
+  // 会話 ID → 生成中の応答の AbortController。停止は表示中の会話のものだけを中断する
+  const abortControllersRef = useRef(new Map<string, AbortController>());
   // 保存に失敗したメッセージ ID → 再送内容。表示用の state とは分け、再試行時に参照する
   const pendingSavesRef = useRef(new Map<string, PendingSave>());
+  // 削除した会話の ID。裏で続いていた生成の後始末が、消した会話の状態を作り直さないようにする
+  const deletedIdsRef = useRef(new Set<string>());
+
+  /**
+   * 1 つの会話の状態を更新する。削除した会話は更新しない。
+   *
+   * @param key - 更新する会話のキー
+   * @param update - 今の状態から新しい状態を作る関数
+   */
+  const updateChatOf = useCallback(
+    (key: string, update: (chat: ChatState) => ChatState) => {
+      if (deletedIdsRef.current.has(key)) return;
+      setChats((prev) => updateChat(prev, key, update));
+    },
+    []
+  );
+
+  /**
+   * 1 つの会話の状態の一部を差し替える。
+   *
+   * @param key - 更新する会話のキー
+   * @param patch - 差し替える項目
+   */
+  const patchChat = useCallback(
+    (key: string, patch: Partial<ChatState>) =>
+      updateChatOf(key, (chat) => ({ ...chat, ...patch })),
+    [updateChatOf]
+  );
+
+  /**
+   * 1 つの会話のメッセージ一覧を更新する。
+   *
+   * @param key - 更新する会話のキー
+   * @param update - 今の一覧から新しい一覧を作る関数
+   */
+  const setMessagesOf = useCallback(
+    (key: string, update: (messages: Message[]) => Message[]) =>
+      updateChatOf(key, (chat) => ({
+        ...chat,
+        messages: update(chat.messages),
+      })),
+    [updateChatOf]
+  );
 
   const setSaveState = useCallback(
-    (messageId: string, saveState: MessageSaveState | undefined) => {
-      setMessages((prev) =>
+    (
+      convId: string,
+      messageId: string,
+      saveState: MessageSaveState | undefined
+    ) => {
+      setMessagesOf(convId, (prev) =>
         prev.map((msg) => (msg.id === messageId ? { ...msg, saveState } : msg))
       );
     },
-    []
+    [setMessagesOf]
   );
 
   /**
@@ -163,12 +227,15 @@ export function useChat({
       try {
         await saveMessage(messageId, payload);
         pendingSavesRef.current.delete(messageId);
-        setSaveState(messageId, undefined);
+        setSaveState(payload.conversationId, messageId, undefined);
         return true;
       } catch (err) {
         console.error('Failed to save message:', err);
-        pendingSavesRef.current.set(messageId, payload);
-        setSaveState(messageId, 'failed');
+        // 削除した会話への保存は再送しても届かないため、再試行の対象にしない
+        if (!deletedIdsRef.current.has(payload.conversationId)) {
+          pendingSavesRef.current.set(messageId, payload);
+        }
+        setSaveState(payload.conversationId, messageId, 'failed');
         return false;
       }
     },
@@ -189,27 +256,30 @@ export function useChat({
   );
 
   const loadMessages = useCallback(async (convId: string) => {
-    pendingSavesRef.current.clear();
+    // 開いた会話と、DB から読み直すと失われるもの（生成中・保存失敗・エラー）を持つ会話だけを残す
+    setChats((prev) => retainChats(prev, convId));
+    // 生成中の会話は手元の一覧が最新。読み直さず、途中までの応答と続きをそのまま表示する
+    if (abortControllersRef.current.has(convId)) return;
     try {
       const res = await fetch(`/api/conversations/${convId}/messages`);
       if (!res.ok) return;
       const data = await res.json();
-      setMessages(
-        data.messages.map(
-          (msg: {
-            id: string;
-            role: Message['role'];
-            content: string;
-            // DB の JSON 列は任意の値を持てるため、型を信用せず検証してから使う
-            metadata?: unknown;
-            createdAt: string;
-          }) => ({
-            ...msg,
-            metadata: parseMessageMetadata(msg.metadata),
-            createdAt: new Date(msg.createdAt),
-          })
-        )
+      const loaded: Message[] = data.messages.map(
+        (msg: {
+          id: string;
+          role: Message['role'];
+          content: string;
+          // DB の JSON 列は任意の値を持てるため、型を信用せず検証してから使う
+          metadata?: unknown;
+          createdAt: string;
+        }) => ({
+          ...msg,
+          metadata: parseMessageMetadata(msg.metadata),
+          createdAt: new Date(msg.createdAt),
+        })
       );
+      // 読んでいる間に生成が始まった・保存に失敗した会話は、手元の一覧を残す
+      setChats((prev) => applyLoadedMessages(prev, convId, loaded));
     } catch (error) {
       console.error('Failed to load messages:', error);
     }
@@ -233,9 +303,9 @@ export function useChat({
       isFirstExchange: boolean,
       replacing?: Message
     ) => {
-      setError(null);
-      setIsLoading(true);
-      setActiveToolCall(null);
+      // 状態は送信した会話のものを更新する。表示中の会話が切り替わっても応答が届き続ける（#147）
+      const convId = activeConversationId;
+      patchChat(convId, { error: null, isLoading: true, activeToolCall: null });
 
       // 再生成では旧応答の ID を引き継ぐ（DB 上の旧応答を同じ ID で置き換えるため）
       const aiMessageId = replacing?.id ?? crypto.randomUUID();
@@ -245,7 +315,7 @@ export function useChat({
         content: '',
         createdAt: new Date(),
       };
-      setMessages((prev) =>
+      setMessagesOf(convId, (prev) =>
         replacing
           ? prev.map((msg) => (msg.id === aiMessageId ? aiMessage : msg))
           : [...prev, aiMessage]
@@ -254,13 +324,14 @@ export function useChat({
       // 応答を残さずに終わるとき（エラー・本文が空のままの停止・完了）に表示を戻す。
       // 再生成なら旧応答を元の位置に戻す（DB は書き換えていないため旧応答のまま）
       const discardResponse = () =>
-        setMessages((prev) =>
+        setMessagesOf(convId, (prev) =>
           replacing
             ? prev.map((msg) => (msg.id === aiMessageId ? replacing : msg))
             : prev.filter((msg) => msg.id !== aiMessageId)
         );
 
-      abortControllerRef.current = new AbortController();
+      const controller = new AbortController();
+      abortControllersRef.current.set(convId, controller);
 
       let fullAiContent = '';
       let thinkingText = '';
@@ -278,6 +349,8 @@ export function useChat({
        * @param interrupted - ユーザーが停止した応答か（中断マーク付きで保存する）
        */
       const saveResponse = async (interrupted: boolean) => {
+        // 生成中に削除された会話には保存しない（保存先が無く、行き場のない保存失敗が残る）
+        if (deletedIdsRef.current.has(convId)) return;
         if (!fullAiContent) {
           // 本文の無い応答は保存しない。再生成なら空の応答で置き換えず、旧応答に戻す
           if (replacing) discardResponse();
@@ -319,7 +392,7 @@ export function useChat({
             systemPrompt:
               buildSystemPrompt(systemPrompt, agentPrompt) || undefined,
           }),
-          signal: abortControllerRef.current.signal,
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -358,7 +431,7 @@ export function useChat({
                   // thinking イベントは思考のブロック（ラウンドごと）単位で届く。
                   // 区切らずに連結すると前のブロックの文末に次の文頭がくっつくため、空行で区切る
                   thinkingText += (thinkingText ? '\n\n' : '') + event.content;
-                  setMessages((prev) =>
+                  setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
                         ? {
@@ -370,7 +443,7 @@ export function useChat({
                   );
                 } else if (event.type === 'text_delta') {
                   fullAiContent += event.content;
-                  setMessages((prev) =>
+                  setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
                         ? { ...msg, content: msg.content + event.content }
@@ -378,16 +451,18 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_start') {
-                  setActiveToolCall({
-                    name: event.name,
-                    arguments: event.arguments,
+                  patchChat(convId, {
+                    activeToolCall: {
+                      name: event.name,
+                      arguments: event.arguments,
+                    },
                   });
                   // arguments を pending キューに積む
                   const queue = pendingToolArgs.get(event.name) ?? [];
                   queue.push(event.arguments);
                   pendingToolArgs.set(event.name, queue);
                   // ツール実行中を UI に反映
-                  setMessages((prev) =>
+                  setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
                         ? {
@@ -410,7 +485,7 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_result') {
-                  setActiveToolCall(null);
+                  patchChat(convId, { activeToolCall: null });
                   // pending キューから先頭の arguments を取り出す（FIFO）
                   const argsQueue = pendingToolArgs.get(event.name) ?? [];
                   const resolvedArgs = argsQueue.shift() ?? {};
@@ -430,7 +505,7 @@ export function useChat({
                   };
                   toolCallRecords.push(record);
                   // 最後のツール呼び出しレコードを結果で更新
-                  setMessages((prev) =>
+                  setMessagesOf(convId, (prev) =>
                     prev.map((msg) => {
                       if (msg.id !== aiMessageId) return msg;
                       const toolCalls = [...(msg.metadata?.toolCalls ?? [])];
@@ -467,7 +542,7 @@ export function useChat({
                     agentRounds,
                     agentDurationMs,
                   });
-                  setMessages((prev) =>
+                  setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
                         ? { ...msg, metadata: finalMetadata }
@@ -492,7 +567,7 @@ export function useChat({
 
             const text = decoder.decode(value, { stream: true });
             fullAiContent += text;
-            setMessages((prev) =>
+            setMessagesOf(convId, (prev) =>
               prev.map((msg) =>
                 msg.id === aiMessageId
                   ? { ...msg, content: msg.content + text }
@@ -519,7 +594,7 @@ export function useChat({
             agentDurationMs,
             interrupted: true,
           });
-          setMessages((prev) =>
+          setMessagesOf(convId, (prev) =>
             prev.map((msg) =>
               msg.id === aiMessageId
                 ? { ...msg, metadata: interruptedMetadata }
@@ -529,14 +604,17 @@ export function useChat({
           await saveResponse(true);
           return;
         }
-        setError(
-          err instanceof Error ? err.message : '不明なエラーが発生しました'
-        );
+        // エラーは送信した会話に出す。裏の会話のエラーが表示中の会話に出ないようにする
+        patchChat(convId, {
+          error:
+            err instanceof Error ? err.message : '不明なエラーが発生しました',
+        });
         discardResponse();
       } finally {
-        setIsLoading(false);
-        setActiveToolCall(null);
-        abortControllerRef.current = null;
+        patchChat(convId, { isLoading: false, activeToolCall: null });
+        if (abortControllersRef.current.get(convId) === controller) {
+          abortControllersRef.current.delete(convId);
+        }
       }
     },
     [
@@ -546,14 +624,18 @@ export function useChat({
       agentPrompt,
       persist,
       requestTitleGeneration,
+      patchChat,
+      setMessagesOf,
     ]
   );
 
   const sendMessage = useCallback(
     async (content: string) => {
-      setError(null);
-      setIsLoading(true);
-      setActiveToolCall(null);
+      patchChat(currentKey, {
+        error: null,
+        isLoading: true,
+        activeToolCall: null,
+      });
 
       // 送信に失敗したまま新しいメッセージが送られた場合、未送信の user メッセージは
       // 再送の対象外とし破棄する（LLM にも DB にも届いていないため履歴の整合は崩れない）
@@ -583,12 +665,15 @@ export function useChat({
           if (!res.ok) throw new Error('会話の作成に失敗しました');
           const conv = await res.json();
           activeConversationId = conv.id;
+          // 新規会話の画面の状態（送信中であること等）を、作った会話へ引き継ぐ
+          setChats((prev) => moveChat(prev, currentKey, conv.id));
           onConversationCreated?.(conv.id);
         } catch (err) {
-          setError(
-            err instanceof Error ? err.message : '会話の作成に失敗しました'
-          );
-          setIsLoading(false);
+          patchChat(currentKey, {
+            error:
+              err instanceof Error ? err.message : '会話の作成に失敗しました',
+            isLoading: false,
+          });
           return;
         }
       }
@@ -603,7 +688,7 @@ export function useChat({
         content,
         createdAt: new Date(),
       };
-      setMessages((prev) => [
+      setMessagesOf(activeConversationId, (prev) => [
         ...prev.filter((msg) => !unsentIds.has(msg.id)),
         userMessage,
       ]);
@@ -624,7 +709,7 @@ export function useChat({
           ),
       });
       if (!saved) {
-        setIsLoading(false);
+        patchChat(activeConversationId, { isLoading: false });
         return;
       }
 
@@ -637,11 +722,14 @@ export function useChat({
     },
     [
       conversationId,
+      currentKey,
       messages,
       systemPrompt,
       onConversationCreated,
       persist,
       generateResponse,
+      patchChat,
+      setMessagesOf,
     ]
   );
 
@@ -666,23 +754,47 @@ export function useChat({
     async (messageId: string) => {
       const pending = pendingSavesRef.current.get(messageId);
       if (!pending) return;
-      setSaveState(messageId, 'retrying');
+      setSaveState(pending.conversationId, messageId, 'retrying');
       const saved = await persist(messageId, pending);
       if (saved) pending.onSaved?.();
     },
     [persist, setSaveState]
   );
 
-  // 生成中の応答を止める。生成中でなければ何もしない（送信直後の保存待ちの間など）
+  // 表示中の会話の生成中の応答を止める。生成中でなければ何もしない（送信直後の保存待ちの間など）。
+  // 裏で生成中の別の会話は止めない
   const stopGeneration = useCallback(() => {
-    abortControllerRef.current?.abort();
+    abortControllersRef.current.get(currentKey)?.abort();
+  }, [currentKey]);
+
+  // 新規会話の画面を空にする。裏で生成中の会話・保存に失敗したメッセージを持つ会話の状態は残す
+  const clearMessages = useCallback(() => {
+    setChats((prev) =>
+      retainChats(
+        updateChat(prev, NEW_CONVERSATION_KEY, () => EMPTY_CHAT),
+        NEW_CONVERSATION_KEY
+      )
+    );
   }, []);
 
-  const clearMessages = useCallback(() => {
-    pendingSavesRef.current.clear();
-    setMessages([]);
-    setError(null);
-    setActiveToolCall(null);
+  /**
+   * 削除した会話の生成を止め、状態と再送内容を捨てる。止めた応答は保存しない。
+   *
+   * 会話の削除に成功してから呼ぶ（失敗したのに呼ぶと、残った会話の生成まで止めてしまう）。
+   *
+   * @param convId - 削除した会話の ID
+   */
+  const discardConversation = useCallback((convId: string) => {
+    // 中断より先に記録する。中断で走る後始末（停止した応答の保存）が、削除済みと判断できるように
+    deletedIdsRef.current.add(convId);
+    abortControllersRef.current.get(convId)?.abort();
+    abortControllersRef.current.delete(convId);
+    for (const [messageId, pending] of pendingSavesRef.current) {
+      if (pending.conversationId === convId) {
+        pendingSavesRef.current.delete(messageId);
+      }
+    }
+    setChats((prev) => removeChat(prev, convId));
   }, []);
 
   return {
@@ -690,11 +802,13 @@ export function useChat({
     isLoading,
     error,
     activeToolCall,
+    generatingConversationIds: generatingConversationIds(chats),
     sendMessage,
     stopGeneration,
     regenerate,
     retrySave,
     clearMessages,
     loadMessages,
+    discardConversation,
   };
 }
