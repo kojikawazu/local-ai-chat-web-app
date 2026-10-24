@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Send, Square } from 'lucide-react';
 import { MAX_MESSAGE_LENGTH } from '@/lib/shared/validation';
+import IconButton from '@/components/common/atoms/IconButton';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {
@@ -109,26 +110,24 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
 
           <div className="flex gap-2 pb-1 pl-1">
             {isGenerating ? (
-              <button
-                type="button"
+              <IconButton
+                label="生成を停止"
+                tone="primary"
+                size="lg"
                 onClick={onStop}
-                aria-label="生成を停止"
-                className="p-2.5 rounded-xl transition-all bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2"
               >
                 <Square size={20} fill="currentColor" />
-              </button>
+              </IconButton>
             ) : (
-              <button
+              <IconButton
+                label="送信"
+                tone="primary"
+                size="lg"
                 type="submit"
                 disabled={!canSend}
-                className={`p-2.5 rounded-xl transition-all ${
-                  canSend
-                    ? 'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 font-bold'
-                    : 'opacity-20 cursor-not-allowed text-nord-4'
-                }`}
               >
                 <Send size={20} />
-              </button>
+              </IconButton>
             )}
           </div>
         </form>

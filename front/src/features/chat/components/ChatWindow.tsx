@@ -16,6 +16,8 @@ import { CopyButton } from './CopyButton';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
+import Button from '@/components/common/atoms/Button';
+import LoadingDots from '@/components/common/atoms/LoadingDots';
 
 /** {@link ChatWindow} の props。 */
 type ChatWindowProps = {
@@ -112,14 +114,7 @@ export default function ChatWindow({
                     {msg.role === 'assistant' ? (
                       isThisWaiting ? (
                         // 最初のチャンク待ちドットアニメーション
-                        <div
-                          className="flex items-center gap-1.5 py-1"
-                          aria-label="応答を生成中"
-                        >
-                          <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:0ms]" />
-                          <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:150ms]" />
-                          <span className="w-2 h-2 rounded-full bg-nord-frost-1 animate-bounce [animation-delay:300ms]" />
-                        </div>
+                        <LoadingDots label="応答を生成中" />
                       ) : (
                         <MarkdownContent content={msg.content} />
                       )
@@ -178,8 +173,8 @@ export default function ChatWindow({
                       </span>
                     )}
                     {msg.saveState && (
-                      <button
-                        className="flex items-center gap-1 text-nord-frost-1 hover:underline disabled:opacity-50 disabled:no-underline"
+                      <Button
+                        variant="link"
                         onClick={() => onRetrySave?.(msg.id)}
                         // 再試行中、または応答生成中（user の再送は生成を伴うため）は押させない
                         disabled={msg.saveState === 'retrying' || isLoading}
@@ -191,7 +186,7 @@ export default function ChatWindow({
                           }
                         />
                         {msg.role === 'user' ? '再送' : '再試行'}
-                      </button>
+                      </Button>
                     )}
                     {msg.role === 'assistant' && msg.metadata?.interrupted && (
                       <span className="flex items-center gap-1">
@@ -204,15 +199,15 @@ export default function ChatWindow({
                       <CopyButton text={msg.content} label="コピー" />
                     )}
                     {onRegenerate && msg.id === regenerableId && (
-                      <button
-                        className="flex items-center gap-1 text-nord-frost-1 hover:underline disabled:opacity-50 disabled:no-underline"
+                      <Button
+                        variant="link"
                         onClick={() => onRegenerate(msg.id)}
                         // 生成中（再生成中を含む）は押させない
                         disabled={isLoading}
                       >
                         <RefreshCw size={14} />
                         再生成
-                      </button>
+                      </Button>
                     )}
                     <span className="opacity-50 font-mono">
                       {msg.createdAt.toLocaleTimeString([], {

@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { useRef } from 'react';
 import { X } from 'lucide-react';
 import SidebarContent from './SidebarContent';
+import IconButton from '@/components/common/atoms/IconButton';
 import { useDrawerDialog } from '../hooks/useDrawerDialog';
 
 /**
@@ -61,14 +62,13 @@ export default function SidebarDrawer({
         tabIndex={-1}
         className="relative flex flex-col h-full w-72 max-w-[85vw] overflow-y-auto bg-nord-1 border-r border-nord-3 shadow-2xl shadow-black/40 focus:outline-none"
       >
-        <button
-          type="button"
+        <IconButton
+          label="メニューを閉じる"
           onClick={onClose}
-          aria-label="メニューを閉じる"
-          className="absolute top-5 right-3 p-2 rounded-lg text-nord-4/60 hover:bg-white/5 hover:text-nord-6 transition-colors"
+          className="absolute top-5 right-3"
         >
           <X size={20} />
-        </button>
+        </IconButton>
 
         <SidebarContent
           variant="drawer"

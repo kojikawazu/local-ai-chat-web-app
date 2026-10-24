@@ -4,6 +4,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { ROLE_PRESETS } from '@/lib/chat/system-prompt';
 import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/shared/validation';
+import Button from '@/components/common/atoms/Button';
+import IconButton from '@/components/common/atoms/IconButton';
+import TextArea from '@/components/common/atoms/TextArea';
+import ToggleChip from '@/components/common/atoms/ToggleChip';
 
 /** {@link RoleDialog} の props。 */
 type RoleDialogProps = {
@@ -74,15 +78,14 @@ export default function RoleDialog({
         <h2 id={titleId} className="text-lg font-bold">
           会話の役割
         </h2>
-        <button
-          type="button"
+        <IconButton
+          label="閉じる"
+          size="sm"
           onClick={onClose}
           disabled={isSaving}
-          aria-label="閉じる"
-          className="p-1.5 rounded-lg text-nord-4/60 hover:bg-white/5 hover:text-nord-6 transition-colors"
         >
           <X size={20} />
-        </button>
+        </IconButton>
       </div>
 
       <div className="px-6 py-4 space-y-4">
@@ -92,24 +95,20 @@ export default function RoleDialog({
         </p>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
+          <ToggleChip
+            pressed={prompt.trim() === ''}
             onClick={() => setPrompt('')}
-            aria-pressed={prompt.trim() === ''}
-            className="px-3 py-1.5 rounded-lg text-xs border border-nord-3 hover:bg-nord-2 aria-pressed:bg-nord-frost-1/20 aria-pressed:border-nord-frost-1 transition-colors"
           >
             役割なし
-          </button>
+          </ToggleChip>
           {ROLE_PRESETS.map((preset) => (
-            <button
+            <ToggleChip
               key={preset.id}
-              type="button"
+              pressed={prompt.trim() === preset.prompt}
               onClick={() => setPrompt(preset.prompt)}
-              aria-pressed={prompt.trim() === preset.prompt}
-              className="px-3 py-1.5 rounded-lg text-xs border border-nord-3 hover:bg-nord-2 aria-pressed:bg-nord-frost-1/20 aria-pressed:border-nord-frost-1 transition-colors"
             >
               {preset.name}
-            </button>
+            </ToggleChip>
           ))}
         </div>
 
@@ -117,14 +116,14 @@ export default function RoleDialog({
           <label htmlFor={textareaId} className="text-sm font-semibold">
             役割（システムプロンプト）
           </label>
-          <textarea
+          <TextArea
             id={textareaId}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             maxLength={MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH}
             rows={6}
             placeholder="例: あなたは優秀な翻訳者です。"
-            className="w-full px-3 py-2 rounded-lg text-sm border border-nord-3 bg-nord-2 text-nord-6 placeholder-nord-4/40 resize-y focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+            className="w-full"
           />
           <p className="text-right text-xs text-nord-4/60">
             {prompt.length.toLocaleString('ja-JP')} /{' '}
@@ -140,22 +139,12 @@ export default function RoleDialog({
       </div>
 
       <div className="flex justify-end gap-2 px-6 py-4 border-t border-nord-3">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isSaving}
-          className="px-4 py-2 rounded-lg text-sm text-nord-4 hover:bg-white/5 transition-colors"
-        >
+        <Button variant="secondary" onClick={onClose} disabled={isSaving}>
           キャンセル
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-4 py-2 rounded-lg text-sm font-bold bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 disabled:opacity-50 transition-colors"
-        >
+        </Button>
+        <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? '保存中…' : '保存'}
-        </button>
+        </Button>
       </div>
     </dialog>
   );

@@ -10,11 +10,11 @@ globs: "front/src/components/**,front/src/app/[^a]*/**,front/src/hooks/**,front/
 UI コンポーネントは **Atomic Design**（atoms / molecules / organisms / templates / pages）で整理する（#163）。設計の詳細（判断基準・各部品の props・移行の段階）は `docs/12-ui-components.md` が正準。
 
 - **置き場所**: 層 → 機能 → 階層の順に分ける。
-  - 共通の部品（ドメインを知らない）: `src/components/{atoms,molecules,templates}/`
+  - 共通の部品（ドメインを知らない）: `src/components/common/{atoms,molecules,templates}/`
   - 機能の部品: `src/components/features/<機能>/{atoms,molecules,organisms}/`
   - page: `src/app/page.tsx`（フックを呼び、organisms を組み立てて template へ渡すだけ）
 - **判断の目安**: 別のアプリにそのまま持っていけるなら共通、このアプリの会話・メッセージ・ツールを知っているなら機能の部品。機能の部品が 2 つ目の機能から必要になったら、ドメインの知識を外して共通の階層へ移す。
-- **依存の向き**: 下の階層は上を import しない。共通の部品は `components/features/**` とドメインのフックを import しない。機能の部品は他の機能の部品を import しない。organisms は templates を import しない。段階 2 以降は ESLint（`no-restricted-imports`）で強制する。
+- **依存の向き**: 下の階層は上を import しない。共通の部品は `components/features/**` とドメインのフックを import しない。機能の部品は他の機能の部品を import しない。organisms は templates を import しない。ESLint（`no-restricted-imports`。`eslint.config.mjs` の `atomicDesignRules`）で強制する。機能を足したら、同ファイルの `UI_FEATURES` に機能名を足す。
 - **atoms の作り方**: 素の要素の props を受け、見た目は `variant`・`size` の union で選ぶ。色はテーマの CSS 変数だけを使い、外からの `className` は配置に限る。`forwardRef` は使わない（React 19 は `ref` を props で受け取れる）。アイコンだけのボタンは `label` を必須にする。
 - **モーダル**はネイティブの `<dialog>` + `showModal()` の共通 `Modal` に揃える（サイドバーのドロワーは対象外）。
 - 空の階層のディレクトリは作らない。re-export だけの `index.ts`（barrel）は作らない。
@@ -31,7 +31,7 @@ UI コンポーネントは **Atomic Design**（atoms / molecules / organisms / 
 | `lib/` | ユーティリティ・外部連携（`agent/`・`llm/`・`chat/`・`conversation/`・`server/`・`shared/`） |
 | `types/` | 機能をまたぐ共通型（`agent/`・`chat/`・`conversation/`・`theme/`） |
 
-**`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<層>/<機能>/<ファイル>`。#160）。直下にファイルを置かない。新しいファイルは、使う機能のディレクトリに置き、無ければ作る。`components/` だけは上の Atomic Design の構成（共通の階層 + `features/<機能>/<階層>/`）に従う。
+**`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<層>/<機能>/<ファイル>`。#160）。直下にファイルを置かない。新しいファイルは、使う機能のディレクトリに置き、無ければ作る。`components/` だけは上の Atomic Design の構成（`common/<階層>/` と `features/<機能>/<階層>/`）に従う。
 
 - `lib/server/` はサーバー専用（Prisma・Route Handler の入力検証）。クライアントから import しない。
 - `lib/shared/` はサーバーとクライアントの両方から使うもの（入力の上限値など）。`next/server`・Prisma に依存させない。
