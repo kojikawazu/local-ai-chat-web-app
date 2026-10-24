@@ -65,6 +65,20 @@ export type ToolOutput = Pick<
 >;
 
 /**
+ * ツールの実行結果に、エージェントループだけが読む印を足したもの（#157）。
+ *
+ * 印はループが取り除いてから画面・DB へ送る（{@link ToolOutput} だけが外に出る）。
+ */
+export type ToolExecution = ToolOutput & {
+  /**
+   * 入力に関係なく、ツールの接続先ごと使えない失敗なら true（例: SearXNG の停止・
+   * すべての検索エンジンの無応答）。同じ応答の中では、このツールを再び実行しない。
+   * 入力ごとに成否が変わる失敗（取得できない URL 等）には付けない
+   */
+  unavailable?: boolean;
+};
+
+/**
  * エージェント実行中にサーバーからクライアントへ送るストリーミングイベント（NDJSON 1 行 = 1 イベント）。
  *
  * 各バリアントの意味:
@@ -140,10 +154,11 @@ export type Tool = {
    *
    * @param args - LLM から渡された引数（キー→値のマップ）
    * @param signal - エージェントのツールタイムアウトで中断される signal
-   * @returns 実行結果。失敗も例外にせず `isError: true` で返す（`output.ts` の `toolError`）
+   * @returns 実行結果。失敗も例外にせず `isError: true` で返す（`output.ts` の `toolError`。
+   *   接続先ごと使えない失敗は `toolUnavailable`）
    */
   execute: (
     args: Record<string, unknown>,
     signal: AbortSignal
-  ) => Promise<ToolOutput>;
+  ) => Promise<ToolExecution>;
 };

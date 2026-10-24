@@ -388,7 +388,7 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
 
       expect(toolResultOf(events, 'web_search')).toMatchObject({
         result:
-          'エラー: "php 2025" の検索で、検索エンジンが応答しませんでした（duckduckgo）。しばらく時間をおいてから検索し直してください。',
+          'エラー: "php 2025" の検索で、検索エンジンが応答しませんでした（duckduckgo）。今は検索できないため、この応答の中で検索し直さず、検索できなかったことを伝えたうえで回答してください。',
         isError: true,
       });
     });
@@ -467,6 +467,196 @@ describe('POST /api/chat（エージェント・url_fetch）', () => {
       // 中断されなかった場合に 2 回目が走るはずの時刻（最初の待機 1 秒）を過ぎるまで待ってから確かめる
       await new Promise((r) => setTimeout(r, 1200));
       expect(search).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+/**
+ * Ollama がラウンドごとに 1 つずつツールを呼び、呼び終えたら最終回答を返す fetch スタブ。
+ * ツールの接続先（SearXNG・取得先）への fetch は `target` が返す。
+ *
+ * @param calls - 1 ラウンド目・2 ラウンド目…に LLM が要求するツール呼び出し
+ * @param target - ツールの接続先への fetch に返すレスポンス
+ * @returns スタブした fetch のモック関数
+ */
+function stubToolRounds(
+  calls: ToolCallSpec[],
+  target: (init: RequestInit | undefined, requested: string) => Response
+) {
+  let ollamaCalls = 0;
+  return stubFetch((requested, init) => {
+    if (requested.endsWith('/api/chat')) {
+      const call = calls[ollamaCalls++];
+      return call
+        ? ollamaToolCallResponse(call)
+        : ollamaStreamResponse(['完了']);
+    }
+    return target(init, requested);
+  });
+}
+
+/**
+ * Ollama への問い合わせの本文（送った履歴）を、問い合わせ順に取り出す。
+ *
+ * @param fetchMock - スタブした fetch のモック関数
+ * @returns 各問い合わせの本文（JSON を解析したもの）
+ */
+function ollamaRequestBodies(fetchMock: ReturnType<typeof stubFetch>) {
+  return fetchMock.mock.calls
+    .filter(([requested]) => String(requested).endsWith('/api/chat'))
+    .map(([, init]) => JSON.parse(String(init?.body)));
+}
+
+/**
+ * イベント列から tool_call_result を受信順に取り出す。
+ *
+ * @param events - `runAgent` が返したイベント列
+ * @returns ツールの実行結果イベント
+ */
+function toolResultsOf(events: AgentStreamEvent[]) {
+  return events.filter(
+    (e): e is Extract<AgentStreamEvent, { type: 'tool_call_result' }> =>
+      e.type === 'tool_call_result'
+  );
+}
+
+/** SearXNG がすべての検索エンジンの無応答で 0 件を返す応答 */
+const unresponsiveSearch = () =>
+  new Response(
+    JSON.stringify({
+      results: [],
+      unresponsive_engines: [
+        ['brave', 'Suspended: too many requests'],
+        ['google cse', 'Suspended: too many requests'],
+      ],
+    }),
+    { status: 200 }
+  );
+
+/** 先に使えないとわかったツールを呼び直したときの見出しの要約 */
+const SKIPPED_SUMMARY =
+  '実行しませんでした（先の呼び出しで使えないとわかったため）';
+
+describe('POST /api/chat（エージェント・使えないツールの呼び直し）', () => {
+  // 契約: ツールが接続先ごと使えない失敗を返したら、同じ応答の中ではそのツールを再び実行しない。
+  // モデルは失敗を伝えても言い換えて呼び直し続けるため（#157）
+  describe('正常系', () => {
+    it('web_search が成功していれば、続けて呼ばれた検索も実行する', async () => {
+      const search = vi.fn(
+        () =>
+          new Response(
+            JSON.stringify({
+              results: [{ title: 'Java', url: 'https://www.java.com/' }],
+            }),
+            { status: 200 }
+          )
+      );
+      stubToolRounds(
+        [webSearchCall('Java 最新'), webSearchCall('OpenJDK 最新')],
+        search
+      );
+
+      const events = await runAgent();
+
+      expect(search).toHaveBeenCalledTimes(2);
+      expect(toolResultsOf(events).map((e) => e.summary)).toEqual([
+        '1 件',
+        '1 件',
+      ]);
+    });
+  });
+
+  describe('準正常系', () => {
+    it('検索エンジンがすべて応答しなければ、同じ応答の中の 2 回目以降の検索は SearXNG を呼ばず、実行しなかったことを返す', async () => {
+      const search = vi.fn(unresponsiveSearch);
+      const fetchMock = stubToolRounds(
+        [
+          webSearchCall('Java 最新バージョン'),
+          webSearchCall('OpenJDK latest version'),
+          webSearchCall('Java release'),
+        ],
+        search
+      );
+
+      const events = await runAgent();
+
+      expect(search).toHaveBeenCalledTimes(1);
+      const [first, ...skipped] = toolResultsOf(events);
+      expect(first).toMatchObject({ isError: true });
+      expect(first.result).toMatch(/この応答の中で検索し直さず/);
+      expect(skipped).toHaveLength(2);
+      for (const result of skipped) {
+        expect(result).toMatchObject({
+          isError: true,
+          summary: SKIPPED_SUMMARY,
+        });
+      }
+      // モデルへは、実行しなかったことと、先に失敗した理由を返す
+      const bodies = ollamaRequestBodies(fetchMock);
+      expect(bodies[2].messages.at(-1)).toEqual({
+        role: 'tool',
+        content: `エラー: web_search は、この応答の中で先に使えないとわかったため実行しませんでした（${first.summary}）。この応答ではこのツールを呼ばず、ここまでの情報で回答してください。`,
+      });
+      // 実行しなかった呼び出しも記録に残す（画面に ❌ で出し、保存する）
+      expect(events.at(-1)).toMatchObject({
+        type: 'done',
+        metadata: {
+          toolCalls: [
+            { name: 'web_search', isError: true },
+            { name: 'web_search', summary: SKIPPED_SUMMARY, durationMs: 0 },
+            { name: 'web_search', summary: SKIPPED_SUMMARY, durationMs: 0 },
+          ],
+        },
+      });
+    });
+
+    it('接続先ごと使えない印は、画面へのイベントにも保存する記録にも含めない', async () => {
+      stubToolRounds([webSearchCall('Java 最新')], unresponsiveSearch);
+
+      const events = await runAgent();
+
+      expect(JSON.stringify(events)).not.toContain('unavailable');
+    });
+
+    it('url_fetch の失敗は URL ごとに変わるため、続けて呼ばれた取得は実行する', async () => {
+      const target = vi.fn(() => new Response('Forbidden', { status: 403 }));
+      stubToolRounds(
+        [urlFetchCall(TARGET_URL), urlFetchCall('http://203.0.113.11/other')],
+        target
+      );
+
+      const events = await runAgent();
+
+      expect(target).toHaveBeenCalledTimes(2);
+      expect(toolResultsOf(events).map((e) => e.summary)).not.toContain(
+        SKIPPED_SUMMARY
+      );
+    });
+  });
+
+  describe('異常系', () => {
+    it('SearXNG に接続できなければ、同じ応答の中の 2 回目の検索は実行しない', async () => {
+      const search = vi.fn(() => {
+        // Node の fetch（undici）が接続を拒否されたときに投げる形
+        throw new TypeError('fetch failed', {
+          cause: Object.assign(new Error('connect ECONNREFUSED'), {
+            code: 'ECONNREFUSED',
+          }),
+        });
+      });
+      stubToolRounds(
+        [webSearchCall('Java 最新'), webSearchCall('OpenJDK 最新')],
+        search
+      );
+
+      const events = await runAgent();
+
+      expect(search).toHaveBeenCalledTimes(1);
+      expect(toolResultsOf(events).at(-1)).toMatchObject({
+        isError: true,
+        summary: SKIPPED_SUMMARY,
+      });
+      expect(events.at(-1)?.type).toBe('done');
     });
   });
 });

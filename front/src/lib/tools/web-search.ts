@@ -1,5 +1,5 @@
-import type { Tool, ToolOutput } from './types';
-import { toolError } from './output';
+import type { Tool, ToolExecution } from './types';
+import { toolError, toolUnavailable } from './output';
 import { BodyTooLargeError, discardBody, readBodyWithLimit } from './read-body';
 
 const MAX_RESULTS = 5;
@@ -96,22 +96,30 @@ function parseSearxngResponse(
  *
  * 見出しの要約は件数（`5 件`）。すべて応答したうえでの 0 件は `isEmpty` にする（#150）。
  *
+ * 失敗はどれもクエリに関係なく起きる（応答を解釈できない・検索エンジンが応答しない）ため、
+ * 接続先ごと使えない失敗（`unavailable`）として返す。検索エンジンが応答しなかったときは、
+ * 検索し直さずに回答するようモデルに伝える。「時間をおいて検索し直して」と伝えると、
+ * モデルは待たずに言い換えて検索し続け、止められている時間を延ばす（#157）。
+ *
  * @param query - 検索クエリ（結果の見出しに使う）
  * @param body - SearXNG の応答本文（JSON 文字列）
- * @returns ツールの実行結果。文章は最大 {@link MAX_CHARS} 文字で、超過分は省略する。失敗は `isError: true` で、文章は `"エラー: ..."` で始まる
+ * @returns ツールの実行結果。文章は最大 {@link MAX_CHARS} 文字で、超過分は省略する。失敗は `isError: true`・`unavailable: true` で、文章は `"エラー: ..."` で始まる
  */
-export function formatSearchResponse(query: string, body: string): ToolOutput {
+export function formatSearchResponse(
+  query: string,
+  body: string
+): ToolExecution {
   let json: unknown;
   try {
     json = JSON.parse(body);
   } catch {
-    return toolError(
+    return toolUnavailable(
       'SearXNG の応答を解釈できませんでした（JSON ではありません）'
     );
   }
   const parsed = parseSearxngResponse(json);
   if (!parsed) {
-    return toolError(
+    return toolUnavailable(
       'SearXNG の応答を解釈できませんでした（results がありません）'
     );
   }
@@ -119,8 +127,8 @@ export function formatSearchResponse(query: string, body: string): ToolOutput {
   const { results, unresponsiveEngines } = parsed;
   if (results.length === 0) {
     if (unresponsiveEngines.length > 0) {
-      return toolError(
-        `"${query}" の検索で、検索エンジンが応答しませんでした（${unresponsiveEngines.join(', ')}）。しばらく時間をおいてから検索し直してください。`
+      return toolUnavailable(
+        `"${query}" の検索で、検索エンジンが応答しませんでした（${unresponsiveEngines.join(', ')}）。今は検索できないため、この応答の中で検索し直さず、検索できなかったことを伝えたうえで回答してください。`
       );
     }
     return {
@@ -311,6 +319,8 @@ async function fetchWithRetry(
  * 各試行の期限は本文の読了まで有効で、受信は 1 MiB で打ち切る。呼び出し元の
  * `signal` が中断されるとリトライ待機中でも即座に処理を止める。
  * エラーはすべて `isError: true`（文章は `"エラー: ..."` 形式）で返し、例外は投げない。
+ * 空のクエリ以外の失敗は SearXNG 側の問題でクエリに関係しないため、`unavailable` を付け、
+ * 同じ応答の中では再び実行させない（#157）。
  */
 export const webSearchTool: Tool = {
   definition: {
@@ -336,7 +346,7 @@ export const webSearchTool: Tool = {
       const body = await fetchWithRetry(query, signal);
       return formatSearchResponse(query, body);
     } catch (e) {
-      return toolError(e instanceof Error ? e.message : String(e));
+      return toolUnavailable(e instanceof Error ? e.message : String(e));
     }
   },
 };

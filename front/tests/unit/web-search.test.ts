@@ -5,6 +5,7 @@ import { formatSearchResponse } from '@/lib/tools/web-search';
  * `formatSearchResponse` の UT。SearXNG の応答本文を受け取る純関数のため mock は使わない。
  * 契約: 検索結果を一覧にし、0 件と失敗（検索エンジンが応答しない・応答の形が違う）を区別する（#151）。
  * 見出しの要約は件数で、0 件は `isEmpty`、失敗は `isError` と理由にする（#150）。
+ * 失敗はクエリに関係なく起きるため、接続先ごと使えない印（`unavailable`）を付ける（#157）。
  */
 
 /**
@@ -57,6 +58,7 @@ describe('formatSearchResponse', () => {
 
       expect(output).toMatchObject({ isError: false, summary: '2 件' });
       expect(output.isEmpty).toBeUndefined();
+      expect(output.unavailable).toBeUndefined();
       expect(output.result).toBe(
         [
           '"php 2025" の検索結果 (上位2件):\n',
@@ -93,7 +95,7 @@ describe('formatSearchResponse', () => {
       });
     });
 
-    it('0 件で応答しなかった検索エンジンがあれば、0 件ではなく失敗として名前を返す', () => {
+    it('0 件で応答しなかった検索エンジンがあれば、0 件ではなく失敗として名前を返し、検索し直さないよう伝える', () => {
       const output = formatSearchResponse(
         'php 2025',
         searxngBody(
@@ -105,12 +107,14 @@ describe('formatSearchResponse', () => {
         )
       );
 
+      // 「時間をおいて検索し直して」と伝えると、モデルは待たずに言い換えて検索し続ける（#157）
       const reason =
-        '"php 2025" の検索で、検索エンジンが応答しませんでした（brave, duckduckgo）。しばらく時間をおいてから検索し直してください。';
+        '"php 2025" の検索で、検索エンジンが応答しませんでした（brave, duckduckgo）。今は検索できないため、この応答の中で検索し直さず、検索できなかったことを伝えたうえで回答してください。';
       expect(output).toEqual({
         result: `エラー: ${reason}`,
         isError: true,
         summary: reason,
+        unavailable: true,
       });
     });
 
@@ -148,12 +152,13 @@ describe('formatSearchResponse', () => {
   });
 
   describe('異常系', () => {
-    it('JSON でない本文は解釈できないエラーにする', () => {
+    it('JSON でない本文は解釈できないエラーにし、接続先ごと使えない印を付ける', () => {
       expect(formatSearchResponse('php 2025', '<html></html>')).toEqual({
         result:
           'エラー: SearXNG の応答を解釈できませんでした（JSON ではありません）',
         isError: true,
         summary: 'SearXNG の応答を解釈できませんでした（JSON ではありません）',
+        unavailable: true,
       });
     });
 
@@ -166,6 +171,7 @@ describe('formatSearchResponse', () => {
         result:
           'エラー: SearXNG の応答を解釈できませんでした（results がありません）',
         isError: true,
+        unavailable: true,
       });
     });
 

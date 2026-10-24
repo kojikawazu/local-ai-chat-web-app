@@ -6,6 +6,7 @@ import type { ToolCallInfo } from '@/types';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
+  ToolExecution,
   ToolOutput,
 } from './tools/types';
 
@@ -38,6 +39,24 @@ const MAX_ROUNDS_NOTICE = `> ⚠️ ツール呼び出しの上限（${MAX_TOOL_
 const FINAL_ANSWER_INSTRUCTION =
   'ツール呼び出しの上限に達したため、新しいツールは呼び出せません。これまでのツール実行結果だけを使って、元の質問に回答してください。情報が足りない点は、その旨を明記してください。';
 
+/**
+ * 同じ応答の中で接続先ごと使えないとわかったツールを、再び呼ばれたときに実行せず返す結果（#157）。
+ *
+ * モデルは失敗を伝えても言い換えて呼び直し続けるため、文章での指示に頼らずループで止める。
+ * 止められている接続先（検索エンジン等）へのアクセスを増やさない効果もある。
+ *
+ * @param name - 呼ばれたツール名
+ * @param reason - 先に失敗したときの理由
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+function skippedToolOutput(name: string, reason: string): ToolOutput {
+  return {
+    result: `エラー: ${name} は、この応答の中で先に使えないとわかったため実行しませんでした（${reason}）。この応答ではこのツールを呼ばず、ここまでの情報で回答してください。`,
+    isError: true,
+    summary: '実行しませんでした（先の呼び出しで使えないとわかったため）',
+  };
+}
+
 // NDJSON イベントを ReadableStream に書き込むヘルパー
 function encodeEvent(event: AgentStreamEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event) + '\n');
@@ -53,7 +72,7 @@ async function runTool(
   name: string,
   args: Record<string, unknown>,
   loopSignal: AbortSignal
-): Promise<ToolOutput & { durationMs: number }> {
+): Promise<ToolExecution & { durationMs: number }> {
   const start = Date.now();
   const abortController = new AbortController();
   const toolSignal = AbortSignal.any([abortController.signal, loopSignal]);
@@ -245,6 +264,8 @@ async function relayOllamaResponse(
  * または `message.thinking` フィールド）は `thinking` イベントとして分離する。
  * 最大ラウンドに達してもツール呼び出しが続く場合は、ツールを渡さずにもう 1 回問い合わせ、
  * 取得済みのツール結果で最終回答を作らせる（上限到達の注記を先頭に付ける）。
+ * ツールが接続先ごと使えない失敗（`unavailable`）を返したら、同じ応答の中ではそのツールを
+ * 再び実行せず、実行しなかったことを結果として返す（#157）。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * `signal` の abort、または返したストリームの cancel（ブラウザの停止・切断）でループを止める。
@@ -264,6 +285,8 @@ export function runAgentLoop(
 ): ReadableStream<Uint8Array> {
   const tools = getAllToolDefinitions();
   const toolCallRecords: ToolCallInfo[] = [];
+  // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
+  const unavailableTools = new Map<string, string>();
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();
   const loopSignal = signal
@@ -345,11 +368,15 @@ export function runAgentLoop(
               // 実行開始イベント
               send({ type: 'tool_call_start', name, arguments: args });
 
-              const { durationMs, ...output } = await runTool(
-                name,
-                args,
-                loopSignal
-              );
+              const skipReason = unavailableTools.get(name);
+              // unavailable はループだけが読む印。画面・DB へは送らない
+              const { durationMs, unavailable, ...output } =
+                skipReason === undefined
+                  ? await runTool(name, args, loopSignal)
+                  : { ...skippedToolOutput(name, skipReason), durationMs: 0 };
+              if (unavailable) {
+                unavailableTools.set(name, output.summary ?? output.result);
+              }
 
               // 実行結果イベント
               send({ type: 'tool_call_result', name, ...output });

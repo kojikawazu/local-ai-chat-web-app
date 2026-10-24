@@ -378,7 +378,7 @@ front/tests/
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
 │   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
-│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果）
+│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）

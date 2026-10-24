@@ -369,7 +369,7 @@ interface ToolDefinition {
 
 interface Tool {
   definition: ToolDefinition;
-  execute: (args: Record<string, unknown>, signal: AbortSignal) => Promise<ToolOutput>;
+  execute: (args: Record<string, unknown>, signal: AbortSignal) => Promise<ToolExecution>;
 }
 
 // ツールの実行結果（#150）
@@ -378,6 +378,11 @@ type ToolOutput = {
   isError: boolean;   // 失敗なら true（画面に ❌）
   summary?: string;   // 結果パネルの見出しに出す要約
   isEmpty?: boolean;  // 成功だが結果が空（画面に ⚠️）
+};
+
+// ToolOutput に、エージェントループだけが読む印を足したもの（#157）
+type ToolExecution = ToolOutput & {
+  unavailable?: boolean; // 接続先ごと使えない失敗なら true。同じ応答の中では再び実行しない
 };
 ```
 
@@ -390,6 +395,13 @@ type ToolOutput = {
 | `calculate` | `= 14` | — | 理由（ゼロ除算・不正な文字等） |
 | `get_current_datetime` | 取得した日時 | — | —（不正なタイムゾーンは UTC で返す） |
 
+**接続先ごと使えない失敗は、同じ応答の中で再び実行しない（#157）。** 入力に関係なく起きる失敗（SearXNG の停止・すべての検索エンジンの無応答・403・リトライし尽くした 5xx / 429 等）は、`toolUnavailable(理由)` で `unavailable: true` を付けて返す。エージェントループはツール名ごとにこれを覚え、同じ応答の中で再び呼ばれたら実行せずに次を返す。
+
+- モデルへ: `エラー: <ツール名> は、この応答の中で先に使えないとわかったため実行しませんでした（<先の理由>）。この応答ではこのツールを呼ばず、ここまでの情報で回答してください。`
+- 見出しの要約: `実行しませんでした（先の呼び出しで使えないとわかったため）`。所要時間は 0ms。呼び出しは記録に残す（❌ で表示・保存する）
+
+文章で「検索し直さないで」と伝えるだけでは、モデルは言い換えて呼び直し続ける（2026-10-24 に、検索エンジンがすべて止められた状態で 1 回の応答に 7 回以上検索した）。止められている接続先へのアクセスを増やし、止められる時間を延ばすため、ループで止める。`unavailable` はループが取り除いてから画面・DB へ送る。入力ごとに成否が変わる失敗（`url_fetch` の取得できない URL 等）には付けない。
+
 結果パネル（`ToolCallResult`）の見出しは、失敗 ❌・空の結果 ⚠️・それ以外 ✅ のアイコンに要約を添える。失敗の理由は赤字の 1 行に収め、全文はツールチップ（`title`）で見せる。要約は `tool_call_result` と `done` の `toolCalls` に載り、そのまま metadata に保存されるため、会話を開き直しても同じ見出しになる。
 
 ### ツールレジストリ
@@ -401,7 +413,7 @@ const toolRegistry: Map<string, Tool> = new Map();
 function registerTool(tool: Tool): void;
 function getTool(name: string): Tool | undefined;
 function getAllToolDefinitions(): OllamaToolDefinition[];
-function executeTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolOutput>;
+function executeTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolExecution>;
 ```
 
 ---
@@ -462,9 +474,11 @@ function executeTool(name: string, args: Record<string, unknown>, signal: AbortS
   - イメージはタグで固定する（`searxng/searxng:2026.10.2-a5659a536`）。
   - `127.0.0.1:8888` だけで待ち受ける（同時アクセスの制限 `limiter` を止めているため、PC の外へ公開しない）。
   - `search.formats` に `json` を加える（既定は `html` だけで、`format=json` は 403 になる）。
+  - **Web 検索のエンジンを足す（#157）**。既定で有効な Web 検索エンジンは Brave・DuckDuckGo（html 版）・Google CSE の 3 つだけで、2026-10-24 に 3 つとも止められた（Brave・Google CSE は too many requests で 180 秒の停止を繰り返し、DuckDuckGo の html 版は毎回 CAPTCHA）。日本語・英語のクエリで結果を返した Yahoo・`duckduckgo web`（duckduckgo.com を使う版）・Bing を有効にした。Bing は単独では関係の薄い結果も返すが、複数のエンジンが共通して返した結果が上位に並ぶため補助として使う。
+  - **DuckDuckGo の html 版（`duckduckgo`）は無効にする**。毎回 CAPTCHA で応答せず、応答しないエンジンが残ると、他のエンジンの 0 件を「検索エンジンが応答しなかった」失敗として扱うことになるため。
   - `server.secret_key` が既定値のままだと起動しないため、`SEARXNG_SECRET` が空なら**起動ごとにランダムな鍵を作る**（Cookie 等の署名にしか使わず、ローカルでは起動ごとに変わっても困らない。リポジトリにも `.env` にも秘密を置かない）。
 
-**0 件と失敗の区別**: SearXNG の応答の `unresponsive_engines`（応答しなかった検索エンジンと理由）を見る。結果が 0 件で応答しなかった検索エンジンがあれば、0 件ではなく失敗（エンジン名つき）として返す。すべて応答したうえでの 0 件だけを「見つかりませんでした」とする（0 件と伝えるとモデルは言い換えた再検索を繰り返すため）。
+**0 件と失敗の区別**: SearXNG の応答の `unresponsive_engines`（応答しなかった検索エンジンと理由）を見る。結果が 0 件で応答しなかった検索エンジンがあれば、0 件ではなく失敗（エンジン名つき）として返す。すべて応答したうえでの 0 件だけを「見つかりませんでした」とする（0 件と伝えるとモデルは言い換えた再検索を繰り返すため）。失敗の文章では、この応答の中で検索し直さず、検索できなかったことを伝えたうえで回答するよう求める（「時間をおいて検索し直して」と伝えると、モデルは待たずに言い換えて検索し続けたため。#157）。ツールの失敗は空のクエリ以外すべて `unavailable` として返し、同じ応答の中では再び実行しない。
 
 **リトライ条件**:
 
@@ -682,6 +696,9 @@ export interface OllamaToolCall {
 
 // ツールの実行結果（#150）。ツール実行記録は types/index.ts の ToolCallInfo に一本化した
 export type ToolOutput = Pick<ToolCallInfo, 'result' | 'isError' | 'summary' | 'isEmpty'>;
+
+// ツールが返す値。ループだけが読む印（接続先ごと使えない）を足す（#157）
+export type ToolExecution = ToolOutput & { unavailable?: boolean };
 
 // クライアント向けストリーミングイベント
 export type AgentStreamEvent =
