@@ -20,7 +20,7 @@ import {
 
 const TITLE = '役割テスト';
 const CUSTOM_ROLE = 'あなたは関西弁で話すアシスタントです。';
-/** エージェントモードの保存先（page.tsx の localStorage キー） */
+/** エージェントモードの保存先（hooks/settings/useAgentSettings.ts の localStorage キー） */
 const AGENT_TOOLS_KEY = 'agent-tools-enabled';
 
 /**

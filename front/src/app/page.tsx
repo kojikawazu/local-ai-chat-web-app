@@ -1,35 +1,38 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useChat } from '@/features/chat/hooks/useChat';
-import { useConversations } from '@/features/sidebar/hooks/useConversations';
-import Sidebar from '@/features/sidebar/components/Sidebar';
-import SidebarDrawer from '@/features/sidebar/components/SidebarDrawer';
-import Header from '@/features/chat/components/Header';
-import ChatWindow from '@/features/chat/components/ChatWindow';
+import { useChat } from '@/hooks/chat/useChat';
+import { useConversations } from '@/hooks/sidebar/useConversations';
+import Sidebar from '@/components/features/sidebar/organisms/Sidebar';
+import SidebarDrawer from '@/components/features/sidebar/organisms/SidebarDrawer';
+import Header from '@/components/features/chat/organisms/Header';
+import ChatWindow from '@/components/features/chat/organisms/ChatWindow';
 import ChatBar, {
   type ChatBarHandle,
-} from '@/features/chat/components/ChatBar';
-import Footer from '@/features/chat/components/Footer';
-import SettingsModal from '@/components/settings/SettingsModal';
-import RoleDialog from '@/features/chat/components/RoleDialog';
+} from '@/components/features/chat/organisms/ChatBar';
+import Footer from '@/components/features/chat/organisms/Footer';
+import SettingsModal from '@/components/features/settings/organisms/SettingsModal';
+import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
+import ChatLayout from '@/components/common/templates/ChatLayout';
+import { useModels } from '@/hooks/chat/useModels';
+import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
 import { useTheme } from '@/hooks/theme/useTheme';
-import { DEFAULT_PRESET_ID, getPresetById } from '@/lib/agent/agent-prompts';
+import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
+ * 画面の枠は {@link ChatLayout} が持ち、ここでは各機能の organisms を組み立てて渡す（#163）。
  *
  * 会話の選択/作成/削除、メッセージ送受信、会話の役割、モデル・ツール・テーマ・エージェント
  * プロンプトの UI 設定を束ね、各機能フックと子コンポーネントへ受け渡す。
  * 会話の役割は会話ごとに DB に持つ。会話を作る前（新規会話）に選んだ役割は下書きとして持ち、
  * 最初の送信で会話と同時に保存する。
- * ツール使用の有効状態とプロンプトプリセットは localStorage に永続化する。
+ * モデル一覧は {@link useModels}、ツール使用の有効状態とプロンプトプリセットの永続化は {@link useAgentSettings} が持つ。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
-  const [models, setModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState('');
+  const { models, selectedModel, setSelectedModel } = useModels();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
@@ -37,50 +40,13 @@ export default function Home() {
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
   const menuId = useId();
-  const [enableTools, setEnableTools] = useState(false);
-  const [agentPromptPresetId, setAgentPromptPresetId] =
-    useState(DEFAULT_PRESET_ID);
+  const {
+    enableTools,
+    agentPromptPresetId,
+    changeEnableTools,
+    changeAgentPromptPresetId,
+  } = useAgentSettings();
   const { theme, setTheme } = useTheme();
-
-  // localStorage に永続化した UI 設定をマウント後に読み込む。
-  // why: 遅延初期化（useState(() => localStorage...)）は SSR 時に localStorage へ触れ、
-  // サーバー描画（デフォルト値）とクライアント描画（保存値）が食い違いハイドレーション不一致になる。
-  // ハイドレーション後に走る effect で同期するのが正しく、setState はマウント時の一度きり。
-  // そのため set-state-in-effect はこのパターンに限り無効化する。
-  useEffect(() => {
-    const stored = localStorage.getItem('agent-tools-enabled');
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 上記 why 参照（client-only 同期）
-    if (stored === 'true') setEnableTools(true);
-    const storedPreset = localStorage.getItem('agent-prompt-preset-id');
-    if (storedPreset) setAgentPromptPresetId(storedPreset);
-  }, []);
-
-  const handleEnableToolsChange = useCallback((enabled: boolean) => {
-    setEnableTools(enabled);
-    localStorage.setItem('agent-tools-enabled', String(enabled));
-  }, []);
-
-  const handleAgentPromptPresetChange = useCallback((id: string) => {
-    setAgentPromptPresetId(id);
-    localStorage.setItem('agent-prompt-preset-id', id);
-  }, []);
-
-  useEffect(() => {
-    async function fetchModels() {
-      try {
-        const res = await fetch('/api/models');
-        if (!res.ok) return;
-        const data = await res.json();
-        setModels(data.models);
-        if (!selectedModel) {
-          setSelectedModel(data.defaultModel);
-        }
-      } catch (error) {
-        console.error('Failed to fetch models:', error);
-      }
-    }
-    fetchModels();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     conversations,
@@ -198,16 +164,17 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-nord-0 text-nord-6 font-sans">
-      <Sidebar {...sidebarProps} />
-      <SidebarDrawer
-        id={menuId}
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        {...sidebarProps}
-      />
-
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+    <ChatLayout
+      sidebar={<Sidebar {...sidebarProps} />}
+      drawer={
+        <SidebarDrawer
+          id={menuId}
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          {...sidebarProps}
+        />
+      }
+      header={
         <Header
           models={models}
           selectedModel={selectedModel}
@@ -218,18 +185,9 @@ export default function Home() {
           roleLabel={getRoleLabel(systemPrompt)}
           onOpenRole={() => setIsRoleDialogOpen(true)}
         />
-        <ChatWindow
-          messages={messages}
-          activeToolCall={activeToolCall}
-          isLoading={isLoading}
-          onRetrySave={retrySave}
-          onRegenerate={regenerate}
-        />
-        {error && (
-          <div className="px-4 md:px-8 py-2 bg-nord-aurora-red/20 text-nord-aurora-red text-sm text-center">
-            {error}
-          </div>
-        )}
+      }
+      notice={error}
+      composer={
         <ChatBar
           ref={chatBarRef}
           onSendMessage={sendMessage}
@@ -237,30 +195,40 @@ export default function Home() {
           isGenerating={isLoading}
           onStop={stopGeneration}
         />
-        <Footer />
-      </main>
-
-      {isRoleDialogOpen && (
-        <RoleDialog
-          initialPrompt={systemPrompt}
-          onSave={handleSaveRole}
-          onClose={() => setIsRoleDialogOpen(false)}
-        />
-      )}
-
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        models={models}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-        theme={theme}
-        onThemeChange={setTheme}
-        enableTools={enableTools}
-        onEnableToolsChange={handleEnableToolsChange}
-        agentPromptPresetId={agentPromptPresetId}
-        onAgentPromptPresetChange={handleAgentPromptPresetChange}
+      }
+      footer={<Footer />}
+      dialogs={
+        <>
+          {isRoleDialogOpen && (
+            <RoleDialog
+              initialPrompt={systemPrompt}
+              onSave={handleSaveRole}
+              onClose={() => setIsRoleDialogOpen(false)}
+            />
+          )}
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            models={models}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            theme={theme}
+            onThemeChange={setTheme}
+            enableTools={enableTools}
+            onEnableToolsChange={changeEnableTools}
+            agentPromptPresetId={agentPromptPresetId}
+            onAgentPromptPresetChange={changeAgentPromptPresetId}
+          />
+        </>
+      }
+    >
+      <ChatWindow
+        messages={messages}
+        activeToolCall={activeToolCall}
+        isLoading={isLoading}
+        onRetrySave={retrySave}
+        onRegenerate={regenerate}
       />
-    </div>
+    </ChatLayout>
   );
 }

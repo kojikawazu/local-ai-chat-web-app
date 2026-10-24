@@ -5,7 +5,7 @@ import { useRef } from 'react';
 import { X } from 'lucide-react';
 import SidebarContent from './SidebarContent';
 import IconButton from '@/components/common/atoms/IconButton';
-import { useDrawerDialog } from '../hooks/useDrawerDialog';
+import { useDrawerDialog } from '@/hooks/sidebar/useDrawerDialog';
 
 /**
  * SidebarDrawer コンポーネントの props。中身の {@link SidebarContent} の props に開閉制御を加える。

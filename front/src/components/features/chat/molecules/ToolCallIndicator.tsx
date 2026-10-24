@@ -8,7 +8,7 @@ interface ToolCallIndicatorProps {
   arguments: Record<string, unknown>;
 }
 
-import { TOOL_LABELS } from '../constants/toolLabels';
+import { TOOL_LABELS } from '@/constants/chat/toolLabels';
 
 /**
  * 実行中のツール呼び出しを示すインジケーター（スピナー付き）。

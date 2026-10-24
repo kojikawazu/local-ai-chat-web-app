@@ -1,13 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { MessageSquare, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/shared/validation';
-import { parseSearchTerms, splitHighlights } from '@/lib/conversation/search';
-import { useConversationSearch } from '../hooks/useConversationSearch';
+import { parseSearchTerms } from '@/lib/conversation/search';
+import { useConversationSearch } from '@/hooks/sidebar/useConversationSearch';
 import Button from '@/components/common/atoms/Button';
-import Mark from '@/components/common/atoms/Mark';
 import SearchBox from '@/components/common/molecules/SearchBox';
+import SearchResultItem from '@/components/features/sidebar/molecules/SearchResultItem';
 
 /** {@link ConversationSearch} の props。 */
 type ConversationSearchProps = {
@@ -18,27 +18,6 @@ type ConversationSearchProps = {
   /** 検索していないときに出す内容（会話の履歴一覧） */
   children: ReactNode;
 };
-
-/**
- * 文字列のうち、キーワードに一致した箇所を {@link Mark} で強調して描く。
- *
- * HTML を組み立てずに、分割した片を React の要素として並べる（XSS 対策。`security.md`）。
- *
- * @param props - 描く文字列とキーワード
- */
-function Highlighted({ text, terms }: { text: string; terms: string[] }) {
-  return (
-    <>
-      {splitHighlights(text, terms).map((part, i) =>
-        part.match ? (
-          <Mark key={i}>{part.text}</Mark>
-        ) : (
-          <span key={i}>{part.text}</span>
-        )
-      )}
-    </>
-  );
-}
 
 /**
  * サイドバーの会話検索（#11）。検索欄と、キーワードがある間は履歴一覧の代わりに検索結果を出す。
@@ -87,33 +66,13 @@ export default function ConversationSearch({
           </p>
           <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-380px)]">
             {results.map((result) => (
-              <button
+              <SearchResultItem
                 key={result.id}
-                onClick={() => onSelectConversation(result.id)}
-                aria-current={
-                  currentConversationId === result.id ? 'page' : undefined
-                }
-                className={`w-full flex gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all ${
-                  currentConversationId === result.id
-                    ? 'bg-white/10'
-                    : 'hover:bg-white/5'
-                }`}
-              >
-                <MessageSquare
-                  size={16}
-                  className="mt-0.5 shrink-0 text-nord-4/60"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-nord-6">
-                    <Highlighted text={result.title} terms={terms} />
-                  </span>
-                  {result.snippet && (
-                    <span className="mt-0.5 line-clamp-2 text-xs text-nord-4/70">
-                      <Highlighted text={result.snippet} terms={terms} />
-                    </span>
-                  )}
-                </span>
-              </button>
+                result={result}
+                terms={terms}
+                isCurrent={currentConversationId === result.id}
+                onSelect={() => onSelectConversation(result.id)}
+              />
             ))}
             <div role="status" className="px-3 py-2 text-xs text-nord-4/60">
               {status === 'loading' && '検索中…'}

@@ -153,7 +153,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）のコンテナ定義（プロジェクトルート）
 - **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化・Web 検索のエンジンの追加等。`docker-compose.yml` がマウントする）
 
-### front/src/ ソースコード構成（ハイブリッド方式）
+### front/src/ ソースコード構成（層 → 機能）
 
 - **`app/`** — Next.js App Router（ページ、レイアウト、Route Handlers）
   - `api/chat/` — Ollamaストリーミング通信（model指定可）
@@ -162,13 +162,17 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
-- **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。今の `features/` は移行の段階 4 でなくす（移行中）
-- **`components/`** — UIコンポーネント（Atomic Design。`common/atoms/`: Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots。`common/molecules/`: Modal, SearchBox, CopyButton。`settings/SettingsModal` は段階 4 で `features/settings/organisms/` へ移す）
-- **`features/`** — 機能固有モジュール（各機能に components/, hooks/ を内包。必要に応じて constants/, types/ も持つ）
-  - `features/chat/` — チャット機能（components: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ToolCallIndicator, ToolCallResult, AgentThinking / hooks: useChat / constants: toolLabels.ts）
-  - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch / hooks: useConversations, useConversationSearch, useDrawerDialog）
+- **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
+- **`components/`** — UIコンポーネント（Atomic Design）
+  - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
+  - `common/molecules/` — Modal, SearchBox, CopyButton
+  - `common/templates/` — ChatLayout（画面の枠）
+  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ToolCallResult, AgentThinking）
+  - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
+  - `features/settings/` — 設定（organisms: SettingsModal）
+- **`constants/`** — 定数（`chat/toolLabels.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — 共通カスタムフック（`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）

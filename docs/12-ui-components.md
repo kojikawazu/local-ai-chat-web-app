@@ -2,7 +2,7 @@
 
 > 最終更新: 2026-10-24
 
-フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。
+フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
 ## 目次
 
@@ -43,12 +43,12 @@
 
 - **見た目・挙動を変えない整理を基本とする。** 挙動が変わる箇所（設定モーダルを `<dialog>` に揃える）は、PR で明示する。
 - **層 → 機能 → 階層の順に分ける。** #160 の規則（`src/<層>/<機能>/`）に揃え、機能の部品は `src/components/features/<機能>/<階層>/` に置く。どの機能にも属さない共通の部品は `src/components/common/<階層>/` に置く。`components/` の下は、共通（`common/`）も機能（`features/<機能>/`）も「区分 → 階層」の同じ形になる。
-- **今の `src/features/` はなくす。** 部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/` へ移す（段階 4）。
+- **`src/features/` はなくした**（段階 4）。部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/` に置く。
 - Storybook は入れない（部品の数が少なく、依存と保守が増える割に効果が小さい）。
 
 ## ディレクトリ構成
 
-移行後（段階 4 の完了時）の形。
+段階 4 の完了時の形。
 
 ```
 src/
@@ -75,6 +75,7 @@ src/
 ```
 
 - `components/features/<機能>/` の中に置ける階層は `atoms`・`molecules`・`organisms`。templates は画面全体の枠なので共通（`components/common/templates/`）にだけ置く。
+- `settings` は organisms（`SettingsModal`）だけを持つ。選択カードなどの小さな部品は、今は `SettingsModal` の中にしか無いため切り出していない。
 - **空の階層のディレクトリは作らない。** 部品ができたときに作る（今の各機能に機能専用の atoms は無い）。
 - `components/` の直下は `common/` と `features/` だけにする。部品は各階層のディレクトリの直下に置く。re-export だけの `index.ts`（barrel）は作らない。
 
@@ -103,7 +104,7 @@ src/
 - 共通の部品（`components/common/{atoms,molecules,templates}/`）は、`components/features/**` とドメインのフック（`hooks/<機能>/`）を import しない。
 - **機能の部品は、他の機能の部品を import しない**（`components/features/chat/**` から `components/features/sidebar/**` を import しない）。機能をまたいで使うものは共通の階層へ移す。2026-10-24 時点で、機能の間の import は無い。
 - organisms は templates を import しない（組み立ては page が行う）。
-- **ESLint の `no-restricted-imports` で機械的に強制する**（段階 2 で `eslint.config.mjs` にディレクトリごとの設定を入れる。追加の依存は不要）。
+- **ESLint の `no-restricted-imports` で機械的に強制する**（段階 2 で `eslint.config.mjs` にディレクトリごとの設定を入れた。追加の依存は不要）。移行中だけ置いていた `src/features/` 向けの設定は、段階 4 で外した。
 
 ## 共通の atoms
 
@@ -136,7 +137,7 @@ src/
 - 名前の無かったボタンに名前を付けた（設定モーダルの × に「閉じる」、送信ボタンに「送信」）。
 - `Switch` のつまみは段階 2 で枠の右へはみ出していた（`div` を `span` にしたため、`left` の無い絶対配置の起点がボタンの中央寄せになった）。段階 3 で `left-0` を付けて直した（設定モーダルはスクリーンショットの E2E の対象外で、見落とした）。
 
-**段階 2 で置き換えなかったもの**（その機能・その画面に固有の見た目で、共通の atoms に当たらない。段階 3・4 で molecules / organisms として整理する）:
+**段階 2 で置き換えなかったもの**（その機能・その画面に固有の見た目で、共通の atoms に当たらない。履歴の行・検索結果の行は段階 4 で機能の molecules にした。残りは organisms の中に置いたまま）:
 
 - 設定モーダルの選択カード（エージェントのプリセット・テーマ）と、ツールの ON/OFF の行
 - サイドバーの「New Conversation」・履歴の行・検索結果の行
@@ -167,26 +168,53 @@ src/
 
 ## 機能ごとの部品
 
-| 機能 | 階層 | 部品 | 今の場所 |
+段階 4 で `components/features/<機能>/<階層>/` へ移し、機能専用の molecules を切り出した。
+
+| 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult` | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧。`ToolCallResult` から切り出す） | 同上 |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `sidebar` | organisms | `Sidebar`・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
-| `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` から切り出す |
+| `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal` | `components/settings/` |
+
+切り出した molecules の props:
+
+| 部品 | props |
+|---|---|
+| `WebSearchResult` | `text`（web_search の結果テキスト）。1 件も読み取れなければ元のテキストをそのまま出す |
+| `ConversationListItem` | `conversation`・`isCurrent`・`isGenerating`・`alwaysShowDelete`（ドロワーでは true。デスクトップは hover・フォーカスの間だけ削除ボタンを出す）・`onSelect`・`onDelete` |
+| `SearchResultItem` | `result`・`terms`（強調するキーワード）・`isCurrent`・`onSelect` |
+
+- molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
+- 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。
 
 部品以外の移動先:
 
-| 今の場所 | 移動先 |
+| 移す前の場所 | 移動先 |
 |---|---|
-| `features/chat/hooks/`（`useChat`・`useCopyFeedback`） | `hooks/chat/`（`useCopyFeedback` は `hooks/clipboard/`） |
+| `features/chat/hooks/`（`useChat`） | `hooks/chat/`（`useCopyFeedback` は段階 3 で `hooks/clipboard/` へ移した） |
 | `features/sidebar/hooks/`（`useConversations`・`useConversationSearch`・`useDrawerDialog`） | `hooks/sidebar/` |
 | `features/chat/constants/toolLabels.ts` | `constants/chat/toolLabels.ts` |
+| `app/page.tsx` のモデル一覧の取得・エージェントの設定の保存 | `hooks/chat/useModels.ts`・`hooks/settings/useAgentSettings.ts`（新規） |
 
 ## templates・page
 
-- `ChatLayout`（`components/common/templates/`）: サイドバー（デスクトップ）・ドロワー（モバイル）・メイン領域（ヘッダー・本文・入力欄・フッター）の枠。各領域は `ReactNode` の props で受け取り、ドメインを知らない。
-- `app/page.tsx`: フックを呼び、organisms を組み立てて `ChatLayout` へ渡すだけにする。今の `page.tsx` にあるレイアウトのクラス（`flex h-screen …`）は `ChatLayout` へ移す。
+- `ChatLayout`（`components/common/templates/`）: 画面の枠。各領域を `ReactNode` の props で受け取り、ドメインを知らない。
+
+  | props | 置く場所 | 今の中身 |
+  |---|---|---|
+  | `sidebar` | 左の列 | `Sidebar`（md 以上で表示） |
+  | `drawer` | 左の列の後 | `SidebarDrawer`（md 未満） |
+  | `header` | メイン領域の上端 | `Header` |
+  | `children` | ヘッダーの下（残りの高さ） | `ChatWindow` |
+  | `notice` | 本文と入力欄の間。空なら出さない | `useChat` のエラー |
+  | `composer` | 本文の下 | `ChatBar` |
+  | `footer` | メイン領域の下端 | `Footer` |
+  | `dialogs` | 枠の最後 | `RoleDialog`・`SettingsModal` |
+
+- `app/page.tsx`: フックを呼び、organisms を組み立てて `ChatLayout` へ渡す。レイアウトのクラス（`flex h-screen …`）とエラーの帯の見た目は `ChatLayout` へ移した。DOM の構造は移す前と同じ。
+- `page.tsx` に残っていたモデル一覧の取得は `hooks/chat/useModels.ts`、ツール使用の有効状態とエージェントのプリセットの localStorage への保存は `hooks/settings/useAgentSettings.ts` へ移した（`frontend.md` の「ロジック分離」。localStorage のキーは変えていない）。
 
 ## モーダルの実装
 
