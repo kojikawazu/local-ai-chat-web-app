@@ -122,7 +122,7 @@ front/src/
 │   │   ├── constants/
 │   │   │   └── toolLabels.ts  #     ツール名→表示ラベルのマッピング
 │   │   └── hooks/
-│   │       ├── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成）
+│   │       ├── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
 │   │       └── useCopyFeedback.ts #  コピーの実行と結果表示（copied / failed）の自動リセット
 │   └── sidebar/
 │       ├── components/
@@ -144,6 +144,7 @@ front/src/
 │   ├── request-body.ts        #   Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
+│   ├── chat-state.ts          #   会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
 │   ├── code-block.ts          #   コードブロックの構文木から言語名・コピーする本文を取り出す
 │   ├── system-prompt.ts       #   会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   ├── current-date.ts        #   システムプロンプトの後ろに足す「現在の日時」の節（#154）
@@ -192,6 +193,7 @@ front/tests/
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
     ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
+    ├── conversation-switch.spec.ts # 生成中の会話の切り替え（応答が届き続ける・切り替え先の操作・サイドバーの印・削除で停止・裏のエラー）
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
@@ -318,6 +320,9 @@ model Message {
 
 - React `useState` によるローカルstate管理
 - グローバルstate管理ライブラリは使用しない
+- チャットの状態（メッセージ一覧・生成中・エラー・実行中のツール・停止用の `AbortController`）は `useChat` が**会話ごとに**持ち、表示中の会話の分を返す（#147）。生成中に別の会話へ切り替えても応答は送信した会話に届き続け、戻ると途中までの応答と続きが表示される。停止ボタンは表示中の会話の生成だけを止め、生成中の会話を削除するとその生成を止めて応答を保存しない。会話ごとの更新は `lib/chat-state.ts` の純関数で行う
+  - 生成中の会話はサイドバーに点滅する印を出す。同時に生成できる会話の数に上限は設けない（Ollama が順に処理する）
+  - 表示していない会話の状態は、生成中・保存に失敗したメッセージ・エラーを持つものだけを残し、他は捨てる（開き直したときに DB から読む）
 - 会話履歴はPostgreSQLに永続化し、API経由で取得・保存
 - テーマ選択はlocalStorageに永続化（`useTheme`フック）
 

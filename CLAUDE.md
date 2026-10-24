@@ -165,7 +165,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/sidebar/` — サイドバー機能（components: Sidebar, SidebarDrawer, SidebarContent / hooks: useConversations, useDrawerDialog）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — 共通カスタムフック（useTheme等）
-- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, code-block.ts, system-prompt.ts, current-date.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
+- **`lib/`** — ユーティリティ（ollama.ts, prisma.ts, validation.ts, request-body.ts, conversation-history.ts, regenerate.ts, chat-state.ts, code-block.ts, system-prompt.ts, current-date.ts, agent.ts, agent-config.ts, agent-prompts.ts, message-metadata.ts, clipboard.ts）
   - `lib/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
 - **`types/`** — 共通型定義（index.ts: Message/Conversation/ToolCallInfo、theme.ts: THEMES/ThemeId）
 

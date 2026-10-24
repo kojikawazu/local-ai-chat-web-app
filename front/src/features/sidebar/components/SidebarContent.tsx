@@ -20,6 +20,8 @@ type SidebarContentProps = {
   conversations: Conversation[];
   /** 選択中の会話 ID（未選択時は `null`） */
   currentConversationId: string | null;
+  /** 応答を生成中の会話 ID。該当する会話に生成中の印を付ける（#147） */
+  generatingConversationIds: string[];
   /** 新規会話モード中かどうか（true の間は新規作成ボタンを無効化する） */
   isNewConversationMode: boolean;
   /** 会話を選択したときに呼ばれる。引数は選択された会話 ID */
@@ -35,6 +37,7 @@ type SidebarContentProps = {
 /**
  * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・設定ボタン）。
  *
+ * 応答を生成中の会話には点滅する印を付ける。
  * デスクトップの {@link Sidebar} とモバイルの {@link SidebarDrawer} が共有し、
  * どちらの幅でも同じ操作を提供する。外枠（表示条件・幅・背景）は呼び出し側が持つ。
  *
@@ -44,6 +47,7 @@ export default function SidebarContent({
   variant,
   conversations,
   currentConversationId,
+  generatingConversationIds,
   isNewConversationMode,
   onSelectConversation,
   onNewConversation,
@@ -106,6 +110,14 @@ export default function SidebarContent({
                     className="text-nord-4/60 shrink-0"
                   />
                   <span className="truncate">{conv.title}</span>
+                  {/* 別の会話を見ていても、裏で生成が続いていることがわかるようにする */}
+                  {generatingConversationIds.includes(conv.id) && (
+                    <span
+                      role="img"
+                      aria-label="生成中"
+                      className="ml-auto h-2 w-2 shrink-0 rounded-full bg-nord-frost-1 animate-pulse"
+                    />
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
