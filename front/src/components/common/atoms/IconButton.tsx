@@ -2,9 +2,9 @@ import type { ComponentProps } from 'react';
 import { cn } from '@/lib/shared/class-names';
 
 /** アイコンボタンの色の種類。 */
-type IconButtonTone = 'default' | 'muted' | 'danger' | 'primary';
+type IconButtonTone = 'default' | 'muted' | 'danger' | 'primary' | 'inherit';
 /** アイコンボタンの大きさ（内側の余白）。 */
-type IconButtonSize = 'sm' | 'md' | 'lg';
+type IconButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 /** {@link IconButton} の props。素の `<button>` の props を受け取る（`aria-label` は `label` で渡す）。 */
 type IconButtonProps = Omit<ComponentProps<'button'>, 'aria-label'> & {
@@ -12,10 +12,14 @@ type IconButtonProps = Omit<ComponentProps<'button'>, 'aria-label'> & {
   label: string;
   /**
    * 色。`muted` は控えめな操作（閉じる・設定）、`default` は少し目立たせる操作（メニュー）、
-   * `danger` は削除、`primary` は主な操作（送信・停止）。省略時は `muted`
+   * `danger` は削除、`primary` は主な操作（送信・停止）、`inherit` は周りの文字色のまま hover で色だけ付ける
+   * （文字の並びに混ぜるコピー等）。省略時は `muted`
    */
   tone?: IconButtonTone;
-  /** 大きさ。`sm` は `p-1.5`、`md` は `p-2`、`lg` は `p-2.5` の角の大きいボタン。省略時は `md` */
+  /**
+   * 大きさ。`xs` は余白なし（文字の並びに混ぜる）、`sm` は `p-1.5`、`md` は `p-2`、`lg` は `p-2.5` の
+   * 角の大きいボタン。省略時は `md`
+   */
   size?: IconButtonSize;
 };
 
@@ -23,12 +27,14 @@ const TONE_CLASSES: Record<IconButtonTone, string> = {
   muted: 'text-nord-4/60 hover:bg-white/5 hover:text-nord-6',
   default: 'text-nord-4 hover:bg-white/5 hover:text-nord-6',
   danger: 'text-nord-4/40 hover:text-nord-aurora-red',
+  inherit: 'hover:text-nord-frost-1',
   // 押せないときは背景を消して薄くする（送信ボタンの「入力が空」の見た目）
   primary:
     'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 disabled:bg-transparent disabled:text-nord-4 disabled:opacity-20 disabled:cursor-not-allowed',
 };
 
 const SIZE_CLASSES: Record<IconButtonSize, string> = {
+  xs: 'rounded',
   sm: 'p-1.5 rounded-lg',
   md: 'p-2 rounded-lg',
   lg: 'p-2.5 rounded-xl',

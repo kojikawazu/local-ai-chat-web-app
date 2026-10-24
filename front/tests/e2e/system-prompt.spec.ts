@@ -200,6 +200,20 @@ test.describe('会話の役割（システムプロンプト）', () => {
       );
     });
 
+    test('背景をクリックしても閉じず、書きかけを残す', async ({ page }) => {
+      await page.goto('/');
+      await openRoleDialog(page);
+      const textarea =
+        roleDialog(page).getByLabel('役割（システムプロンプト）');
+      await textarea.fill('書きかけの役割');
+
+      // ダイアログは中央に出るため、画面の左上の角は背景になる
+      await page.mouse.click(8, 8);
+
+      await expect(roleDialog(page)).toBeVisible();
+      await expect(textarea).toHaveValue('書きかけの役割');
+    });
+
     test('新しい会話を始め直すと、前に選んだ役割を持ち越さない', async ({
       page,
       request,

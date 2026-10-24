@@ -12,7 +12,7 @@ import {
 import type { Message } from '@/types/chat/message';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import MarkdownContent from './MarkdownContent';
-import { CopyButton } from './CopyButton';
+import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';

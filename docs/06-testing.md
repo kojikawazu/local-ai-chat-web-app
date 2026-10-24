@@ -164,6 +164,13 @@ describe('機能名', () => {
 - 準正常系: 一致が無ければその旨を表示し、× で履歴一覧に戻る。Escape で検索をやめる。結果が多いときは「さらに表示」で続きを読める
 - 異常系: 検索 API が失敗したら理由を表示し、検索をやめれば履歴一覧を使い続けられる（`page.route` で検索 API だけを失敗させる）
 
+**設定モーダルの開閉（`settings-modal.spec.ts`、#163）**（共通の `Modal`。ネイティブの `<dialog>`。Ollama を使わないため CI でも動く）
+- 正常系: Close・× ボタン・Escape で閉じ、フォーカスが「設定を開く」へ戻る
+- 準正常系: 背景のクリックで閉じる。ダイアログの中のクリックや、中で押して背景で離した場合（文字の選択など）は閉じない
+- 異常系: 開いている間は Tab を押し続けてもフォーカスが背景の要素へ移らない
+
+役割ダイアログ（`system-prompt.spec.ts`）は入力を失わないよう、背景のクリックでは閉じない（準正常系で確かめる）。
+
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
 - 準正常系: 0 件は ✅ ではなく ⚠️ で出る。要約を持たない古いデータは、これまでどおり成否と所要時間だけを出す
@@ -414,6 +421,7 @@ front/tests/
     ├── responsive.spec.ts        # レスポンシブ・レイアウトテスト
     ├── mobile-navigation.spec.ts # モバイルのドロワー（会話の切替・新規・削除・設定、aria・フォーカス・Escape）
     ├── theme.spec.ts             # テーマ切替・localStorage永続化テスト
+    ├── settings-modal.spec.ts    # 設定モーダルの開閉（Close・×・Escape・背景のクリック・フォーカスの戻り先・閉じ込め）
     ├── agent.spec.ts             # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）

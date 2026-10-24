@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
 import type { HastNode } from '@/lib/chat/code-block';
-import { CopyButton } from './CopyButton';
+import CopyButton from '@/components/common/molecules/CopyButton';
 
 /** {@link MarkdownContent} の props。 */
 interface MarkdownContentProps {

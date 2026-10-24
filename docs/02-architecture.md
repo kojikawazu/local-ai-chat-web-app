@@ -108,7 +108,8 @@ front/src/
 │                       └── route.ts # 応答の置き換え（再生成）
 ├── components/                # UIコンポーネント（Atomic Design。#163。移行中）
 │   ├── common/                #   共通の部品（ドメインを知らない）
-│   │   └── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
+│   │   ├── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
+│   │   └── molecules/         #     Modal（ネイティブの <dialog> の外枠）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）
 │   └── settings/
 │       └── SettingsModal.tsx  #     設定モーダル（モデル選択・テーマ切替）
 ├── features/                  # 機能固有モジュール
@@ -116,7 +117,6 @@ front/src/
 │   │   ├── components/
 │   │   │   ├── ChatBar.tsx    #     メッセージ入力（IME対応、forwardRef）
 │   │   │   ├── ChatWindow.tsx #     メッセージ一覧表示
-│   │   │   ├── CopyButton.tsx #     コピーボタン（結果の一時表示。応答・コードブロックで共用）
 │   │   │   ├── Footer.tsx     #     フッター
 │   │   │   ├── Header.tsx     #     ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │   │   │   ├── RoleDialog.tsx #     会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
@@ -127,8 +127,7 @@ front/src/
 │   │   ├── constants/
 │   │   │   └── toolLabels.ts  #     ツール名→表示ラベルのマッピング
 │   │   └── hooks/
-│   │       ├── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
-│   │       └── useCopyFeedback.ts #  コピーの実行と結果表示（copied / failed）の自動リセット
+│   │       └── useChat.ts     #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
 │   └── sidebar/
 │       ├── components/
 │       │   ├── Sidebar.tsx    #     デスクトップのサイドバー（md 以上）
@@ -142,6 +141,8 @@ front/src/
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
 ├── hooks/                     # 共通カスタムフック（機能ごとのディレクトリ）
+│   ├── clipboard/
+│   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
 │   └── theme/
 │       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
 ├── lib/                       # ユーティリティ・外部連携（機能ごとのディレクトリ）
@@ -168,8 +169,7 @@ front/src/
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
-│   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
-│   │   └── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
+│   │   └── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
@@ -177,7 +177,8 @@ front/src/
 │   │   └── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
-│       └── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
+│       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
+│       └── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
 └── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
@@ -223,6 +224,7 @@ front/tests/
     ├── responsive.spec.ts         # レスポンシブテスト
     ├── mobile-navigation.spec.ts  # モバイルのドロワーから会話管理・設定へ到達できるか
     ├── theme.spec.ts              # テーマ切替・localStorage永続化テスト
+    ├── settings-modal.spec.ts     # 設定モーダルの開閉（Close・×・Escape・背景のクリック・フォーカスの戻り先・閉じ込め）
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）

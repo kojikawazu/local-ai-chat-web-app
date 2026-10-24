@@ -26,9 +26,10 @@ export default function Switch({ checked, className }: SwitchProps) {
         className
       )}
     >
+      {/* left-0 で起点を固定する。span は行内の要素のため、無いとボタンの中央寄せ（text-align）が起点になる */}
       <span
         className={cn(
-          'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
+          'absolute left-0 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
           checked ? 'translate-x-6' : 'translate-x-1'
         )}
       />

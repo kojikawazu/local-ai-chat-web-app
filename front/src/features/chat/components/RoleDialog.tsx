@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { useId, useState } from 'react';
 import { ROLE_PRESETS } from '@/lib/chat/system-prompt';
 import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/shared/validation';
 import Button from '@/components/common/atoms/Button';
-import IconButton from '@/components/common/atoms/IconButton';
 import TextArea from '@/components/common/atoms/TextArea';
 import ToggleChip from '@/components/common/atoms/ToggleChip';
+import Modal from '@/components/common/molecules/Modal';
 
 /** {@link RoleDialog} の props。 */
 type RoleDialogProps = {
@@ -29,8 +28,8 @@ type RoleDialogProps = {
  * 空にして保存すると役割を外す。変更は以降の送信から効く。
  *
  * 開いている間だけ描画する（呼び出し側で条件付きで置く）。開くたびに作り直されるため、
- * 入力欄は毎回 `initialPrompt` から始まる。ネイティブの `<dialog>` を `showModal()` で開き、
- * フォーカスの閉じ込め・背景の操作の無効化・Escape での取り消しはブラウザに任せる。
+ * 入力欄は毎回 `initialPrompt` から始まる。外枠は共通の {@link Modal}（ネイティブの `<dialog>`）。
+ * 入力を失わないよう、背景のクリックでは閉じない。保存中は閉じさせない。
  *
  * @param props - 初期値・保存処理・閉じる処理を持つ props
  */
@@ -39,17 +38,10 @@ export default function RoleDialog({
   onSave,
   onClose,
 }: RoleDialogProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
   const textareaId = useId();
   const [prompt, setPrompt] = useState(initialPrompt);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -64,31 +56,22 @@ export default function RoleDialog({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={titleId}
-      // Escape はブラウザが閉じる前に cancel を送る。閉じるかは React の状態で決めるため既定動作は止める
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!isSaving) onClose();
-      }}
-      className="w-full max-w-lg m-auto rounded-2xl bg-nord-1 text-nord-6 border border-nord-3 shadow-2xl shadow-black/40 backdrop:bg-black/60"
+    <Modal
+      title="会話の役割"
+      onClose={onClose}
+      closeDisabled={isSaving}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? '保存中…' : '保存'}
+          </Button>
+        </>
+      }
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-nord-3">
-        <h2 id={titleId} className="text-lg font-bold">
-          会話の役割
-        </h2>
-        <IconButton
-          label="閉じる"
-          size="sm"
-          onClick={onClose}
-          disabled={isSaving}
-        >
-          <X size={20} />
-        </IconButton>
-      </div>
-
-      <div className="px-6 py-4 space-y-4">
+      <div className="space-y-4">
         <p className="text-xs text-nord-4/80">
           AI
           にどんな役割で答えさせるかを決めます。変更は次の送信から効き、これまでの応答はそのまま残ります。
@@ -137,15 +120,6 @@ export default function RoleDialog({
           </p>
         )}
       </div>
-
-      <div className="flex justify-end gap-2 px-6 py-4 border-t border-nord-3">
-        <Button variant="secondary" onClick={onClose} disabled={isSaving}>
-          キャンセル
-        </Button>
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? '保存中…' : '保存'}
-        </Button>
-      </div>
-    </dialog>
+    </Modal>
   );
 }
