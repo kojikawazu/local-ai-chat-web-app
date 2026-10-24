@@ -84,3 +84,17 @@ export interface Conversation {
   /** 最終更新日時（API から ISO 文字列で受け取る） */
   updatedAt: string;
 }
+
+/**
+ * 会話検索（`GET /api/conversations/search`。#11）の結果の 1 件。
+ */
+export type ConversationSearchResult = Pick<
+  Conversation,
+  'id' | 'title' | 'updatedAt'
+> & {
+  /**
+   * 最初にキーワードが現れたメッセージの、一致箇所の前後の抜粋。
+   * タイトルにしか一致しなかった会話では `null`
+   */
+  snippet: string | null;
+};

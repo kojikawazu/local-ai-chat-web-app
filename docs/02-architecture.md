@@ -96,6 +96,8 @@ front/src/
 │       │   └── route.ts       #     エージェントの利用可能ツール一覧取得
 │       └── conversations/
 │           ├── route.ts       #     会話一覧取得・新規作成
+│           ├── search/
+│           │   └── route.ts   #     会話のキーワード検索（#11）
 │           └── [id]/
 │               ├── route.ts   #     会話の役割の変更（PATCH）・会話削除
 │               ├── generate-title/
@@ -128,9 +130,11 @@ front/src/
 │       ├── components/
 │       │   ├── Sidebar.tsx    #     デスクトップのサイドバー（md 以上）
 │       │   ├── SidebarDrawer.tsx #  モバイルのサイドバードロワー（md 未満）
-│       │   └── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
+│       │   ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
+│       │   └── ConversationSearch.tsx # 会話の検索欄と検索結果（一致箇所の強調）
 │       └── hooks/
 │           ├── useConversations.ts # 会話CRUD管理
+│           ├── useConversationSearch.ts # 会話検索（入力の待ち合わせ・前の要求の中断・さらに表示）
 │           └── useDrawerDialog.ts  # ドロワーのフォーカス管理・Escape・スクロール固定
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
@@ -145,6 +149,7 @@ front/src/
 │   ├── conversation-history.ts #  表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   ├── regenerate.ts          #   再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   ├── chat-state.ts          #   会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
+│   ├── search.ts              #   会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
 │   ├── code-block.ts          #   コードブロックの構文木から言語名・コピーする本文を取り出す
 │   ├── system-prompt.ts       #   会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   ├── current-date.ts        #   システムプロンプトの後ろに足す「現在の日時」の節（#154）
@@ -194,6 +199,7 @@ front/tests/
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
     ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── conversation-switch.spec.ts # 生成中の会話の切り替え（応答が届き続ける・切り替え先の操作・サイドバーの印・削除で停止・裏のエラー）
+    ├── search.spec.ts             # 会話検索（本文での一致と強調・AND・0 件・× と Escape・さらに表示・検索の失敗）
     ├── sidebar.spec.ts            # サイドバー操作テスト
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
@@ -296,6 +302,7 @@ model Message {
 1. ページ読み込み時に `/api/conversations` から会話一覧を取得
 2. サイドバーに一覧表示
 3. 会話選択時に `/api/conversations/[id]/messages` からメッセージを取得
+   - サイドバーの検索欄にキーワードを入れると、入力が 300ms 止まった後に `GET /api/conversations/search` で会話を探し、履歴一覧の代わりに結果（タイトル・一致箇所の抜粋）を出す。結果を押すとその会話を選択する（#11）
 4. 新規会話作成時に `/api/conversations` にPOST
 5. New Conversationボタンで新規会話モードに切替（`currentConversationId = null`）
 

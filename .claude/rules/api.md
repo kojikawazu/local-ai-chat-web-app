@@ -20,6 +20,7 @@ front/src/app/api/
 ├── tools/route.ts                         # エージェントの利用可能ツール一覧取得
 └── conversations/
     ├── route.ts                           # 会話一覧取得・新規作成
+    ├── search/route.ts                    # 会話のキーワード検索
     └── [id]/
         ├── route.ts                       # 会話の役割の変更（PATCH）・会話削除
         ├── messages/route.ts              # メッセージ取得・保存

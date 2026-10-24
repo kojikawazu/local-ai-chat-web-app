@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { Conversation } from '@/types';
+import ConversationSearch from './ConversationSearch';
 
 /**
  * SidebarContent コンポーネントの props。
@@ -37,7 +38,7 @@ type SidebarContentProps = {
 /**
  * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・設定ボタン）。
  *
- * 応答を生成中の会話には点滅する印を付ける。
+ * 応答を生成中の会話には点滅する印を付ける。履歴の上の検索欄で会話を探せる（#11）。
  * デスクトップの {@link Sidebar} とモバイルの {@link SidebarDrawer} が共有し、
  * どちらの幅でも同じ操作を提供する。外枠（表示条件・幅・背景）は呼び出し側が持つ。
  *
@@ -73,7 +74,7 @@ export default function SidebarContent({
         <button
           onClick={onNewConversation}
           disabled={isNewConversationMode}
-          className={`w-full flex items-center justify-center gap-2 py-3 px-4 mb-8 rounded-xl font-bold transition-all ${
+          className={`w-full flex items-center justify-center gap-2 py-3 px-4 mb-6 rounded-xl font-bold transition-all ${
             isNewConversationMode
               ? 'bg-nord-3 text-nord-4/40 cursor-not-allowed shadow-none'
               : 'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 shadow-[0_0_20px_rgba(136,192,208,0.5)] hover:shadow-[0_0_30px_rgba(136,192,208,0.7)]'
@@ -83,56 +84,61 @@ export default function SidebarContent({
           <span>New Conversation</span>
         </button>
 
-        <nav className="space-y-1">
-          <p className="px-3 mb-4 text-xs font-semibold uppercase tracking-wider text-nord-4/60 flex items-center gap-2">
-            <History size={14} />
-            History
-          </p>
-          <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-320px)]">
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className={`group flex items-center rounded-lg transition-all ${
-                  currentConversationId === conv.id
-                    ? 'bg-white/10'
-                    : 'hover:bg-white/5'
-                }`}
-              >
-                <button
-                  onClick={() => onSelectConversation(conv.id)}
-                  aria-current={
-                    currentConversationId === conv.id ? 'page' : undefined
-                  }
-                  className="flex-1 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-nord-6 min-w-0"
+        <ConversationSearch
+          currentConversationId={currentConversationId}
+          onSelectConversation={onSelectConversation}
+        >
+          <nav className="space-y-1">
+            <p className="px-3 mb-4 text-xs font-semibold uppercase tracking-wider text-nord-4/60 flex items-center gap-2">
+              <History size={14} />
+              History
+            </p>
+            <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-380px)]">
+              {conversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  className={`group flex items-center rounded-lg transition-all ${
+                    currentConversationId === conv.id
+                      ? 'bg-white/10'
+                      : 'hover:bg-white/5'
+                  }`}
                 >
-                  <MessageSquare
-                    size={16}
-                    className="text-nord-4/60 shrink-0"
-                  />
-                  <span className="truncate">{conv.title}</span>
-                  {/* 別の会話を見ていても、裏で生成が続いていることがわかるようにする */}
-                  {generatingConversationIds.includes(conv.id) && (
-                    <span
-                      role="img"
-                      aria-label="生成中"
-                      className="ml-auto h-2 w-2 shrink-0 rounded-full bg-nord-frost-1 animate-pulse"
+                  <button
+                    onClick={() => onSelectConversation(conv.id)}
+                    aria-current={
+                      currentConversationId === conv.id ? 'page' : undefined
+                    }
+                    className="flex-1 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-nord-6 min-w-0"
+                  >
+                    <MessageSquare
+                      size={16}
+                      className="text-nord-4/60 shrink-0"
                     />
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteConversation(conv.id);
-                  }}
-                  aria-label={`「${conv.title}」を削除`}
-                  className={`p-2 mr-1 rounded-lg text-nord-4/40 hover:text-nord-aurora-red transition-all ${deleteVisibility}`}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </nav>
+                    <span className="truncate">{conv.title}</span>
+                    {/* 別の会話を見ていても、裏で生成が続いていることがわかるようにする */}
+                    {generatingConversationIds.includes(conv.id) && (
+                      <span
+                        role="img"
+                        aria-label="生成中"
+                        className="ml-auto h-2 w-2 shrink-0 rounded-full bg-nord-frost-1 animate-pulse"
+                      />
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteConversation(conv.id);
+                    }}
+                    aria-label={`「${conv.title}」を削除`}
+                    className={`p-2 mr-1 rounded-lg text-nord-4/40 hover:text-nord-aurora-red transition-all ${deleteVisibility}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </nav>
+        </ConversationSearch>
       </div>
 
       <div className="mt-auto p-6">
