@@ -527,7 +527,7 @@ AI応答の個別メッセージをMarkdown形式でコピー・ダウンロー�
 ## フェーズ20: シンタックスハイライト・図表レンダリング
 
 コードブロックに言語別のシンタックスハイライトを適用し、
-Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 完了）、20-3 は #171（2026-10-25 完了）。20-4 は着手時に起票）
+Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 完了）、20-3 は #171（2026-10-25 完了）、20-4 は #176（2026-10-25 着手））
 
 現状: `react-markdown` でコードブロックは表示されるが全言語同一色（`text-nord-6`）。図表レンダリングは未対応。
 
@@ -559,16 +559,19 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 - [x] Mermaid の部品の階層の是正（フックを呼ぶ `MermaidDiagram`（molecules）を、表示だけの `DiagramView` と organisms のフック呼び出しに分けた）
 - [x] UT（`diagram.test.ts`・`plantuml.test.ts`・`request-body.test.ts`）・IT（`plantuml.test.ts`。13 件）
 
-### 20-4: 図表の共通UI
+### 20-4: 図表の共通UI — #176
 
-- [ ] 図表のズーム・拡大表示機能
-- [ ] 図表のPNG/SVGエクスポートボタン
-- [ ] ソースコード表示と図表表示の切替トグル
+- [x] 設計（`docs/11` の「図の共通の操作（20-4）」）のレビュー
+- [x] 図表のズーム・拡大表示機能（見出し行の「図を拡大」でダイアログを開く。「全体」と 25%〜400% の 8 段階。今の倍率は「全体」でも表示の大きさを測って出す。共通の `Modal` に `size: 'wide'` を追加）
+- [x] 図表のPNG/SVGエクスポートボタン（ダイアログの中。Mermaid は画面と同じ地の色を付ける。PNG は元の 2 倍・長辺 8,192px まで。PNG にできないときは理由を出す）
+- [x] ソースコード表示と図表表示の切替トグル（見出し行の「ソースを表示」。`aria-pressed`。ブロックごとの状態で保存しない）
+- [x] コードブロックの枠と見出し行を `CodeBlockFrame`（共通 molecules）に切り出す。`IconButton` に押せないときの見た目を追加
+- [x] UT（`diagram.test.ts`。`stepZoom`・`withBackground`・`getPngSize`）・E2E（`diagram.spec.ts`。8 件）。サーバーを変えないため IT は追加しない
 
 ### 20-5: E2Eテスト
 
 - [x] シンタックスハイライトE2Eテスト作成（syntax-highlight.spec.ts: 正常系/準正常系/異常系）。UT は `code-block.test.ts`（言語名の取り出し・本文の連結）
-- [x] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）。Mermaid 9 件（#169）・PlantUML 6 件（#171）。E2E の開始前に PlantUML サーバーへの接続を確かめる
+- [x] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）。Mermaid 9 件（#169）・PlantUML 6 件（#171）・拡大・保存・切り替え 8 件（#176）。E2E の開始前に PlantUML サーバーへの接続を確かめる
 
 ### 20-6: ドキュメント
 
@@ -576,6 +579,7 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 - [x] 既存ドキュメント更新（20-1 の分: `CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/README.md`・`.claude/rules/frontend.md`・`security.md`・`documentation.md`）
 - [x] 既存ドキュメント更新（20-2 の分: `docs/11` の Mermaid の節・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/12`・`.claude/rules/security.md`）
 - [x] 既存ドキュメント更新（20-3 の分: `docs/11` の PlantUML の節・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/03`・`docs/04`・`docs/05`・`docs/06`・`docs/08`・`docs/12`・`manuals/setup-guide-macos.md`・`.claude/rules/`（`api.md`・`security.md`・`documentation.md`・`github-actions.md`）・`Makefile`）
+- [x] 既存ドキュメント更新（20-4 の分: `docs/11` の「図の共通の操作」の節・`CLAUDE.md`・`docs/01`・`docs/02`・`docs/04`・`docs/06`・`docs/12`）
 
 ## フェーズ21: エージェント機能（ツール呼び出し）
 

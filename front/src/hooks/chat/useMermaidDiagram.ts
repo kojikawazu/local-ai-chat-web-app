@@ -93,9 +93,11 @@ export function useMermaidDiagram(
         });
         const { svg } = await mermaid.render(id, source);
         if (cancelled) return;
+        const sized = withIntrinsicSize(svg);
         setResult({
           status: 'rendered',
-          src: svgToDataUri(withIntrinsicSize(svg)),
+          src: svgToDataUri(sized),
+          svg: sized,
           source,
         });
       } catch (error) {
@@ -121,7 +123,7 @@ export function useMermaidDiagram(
     return { status: 'idle' };
   }
   if (result.status === 'rendered') {
-    return { status: 'rendered', src: result.src };
+    return { status: 'rendered', src: result.src, svg: result.svg };
   }
   if (result.status === 'error') {
     return { status: 'error', error: result.error };

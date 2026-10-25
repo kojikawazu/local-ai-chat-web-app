@@ -418,7 +418,7 @@ front/tests/
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
-    ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）、PlantUML の図（実サーバーでの描画・@startuml なし・構文の誤りと行番号・空・SANDBOX の include 拒否・API の失敗の注入）
+    ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）、PlantUML の図（実サーバーでの描画・@startuml なし・構文の誤りと行番号・空・SANDBOX の include 拒否・API の失敗の注入）、図の共通の操作（ソースとの切り替え・拡大の倍率・SVG / PNG の保存の中身・描けない図にボタンを出さない・倍率の端・PNG の変換の失敗の注入）
     ├── export.spec.ts            # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── system-prompt.spec.ts     # 会話の役割（新規会話での保存と送信への付与・既存会話の変更・役割なし・キャンセル/Escape・新規会話で持ち越さない・エージェントでの連結・保存失敗・上限）
     ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語（COBOL）・インラインコード・HTML タグの非実行・閉じていないフェンス）

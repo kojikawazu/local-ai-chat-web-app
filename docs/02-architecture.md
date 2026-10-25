@@ -113,7 +113,7 @@ front/src/
 ├── components/                # UIコンポーネント（Atomic Design。#163）
 │   ├── common/                #   共通の部品（ドメインを知らない）
 │   │   ├── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
-│   │   ├── molecules/         #     Modal（ネイティブの <dialog> の外枠）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）
+│   │   ├── molecules/         #     Modal（ネイティブの <dialog> の外枠。幅は md / wide）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）・CodeBlockFrame（コードブロックの枠と見出し行）
 │   │   └── templates/
 │   │       └── ChatLayout.tsx #     画面の枠（サイドバー・ドロワー・ヘッダー・本文・お知らせ・入力欄・フッター）。中身は props で受け取る
 │   └── features/              #   機能の部品
@@ -121,7 +121,8 @@ front/src/
 │       │   ├── molecules/
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
-│       │   │   └── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示（#169・#171）
+│       │   │   ├── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示。ソースとの切り替え・拡大のボタン（#169・#171・#176）
+│       │   │   └── DiagramZoomDialog.tsx # 図の拡大（倍率の変更）と SVG / PNG での保存のダイアログ（#176）
 │       │   └── organisms/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
@@ -202,7 +203,8 @@ front/src/
 │       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
 │       ├── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
-│       └── download.ts        #     文字列をファイルとして保存させる（Blob と <a download>）
+│       ├── download.ts        #     Blob・文字列をファイルとして保存させる（<a download>）
+│       └── image.ts           #     SVG の画像を <canvas> で PNG にする（図の保存。#176）
 └── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
@@ -237,7 +239,7 @@ front/tests/
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
-    ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）
+    ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）、拡大・保存・ソースとの切り替え
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト

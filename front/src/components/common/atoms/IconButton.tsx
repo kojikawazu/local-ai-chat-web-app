@@ -33,6 +33,13 @@ const TONE_CLASSES: Record<IconButtonTone, string> = {
     'bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 disabled:bg-transparent disabled:text-nord-4 disabled:opacity-20 disabled:cursor-not-allowed',
 };
 
+/**
+ * 押せないとき（`disabled`）の見た目。`primary` は送信ボタン用の見た目を `TONE_CLASSES` に持つため除く。
+ * 薄くして hover の色を付けない（押せるボタンと区別できるように。#176）
+ */
+const DISABLED_CLASSES =
+  'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-current';
+
 const SIZE_CLASSES: Record<IconButtonSize, string> = {
   xs: 'rounded',
   sm: 'p-1.5 rounded-lg',
@@ -64,6 +71,7 @@ export default function IconButton({
       className={cn(
         SIZE_CLASSES[size],
         TONE_CLASSES[tone],
+        tone !== 'primary' && DISABLED_CLASSES,
         'transition',
         className
       )}
