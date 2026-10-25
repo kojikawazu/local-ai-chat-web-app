@@ -127,7 +127,7 @@ front/src/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
 │       │       ├── Footer.tsx     # フッター
-│       │       ├── Header.tsx     # ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
+│       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
 │       │       ├── ExportDialog.tsx # 会話全体の書き出しの形式（Markdown・JSON）を選ぶダイアログ（#12）
 │       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き。mermaid は図）
@@ -138,7 +138,7 @@ front/src/
 │       │   │   ├── ConversationListItem.tsx # 履歴の 1 行（生成中の印・削除ボタン）
 │       │   │   └── SearchResultItem.tsx     # 検索結果の 1 件（タイトル・抜粋の強調）
 │       │   └── organisms/
-│       │       ├── Sidebar.tsx    # デスクトップのサイドバー（md 以上）
+│       │       ├── Sidebar.tsx    # デスクトップのサイドバー（md 以上。隠すと幅 0・inert。#24）
 │       │       ├── SidebarDrawer.tsx # モバイルのサイドバードロワー（md 未満）
 │       │       ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
 │       │       └── ConversationSearch.tsx # 会話の検索欄と検索結果
@@ -163,7 +163,8 @@ front/src/
 │   ├── sidebar/
 │   │   ├── useConversations.ts #    会話CRUD管理
 │   │   ├── useConversationSearch.ts # 会話検索（入力の待ち合わせ・前の要求の中断・さらに表示）
-│   │   └── useDrawerDialog.ts #     ドロワーのフォーカス管理・Escape・スクロール固定
+│   │   ├── useDrawerDialog.ts #     ドロワーのフォーカス管理・Escape・スクロール固定
+│   │   └── useSidebarVisibility.ts # デスクトップのサイドバーの表示・非表示と localStorage への保存（#24）
 │   └── theme/
 │       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
 ├── lib/                       # ユーティリティ・外部連携（機能ごとのディレクトリ）
@@ -195,6 +196,8 @@ front/src/
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   ├── sidebar/               #   サイドバー
+│   │   └── visibility.ts      #     サイドバーの表示状態の保存値の解釈（#24）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
 │   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
@@ -247,7 +250,7 @@ front/tests/
     ├── regenerate.spec.ts         # 応答の再生成（置き換え・旧応答への復元・保存失敗）テスト
     ├── conversation-switch.spec.ts # 生成中の会話の切り替え（応答が届き続ける・切り替え先の操作・サイドバーの印・削除で停止・裏のエラー）
     ├── search.spec.ts             # 会話検索（本文での一致と強調・AND・0 件・× と Escape・さらに表示・検索の失敗）
-    ├── sidebar.spec.ts            # サイドバー操作テスト
+    ├── sidebar.spec.ts            # サイドバー操作テスト・表示の切り替え（#24）
     ├── conversation.spec.ts       # 会話管理テスト
     ├── security.spec.ts           # セキュリティテスト
     ├── responsive.spec.ts         # レスポンシブテスト

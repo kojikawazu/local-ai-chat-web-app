@@ -175,7 +175,7 @@ src/
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加） | `features/chat/components/` |
 | `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
-| `sidebar` | organisms | `Sidebar`・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
+| `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal` | `components/settings/` |
 
