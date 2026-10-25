@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -79,6 +79,7 @@ front/tests/
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
+    ├── diagram.spec.ts            # Mermaid の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行）
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト

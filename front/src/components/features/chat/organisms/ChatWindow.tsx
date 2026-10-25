@@ -71,6 +71,9 @@ export default function ChatWindow({
   const lastMsg = messages[messages.length - 1];
   const isWaitingFirstChunk =
     isLoading && lastMsg?.role === 'assistant' && lastMsg.content === '';
+  // 生成中の応答 = 生成中の最後の assistant。Mermaid の図は生成が終わってから描く（#169）
+  const streamingId =
+    isLoading && lastMsg?.role === 'assistant' ? lastMsg.id : null;
   // 再生成できるのは最後の応答だけ（条件は findRegenerateTarget に集約し、useChat と揃える）
   const regenerableId =
     lastMsg && findRegenerateTarget(messages, lastMsg.id) ? lastMsg.id : null;
@@ -123,7 +126,10 @@ export default function ChatWindow({
                         // 最初のチャンク待ちドットアニメーション
                         <LoadingDots label="応答を生成中" />
                       ) : (
-                        <MarkdownContent content={msg.content} />
+                        <MarkdownContent
+                          content={msg.content}
+                          isStreaming={msg.id === streamingId}
+                        />
                       )
                     ) : (
                       <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">

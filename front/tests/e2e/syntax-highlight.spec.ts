@@ -185,11 +185,12 @@ test.describe('シンタックスハイライト', () => {
       await openAnswer(
         page,
         request,
-        fence('mermaid', ['graph TD', '  A --> B']),
-        'A --> B'
+        // highlight.js に COBOL の定義は無い。mermaid は図として描くため（#169）例に使わない
+        fence('cobol', ['DISPLAY "HELLO".', 'STOP RUN.']),
+        'STOP RUN.'
       );
 
-      await expect(page.getByTestId('code-language')).toHaveText('mermaid');
+      await expect(page.getByTestId('code-language')).toHaveText('cobol');
       await expect(page.locator('main pre code [class*="hljs-"]')).toHaveCount(
         0
       );

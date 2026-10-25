@@ -43,7 +43,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | フレームワーク | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm + rehype-highlight |
+| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
 | LLM | Ollama（ローカル実行） |
 | DB | PostgreSQL 16（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose） |

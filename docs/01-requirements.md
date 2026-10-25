@@ -1,6 +1,6 @@
 # 要件定義書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -28,7 +28,7 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
-| Markdown表示 | react-markdown + remark-gfm + rehype-highlight |
+| Markdown表示 | react-markdown + remark-gfm + rehype-highlight + mermaid |
 | パッケージマネージャー | pnpm |
 | LLMバックエンド | Ollama |
 | LLMモデル | qwen3.8:27b（動的にモデル切替可能） |
@@ -85,8 +85,10 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
    - AIレスポンスのMarkdownをリッチに整形表示
    - コードブロックはコードフェンスに書いた言語で色付けし（シンタックスハイライト）、右上に言語名を表示する。色はテーマに追従する
      - 言語の指定が無いブロックは自動判定せず単色で表示し、言語名も出さない。highlight.js に無い言語は色付けせず、言語名は出す
+   - ` ```mermaid ` のブロックは図として表示する（#169）。色はテーマに追従する
+     - 応答の生成中はソースのまま表示し、生成が終わってから図にする。描けないときはソースを表示し、描けなかったことを添える
    - テーブル、リスト、引用、リンク等のサポート
-   - react-markdown + remark-gfm + rehype-highlight を使用（詳細は [11-syntax-highlight-diagrams.md](./11-syntax-highlight-diagrams.md)）
+   - react-markdown + remark-gfm + rehype-highlight + mermaid を使用（詳細は [11-syntax-highlight-diagrams.md](./11-syntax-highlight-diagrams.md)）
 
 8. **会話タイトル自動生成**
    - 新規会話の最初のメッセージ送信後、LLMでタイトルを自動生成

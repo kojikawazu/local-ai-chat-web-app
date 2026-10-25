@@ -42,7 +42,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | Framework | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19 (React Compiler enabled) |
 | Styling | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm + rehype-highlight |
+| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |
 | Web search | SearXNG (Docker Compose) |
