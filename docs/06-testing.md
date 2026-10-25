@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -382,6 +382,7 @@ front/tests/
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果を含む）
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
+│   ├── diagram.test.ts           # Mermaid の判定・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て
 │   ├── export.test.ts            # 書き出しのファイル名（置き換え・切り詰め・絵文字）と、会話全体の Markdown / JSON の形
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
 │   ├── current-date.test.ts      # システムプロンプトに足す現在の日時（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン）
@@ -415,9 +416,10 @@ front/tests/
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
+    ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）
     ├── export.spec.ts            # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── system-prompt.spec.ts     # 会話の役割（新規会話での保存と送信への付与・既存会話の変更・役割なし・キャンセル/Escape・新規会話で持ち越さない・エージェントでの連結・保存失敗・上限）
-    ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語・インラインコード・HTML タグの非実行・閉じていないフェンス）
+    ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語（COBOL）・インラインコード・HTML タグの非実行・閉じていないフェンス）
     ├── streaming-stop.spec.ts    # 生成の停止（Stop ボタン・Escape・本文前の停止・中断した応答の保存と保存失敗）
     ├── conversation-switch.spec.ts # 生成中の会話の切り替え（応答が届き続ける・切り替え先の操作・途中で戻る・新規会話の最初の送信・サイドバーの印・削除で停止して保存しない・裏のエラー）
     ├── regenerate.spec.ts        # 応答の再生成（置き換えと永続化・最後の応答のみ・本文前の停止と生成失敗で旧応答へ復元・生成中は無効・置き換えの保存失敗と再試行）

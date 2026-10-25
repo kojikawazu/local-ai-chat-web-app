@@ -1,8 +1,8 @@
 # シンタックスハイライト・図表レンダリング 設計書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
-AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 / #144）、Mermaid / PlantUML を図表として描画する（フェーズ20-2〜20-4、未着手）ための設計。親 issue は #13。
+AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 / #144）、Mermaid / PlantUML を図表として描画する（フェーズ20-2 / #169。20-3・20-4 は未着手）ための設計。親 issue は #13。
 
 ## 目次
 
@@ -15,6 +15,7 @@ AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 
   - [セキュリティ](#セキュリティ)
   - [テスト](#テスト)
 - [図表レンダリング（20-2〜20-4）](#図表レンダリング20-220-4)
+  - [Mermaid（20-2）](#mermaid20-2)
 
 ## シンタックスハイライト（20-1）
 
@@ -97,6 +98,138 @@ Markdown（応答の本文）
 
 ## 図表レンダリング（20-2〜20-4）
 
-未着手。Mermaid（20-2）・PlantUML（20-3）・図表の共通 UI（20-4）は、それぞれ #13 のサブ issue として起票してから設計する。方式の候補は #13 の「技術的な検討事項」を参照。
+Mermaid（20-2 / #169）・PlantUML（20-3）・図表の共通 UI（20-4）は、それぞれ #13 のサブ issue として起票してから設計する。方式の候補は #13 の「技術的な検討事項」を参照。PlantUML と 20-4 は未着手。
 
-- 20-1 の結果、`mermaid` / `plantuml` のコードブロックは現在「色付けなし・ラベルあり」で表示される。図表の描画は `components.pre` で言語名（`getCodeLanguage`）を見て分岐させるのが自然な拡張点になる。
+### Mermaid（20-2）
+
+#### 範囲
+
+| 含める | 含めない（別の段階） |
+|---|---|
+| ` ```mermaid ` のブロックを図として描く・テーマの色で描きテーマの切り替えに追従する・描けないときはソースを表示する | PlantUML（20-3）、ズーム・PNG/SVG での保存・ソースとの切り替え（20-4） |
+
+#### ライブラリと読み込み
+
+- `mermaid` を `dependencies` に追加した（`^12.1.0`。lockfile で 12.1.0 に固定）。公開から 2 週間以上たった版を選んだ（2026-10-25 時点。12.2.0 は 2026-10-13 公開のため見送った）。
+- **Mermaid のブロックが現れたときだけ `import('mermaid')` で読み込む。** mermaid は依存（d3・cytoscape・katex 等）を含めて大きく、図を使わない会話の初回の読み込みに乗せない。2 回目以降はモジュールのキャッシュを使う。
+
+#### 描画の流れ
+
+```
+components.pre（MarkdownContent.tsx）
+  └ getCodeLanguage(pre) が mermaid か（isMermaidLanguage。大文字小文字は区別しない）
+      ├ 違う → 今までどおりのコードブロック
+      └ そう → MermaidDiagram（components/features/chat/molecules/）
+            └ useMermaidDiagram（hooks/chat/）
+                 1. 生成中なら何もしない（ソースのまま表示）
+                 2. import('mermaid') → initialize（テーマの色・securityLevel 等）
+                 3. mermaid.render(id, ソース) → SVG の文字列
+                 4. SVG を data: URI にして <img src> に入れる
+```
+
+- 見出し行（言語名 `mermaid`・ソースのコピー）は今のコードブロックと同じものを残し、本文の `pre` を図に置き換える。コピーはソースを写す（図の保存は 20-4）。
+- 描き終わるまではソースを表示し、描けたら図に差し替える。読み込み中の表示を別に作らない。
+- `mermaid.render` の `id` は SVG の要素 ID になるため、`useId` の値から英数字以外を落として `mermaid-` を前に付ける（`toMermaidId`）。同じ画面に図が複数あっても重ならない。
+- mermaid の SVG は `width="100%"` と `style="max-width: …"` で出てくる。`<img>` に入れると元の大きさが決まらず 300×150 で描かれるため、ルートの `<svg>` に `viewBox` の幅・高さを `width` / `height` として書き込む（`withIntrinsicSize`）。
+
+#### 生成中は描かない
+
+**応答の生成が終わってから描く。** 生成中はブロックの中身が 1 文字ずつ増え、そのたびに描くと、書きかけの構文で描画のエラーが連続し、重い描画が何十回も走る。
+
+- `MarkdownContent` に `isStreaming`（省略時 `false`）を足し、`ChatWindow` が生成中の応答にだけ `true` を渡す（`isLoading` かつ最後の assistant メッセージ）。
+- `MarkdownContent` の中では、`isStreaming` を props ではなく Context で `components.pre` に届ける。`components` を描画のたびに作り直すと React が別のコンポーネントとみなし、図を毎回作り直して描き直すため、`components` はモジュールの定数のままにする。
+- 生成中の Mermaid のブロックは、20-1 と同じく「色付けなし・ラベルあり」のソースで表示する。生成が終わった時点で描画する。
+- 保存済みの応答（会話を開いたとき）は最初から描く。
+
+#### 図の埋め込み方（`<img>` の data: URI）
+
+`mermaid.render` は SVG を**文字列**で返す。公式の例のように `innerHTML` で埋め込むと「生の HTML を埋め込まない」方針（`.claude/rules/security.md`）に反するため、**SVG を `data:image/svg+xml` の URI にして `<img>` で表示する**（`svgToDataUri`）。
+
+| 観点 | `<img>` の data: URI（採用） | `innerHTML` / `dangerouslySetInnerHTML` |
+|---|---|---|
+| スクリプト | `<img>` の中の SVG はスクリプト・イベント属性を実行しない | mermaid の消毒（DOMPurify）が漏れると実行される |
+| 外部の読み込み | 画像としての SVG は外部の画像・CSS・フォントを読み込まない | 読み込む |
+| CSP | 変更不要（`img-src 'self' data:` が既にある） | 変更不要 |
+| テーマの CSS 変数 | 届かない（別の文書になる）→ 描画時に値を読んで渡す | 届く |
+| Web フォント（Geist） | 届かない → システムフォントで描く | 届く |
+| 図の中の文字の選択・リンク | できない | できる |
+
+文字の選択・図の中のリンクより、消毒に頼らずにスクリプトを止められることを優先した。リンク（`click` 文）は下の `securityLevel: 'strict'` でも無効になるため、失うものは文字の選択だけになる。
+
+#### mermaid の設定
+
+| 設定 | 値 | 理由 |
+|---|---|---|
+| `startOnLoad` | `false` | ページの `.mermaid` 要素を勝手に探して描かせない |
+| `securityLevel` | `'strict'` | ラベルの HTML を消毒し、`click` 文を無効にする（`<img>` と二重の防御） |
+| `htmlLabels` | `false` | ラベルを `foreignObject`（HTML）ではなく SVG の `text` で描く。画像としての SVG で HTML のラベルに頼らない |
+| `theme` | `'base'` | `themeVariables` だけで配色を決められる唯一のテーマ |
+| `themeVariables` | 下の表 | テーマの色で描く |
+| `fontFamily` | `Arial, Helvetica, sans-serif` | mermaid はページの中で文字の幅を測ってから枠の大きさを決める。`<img>` の中では Geist が使えないため、測る側も描く側もシステムフォントに揃えないと、文字が枠からはみ出す（本文の `font-family` から Geist を除いたもの） |
+
+`initialize` はページ全体の設定のため、描く直前に毎回、そのときのテーマの色で呼ぶ。`render` は mermaid の中で 1 つずつ順に実行される。図ごとに別のテーマで描くことは無いため、`initialize` と `render` の間に別の図の `initialize` が入っても結果は変わらない。
+
+#### 配色（テーマ対応）
+
+描く直前に `getComputedStyle(document.documentElement)` でテーマの CSS 変数の値を読み、`themeVariables` に渡す（`buildMermaidThemeVariables`。読み取りの関数を引数で受け、UT では表を渡す）。
+
+| mermaid の変数 | テーマの変数 | 用途 |
+|---|---|---|
+| `background` | `--color-nord-0` | 図の地（コードブロックと同じ） |
+| `primaryColor` | `--color-nord-2` | ノードの塗り |
+| `primaryBorderColor` | `--color-nord-frost-1` | ノードの枠 |
+| `primaryTextColor` / `textColor` | `--color-nord-6` | 文字 |
+| `lineColor` | `--color-nord-frost-2` | 線・矢印 |
+| `secondaryColor` / `tertiaryColor` | `--color-nord-1` / `--color-nord-3` | サブグラフ・2 番目以降の塗り |
+| `noteBkgColor` / `noteTextColor` | `--color-nord-aurora-yellow` / `--color-nord-0` | 注記 |
+| `errorBkgColor` | `--color-nord-aurora-red` | 図の中のエラー表示 |
+
+- **テーマの切り替えに追従する。** テーマは `<html>` の `data-theme` 属性で決まる（`useTheme`）。`useMermaidDiagram` は `MutationObserver` で `data-theme` の変化を見て描き直す。`useTheme` を図ごとに呼ぶと、図ごとに別のテーマの状態を持ってしまうため使わない。
+- 描き直している間は前のテーマの図を出しておく（ソースに戻すとちらつくため）。ソースが変わったときだけ、描き終わるまでソースを表示する。
+- テーマを追加するときは、上の表の変数がそのテーマにも定義されていれば図も追従する（新しい変数は増やさない）。
+
+#### 描けないとき
+
+| ケース | 表示 |
+|---|---|
+| 構文の誤り（`mermaid.render` が例外） | ソースのコードブロックをそのまま表示し、下に「図を描けませんでした: <mermaid のメッセージ>」を添える |
+| 空のブロック | 描かず、空のコードブロックのまま（エラーも出さない） |
+| `maxTextSize`（既定 50,000 文字）を超える | mermaid が例外を投げるため、構文の誤りと同じ |
+| `import('mermaid')` の失敗（チャンクの取得失敗など） | 構文の誤りと同じ表示 |
+
+失敗はコンソールにも出す（`console.error`）。応答の本文・保存・コピーには影響しない。
+
+#### 表示
+
+- 図はコードブロックと同じ枠（`bg-nord-0`・`border-nord-3`）の中に、中央寄せで置く。`max-width: 100%`・高さは自動で、幅の広い図は縮めて収める（拡大は 20-4）。
+- `<img>` の `alt` は「Mermaid の図」。図の中身を文字で説明する手段は 20-4 のソース表示で補う。
+
+#### 配置
+
+| ファイル | 内容 |
+|---|---|
+| `lib/chat/diagram.ts`（新規） | 純粋な関数: `isMermaidLanguage`・`toMermaidId`・`svgToDataUri`・`withIntrinsicSize`・`buildMermaidThemeVariables` |
+| `hooks/chat/useMermaidDiagram.ts`（新規） | mermaid の読み込み・初期化・描画・テーマの追従。`{ status: 'idle' \| 'rendered' \| 'error', src?, error? }` を返す |
+| `components/features/chat/molecules/MermaidDiagram.tsx`（新規） | 図またはソース・エラーの表示 |
+| `components/features/chat/organisms/MarkdownContent.tsx` | `pre` で Mermaid を分岐。`isStreaming` を足す |
+| `components/features/chat/organisms/ChatWindow.tsx` | 生成中の応答に `isStreaming` を渡す |
+
+`MermaidDiagram` は `MarkdownContent`（organisms）からしか使わず、ドメイン（Markdown の応答）を知るため、機能の molecules に置く。
+
+#### Mermaid のセキュリティ
+
+- SVG は `<img>` の data: URI で表示し、DOM に HTML・SVG を直接入れない（`dangerouslySetInnerHTML` を使わない）。画像としての SVG はスクリプトを実行せず、外部の資源も読み込まない。
+- そのうえで `securityLevel: 'strict'` で mermaid にもラベルを消毒させ、`click` 文を無効にする。
+- CSP は変えない。mermaid は描画のときに一時的な要素と `<style>` をページに足すが、`style-src 'unsafe-inline'` で許可済み。
+- `docs/05-security.md`・`.claude/rules/security.md` の XSS 対策に、「SVG の文字列を返すライブラリは `<img>` の data: URI で表示する」を足す。
+
+#### Mermaid のテスト
+
+| 層 | ファイル | 内容 |
+|---|---|---|
+| UT | `tests/unit/diagram.test.ts` | `isMermaidLanguage`（大文字・別の言語・`null`）、`toMermaidId`（`useId` の記号を落とす・空にならない）、`svgToDataUri`（`#`・`%`・日本語・改行を含む SVG を `decodeURIComponent` で戻せる）、`withIntrinsicSize`（`viewBox` の大きさの書き込み・既存の `width` / `height` の置き換え・`viewBox` が無い／壊れている SVG はそのまま）、`buildMermaidThemeVariables`（変数の対応・値の前後の空白・未定義の変数） |
+| E2E | `tests/e2e/diagram.spec.ts` | 正常系: 保存済みの応答の図が `<img>` で表示され、SVG にノードの文字が入る／ソースをコピーできる／図が 2 つあっても両方描ける／テーマを切り替えると色が変わる／ストリーミングの応答（`page.route` で `/api/chat` を差し替え）が終わると図になる。準正常系: 構文の誤り→ソースとエラーの表示／空のブロック／`Mermaid`（大文字）。異常系: ラベルの `<img onerror>`・`click` 文が実行されない／図の失敗が他のメッセージの表示を壊さない |
+
+- 応答は 20-1 と同じく API で投入する（モデルが Mermaid を出すかは決まらないため。軽量モデル・CI でも動く）。
+- ストリーミングの応答だけは `page.route` で `/api/chat` の応答を差し替える（通信の境界の障害注入。`.claude/rules/testing.md`）。
+- 図の画素を比べるスクリーンショットは足さない（フォントの描画が環境で変わり、基準画像が安定しないため）。色の追従は `<img src>` の SVG に入ったテーマの色の値で確かめる。

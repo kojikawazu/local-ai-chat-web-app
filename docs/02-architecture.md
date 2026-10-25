@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -116,7 +116,8 @@ front/src/
 │       ├── chat/
 │       │   ├── molecules/
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
-│       │   │   └── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
+│       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
+│       │   │   └── MermaidDiagram.tsx    # Mermaid のソースを図（data: URI の img）で表示。描けなければソースとエラー（#169）
 │       │   └── organisms/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
@@ -124,7 +125,7 @@ front/src/
 │       │       ├── Header.tsx     # ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
 │       │       ├── ExportDialog.tsx # 会話全体の書き出しの形式（Markdown・JSON）を選ぶダイアログ（#12）
-│       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
+│       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き。mermaid は図）
 │       │       ├── AgentThinking.tsx   # エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │       │       └── ToolCallResult.tsx  # ツール実行結果の折りたたみ表示
 │       ├── sidebar/
@@ -147,7 +148,8 @@ front/src/
 ├── hooks/                     # カスタムフック（機能ごとのディレクトリ）
 │   ├── chat/
 │   │   ├── useChat.ts         #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
-│   │   └── useModels.ts       #     利用可能なモデル一覧の取得と選択中のモデル
+│   │   ├── useModels.ts       #     利用可能なモデル一覧の取得と選択中のモデル
+│   │   └── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
 │   ├── clipboard/
 │   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
 │   ├── settings/
@@ -183,6 +185,7 @@ front/src/
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
+│   │   ├── diagram.ts         #     Mermaid の判定・要素 ID・SVG の data: URI と大きさ・テーマの色の組み立て（#169）
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
@@ -227,6 +230,7 @@ front/tests/
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
+    ├── diagram.spec.ts            # Mermaid の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行）
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト

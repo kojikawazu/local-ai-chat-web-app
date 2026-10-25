@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -527,7 +527,7 @@ AI応答の個別メッセージをMarkdown形式でコピー・ダウンロー�
 ## フェーズ20: シンタックスハイライト・図表レンダリング
 
 コードブロックに言語別のシンタックスハイライトを適用し、
-Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144。20-2 以降は着手時に起票）
+Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 着手）。20-3 以降は着手時に起票）
 
 現状: `react-markdown` でコードブロックは表示されるが全言語同一色（`text-nord-6`）。図表レンダリングは未対応。
 
@@ -542,12 +542,13 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 - [x] 対応言語: bash, javascript, typescript, java, go, python, rust, SQL, JSON, YAML, HTML, CSS 等（lowlight の `common` 37 言語。別名 `ts`・`py`・`yml`・`html` 等も解決）
 - [x] 言語未指定のブロックは自動判定しない（短いコードの誤判定・ストリーミング中の判定コストを避ける）
 
-### 20-2: Mermaid図表レンダリング
+### 20-2: Mermaid図表レンダリング — #169
 
-- [ ] mermaid ライブラリの導入（npm パッケージ）
-- [ ] `language-mermaid` コードブロックの検出・図表レンダリング
-- [ ] Mermaid図表のNordテーマスタイリング
-- [ ] レンダリングエラー時のフォールバック表示（ソースコードをそのまま表示）
+- [x] mermaid ライブラリの導入（npm パッケージ。`^12.1.0`。Mermaid のブロックが現れたときだけ `import('mermaid')` で読み込む）
+- [x] `language-mermaid` コードブロックの検出・図表レンダリング（`components.pre` で分岐。SVG を data: URI の `<img>` で表示し、DOM に入れない。生成中はソースのまま、生成が終わってから描く）
+- [x] Mermaid図表のNordテーマスタイリング（`theme: 'base'` に CSS 変数の値を渡す。`data-theme` の変化で描き直し、3 テーマに追従）
+- [x] レンダリングエラー時のフォールバック表示（ソースコードをそのまま表示し、「図を描けませんでした」と mermaid のメッセージを添える）
+- [x] UT（`diagram.test.ts`。17 件）
 
 ### 20-3: PlantUML図表レンダリング
 
@@ -565,12 +566,13 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 ### 20-5: E2Eテスト
 
 - [x] シンタックスハイライトE2Eテスト作成（syntax-highlight.spec.ts: 正常系/準正常系/異常系）。UT は `code-block.test.ts`（言語名の取り出し・本文の連結）
-- [ ] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）
+- [ ] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）。Mermaid の分（9 件）は #169 で作成済み。PlantUML の分は 20-3 で足す
 
 ### 20-6: ドキュメント
 
 - [x] `docs/11-syntax-highlight-diagrams.md` 作成（シンタックスハイライト・図表レンダリング設計書）。20-1 の分を記載し、図表は未着手として節だけ置く
 - [x] 既存ドキュメント更新（20-1 の分: `CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/README.md`・`.claude/rules/frontend.md`・`security.md`・`documentation.md`）
+- [x] 既存ドキュメント更新（20-2 の分: `docs/11` の Mermaid の節・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/12`・`.claude/rules/security.md`）
 
 ## フェーズ21: エージェント機能（ツール呼び出し）
 

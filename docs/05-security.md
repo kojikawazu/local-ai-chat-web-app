@@ -1,6 +1,6 @@
 # セキュリティ要件書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -60,6 +60,7 @@
   - `dangerouslySetInnerHTML` を使用しない方式でMarkdown整形を実現
   - カスタムコンポーネント（code, table, blockquote等）でNordテーマのスタイルを適用
   - コードブロックのシンタックスハイライトは `rehype-highlight` で行う。構文木（hast）を書き換えるだけで HTML 文字列を作らないため、コード内の `<script>` 等は文字のまま表示される。色は CSS クラスで付け、インラインの `style` 属性も作らない
+  - Mermaid の図（#169）は、mermaid が返す SVG の文字列を `data:image/svg+xml` の URI にして `<img>` で表示する。DOM に SVG を直接入れない（`innerHTML` / `dangerouslySetInnerHTML` を使わない）。画像としての SVG はスクリプト・イベント属性を実行せず、外部の資源も読み込まない。そのうえで mermaid の `securityLevel: 'strict'` でラベルを消毒し、`click` 文を無効にする。CSP は変えない（`img-src 'self' data:` で足りる）
 
 ## Content Security Policy（CSP）
 

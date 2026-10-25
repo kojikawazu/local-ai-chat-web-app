@@ -1,6 +1,6 @@
 # UI コンポーネント 設計書（Atomic Design）
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
@@ -173,7 +173,7 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`MermaidDiagram` は #169 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `sidebar` | organisms | `Sidebar`・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal` | `components/settings/` |
@@ -185,6 +185,7 @@ src/
 | `WebSearchResult` | `text`（web_search の結果テキスト）。1 件も読み取れなければ元のテキストをそのまま出す |
 | `ConversationListItem` | `conversation`・`isCurrent`・`isGenerating`・`alwaysShowDelete`（ドロワーでは true。デスクトップは hover・フォーカスの間だけ削除ボタンを出す）・`onSelect`・`onDelete` |
 | `SearchResultItem` | `result`・`terms`（強調するキーワード）・`isCurrent`・`onSelect` |
+| `MermaidDiagram`（#169） | `source`（Mermaid のソース）・`isStreaming`（生成中は描かない）・`fallback`（描けるまで・描けないときに出すソースの `pre`） |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
 - 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。

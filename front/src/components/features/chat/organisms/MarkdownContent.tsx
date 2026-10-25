@@ -1,18 +1,30 @@
 'use client';
 
+import { createContext, use } from 'react';
+import type { ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
 import type { HastNode } from '@/lib/chat/code-block';
+import { isMermaidLanguage } from '@/lib/chat/diagram';
 import CopyButton from '@/components/common/molecules/CopyButton';
+import MermaidDiagram from '@/components/features/chat/molecules/MermaidDiagram';
 
 /** {@link MarkdownContent} の props。 */
 interface MarkdownContentProps {
   /** 描画対象の Markdown テキスト。 */
   content: string;
+  /** 応答の生成中か。生成中は Mermaid の図を描かず、ソースのまま表示する（#169）。省略時は `false`。 */
+  isStreaming?: boolean;
 }
+
+/**
+ * 生成中かを `components.pre` に届ける。`components` を描画のたびに作り直すと React が別の
+ * コンポーネントとみなし、図を毎回作り直して描き直すため、props ではなく Context で渡す
+ */
+const StreamingContext = createContext(false);
 
 const components: Components = {
   pre({ children, node }) {
@@ -21,6 +33,12 @@ const components: Components = {
     // remark はコードブロックの末尾に改行を 1 つ付けるため、コピー時は落とす
     const code = pre ? hastToText(pre).replace(/\n$/, '') : '';
     const language = pre ? getCodeLanguage(pre) : null;
+    const body = (
+      // 言語未指定のブロックの code はインライン用の見た目で描画されるため、ここで打ち消す
+      <pre className="p-4 overflow-x-auto text-sm text-nord-6 [&_code]:p-0 [&_code]:border-0 [&_code]:rounded-none [&_code]:bg-transparent [&_code]:text-inherit">
+        {children}
+      </pre>
+    );
     return (
       <div className="my-3 rounded-lg bg-nord-0 border border-nord-3 overflow-hidden">
         {/* 言語名とコピーボタンは pre の外の見出し行に置き、横スクロールしても本文と重ならない。
@@ -33,10 +51,11 @@ const components: Components = {
             className="flex-row-reverse"
           />
         </div>
-        {/* 言語未指定のブロックの code はインライン用の見た目で描画されるため、ここで打ち消す */}
-        <pre className="p-4 overflow-x-auto text-sm text-nord-6 [&_code]:p-0 [&_code]:border-0 [&_code]:rounded-none [&_code]:bg-transparent [&_code]:text-inherit">
-          {children}
-        </pre>
+        {isMermaidLanguage(language) ? (
+          <MermaidCodeBlock source={code} fallback={body} />
+        ) : (
+          body
+        )}
       </div>
     );
   },
@@ -122,6 +141,30 @@ const components: Components = {
   },
 };
 
+/** {@link MermaidCodeBlock} の props。 */
+type MermaidCodeBlockProps = {
+  /** Mermaid のソース。 */
+  source: string;
+  /** ソースのコードブロック（図を描けるまで・描けなかったときの表示）。 */
+  fallback: ReactNode;
+};
+
+/**
+ * Mermaid のコードブロックの本文を、生成中かを Context から読んで図にする。
+ *
+ * @param props - Mermaid のソースと、ソースのコードブロックを持つ props
+ */
+function MermaidCodeBlock({ source, fallback }: MermaidCodeBlockProps) {
+  const isStreaming = use(StreamingContext);
+  return (
+    <MermaidDiagram
+      source={source}
+      isStreaming={isStreaming}
+      fallback={fallback}
+    />
+  );
+}
+
 /**
  * Markdown テキストを Nord テーマ準拠のスタイルで描画する。
  *
@@ -129,20 +172,25 @@ const components: Components = {
  * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
  * 委ねるため、XSS 耐性を保つ。コードブロックは `rehype-highlight` で言語別に色付けし
  * （色は `globals.css` の `.hljs-*`）、右上に言語名とコピーボタンを付ける。言語の指定が
- * 無いブロックは自動判定せず単色のまま描画する。
+ * 無いブロックは自動判定せず単色のまま描画する。`mermaid` のブロックは図として描く（生成中はソースのまま）。
  *
- * @param props - 描画する Markdown テキストを持つ props
+ * @param props - 描画する Markdown テキストと、生成中かを持つ props
  */
-export default function MarkdownContent({ content }: MarkdownContentProps) {
+export default function MarkdownContent({
+  content,
+  isStreaming = false,
+}: MarkdownContentProps) {
   return (
     <div className="leading-relaxed text-sm md:text-base prose-nord">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-        components={components}
-      >
-        {content}
-      </ReactMarkdown>
+      <StreamingContext value={isStreaming}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
+          components={components}
+        >
+          {content}
+        </ReactMarkdown>
+      </StreamingContext>
     </div>
   );
 }
