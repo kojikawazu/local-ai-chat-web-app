@@ -527,7 +527,7 @@ AI応答の個別メッセージをMarkdown形式でコピー・ダウンロー�
 ## フェーズ20: シンタックスハイライト・図表レンダリング
 
 コードブロックに言語別のシンタックスハイライトを適用し、
-Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 完了）、20-3 は #171（2026-10-25 着手）。20-4 は着手時に起票）
+Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 完了）、20-3 は #171（2026-10-25 完了）。20-4 は着手時に起票）
 
 現状: `react-markdown` でコードブロックは表示されるが全言語同一色（`text-nord-6`）。図表レンダリングは未対応。
 
@@ -966,3 +966,11 @@ UI コンポーネントに Atomic Design（atoms / molecules / organisms / temp
 - [x] 3. 共通の molecules（`components/common/molecules/` の `Modal`・`SearchBox`・`CopyButton`）の追加と、設定モーダル・役割ダイアログ・会話検索の置き換え。`useCopyFeedback` を `hooks/clipboard/`、`clipboard.ts` を `lib/shared/` へ移動。モーダルの開閉の E2E（`settings-modal.spec.ts`、役割ダイアログの背景のクリック）。段階 2 の `Switch` のつまみのはみ出しを修正
 - [x] 4. `src/features/` をなくした（部品は `components/features/<機能>/<階層>/`、フックは `hooks/<機能>/`、定数は `constants/<機能>/`。`SettingsModal` は `components/features/settings/organisms/`）。機能専用の molecules（`ToolCallIndicator`・`WebSearchResult`・`ConversationListItem`・`SearchResultItem`）の切り出し。`ChatLayout`（`components/common/templates/`）の作成。`page.tsx` のモデル一覧の取得を `hooks/chat/useModels.ts`、エージェントの設定の保存を `hooks/settings/useAgentSettings.ts` へ移し、組み立てだけにした。移行中の ESLint の設定を外した
 - [x] 各段階で、スクリーンショットの E2E と既存の E2E が通ること（段階 4: E2E 154 件通過・5 件は軽量モデルでスキップ、UT 310 件）
+
+## フェーズ35: ロードマップの優先順位の見直し
+
+Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに載っていない issue（#148・#149・#23・#24・#26〜#36）が増えたため、残りの実装順を決め直す。 — #174（2026-10-25 着手）
+
+- [x] 残りの優先順位を決める（Step 1: #173 → 20-4 → #23 → #24、Step 2: #6 → #148 → #149、Step 3: #31 → #28 → #30 → #29 → #33、後回し: #5・#17・#26・#32・#34・#35・#36）。画像添付（#6）は既定モデルが vision に対応したため Tier 4 から前に出した
+- [x] `docs/10-roadmap.md` を新しい順番に書き直す（完了した Tier 0〜3 は「完了した計画」にまとめた）
+- [x] RAG の重複（#17・#27）を #17 にまとめる（#27 の本文を #17 のコメントに転記し、#27 をクローズ）
