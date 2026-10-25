@@ -6,6 +6,10 @@ import {
   ChevronDown,
   FileDown,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Settings,
   UserRoundCog,
 } from 'lucide-react';
 import IconButton from '@/components/common/atoms/IconButton';
@@ -26,6 +30,18 @@ type HeaderProps = {
   isMenuOpen: boolean;
   /** メニューボタン押下時のコールバック。 */
   onOpenMenu: () => void;
+  /** デスクトップのサイドバーの id。切り替えボタンの `aria-controls` に使う（#24）。 */
+  sidebarId: string;
+  /** デスクトップのサイドバーを表示しているか。切り替えボタンの `aria-expanded` に反映する（#24）。 */
+  isSidebarOpen: boolean;
+  /** サイドバーの切り替えボタン押下時のコールバック（#24）。 */
+  onToggleSidebar: () => void;
+  /** 新しい会話のモードか。その間はヘッダーの「新しい会話」を押せない（サイドバーのボタンと同じ）。 */
+  isNewConversationMode: boolean;
+  /** 「新しい会話」押下時のコールバック。サイドバーを隠している間だけヘッダーに出す（#24）。 */
+  onNewConversation: () => void;
+  /** 「設定を開く」押下時のコールバック。サイドバーを隠している間だけヘッダーに出す（#24）。 */
+  onOpenSettings: () => void;
   /** 現在の会話の役割の表示名（「翻訳者」「カスタム」「役割なし」等。#10）。 */
   roleLabel: string;
   /** 役割ボタン押下時のコールバック（役割の編集ダイアログを開く）。 */
@@ -40,14 +56,15 @@ type HeaderProps = {
  * アプリ上部のヘッダー。接続状態の表示・会話の役割の表示と編集の入口・会話の書き出しの入口・モデル選択セレクトボックスを提供する。
  *
  * モバイル幅（md 未満）ではサイドバーが隠れるため、先頭にメニューボタンを出し、
- * 会話管理・設定を持つドロワーを開けるようにする。
+ * 会話管理・設定を持つドロワーを開けるようにする。デスクトップ幅では、先頭にサイドバーの切り替えボタンを出し、
+ * サイドバーを隠している間はサイドバーにしか無い「新しい会話」「設定を開く」を並べる（#24）。
  * モデル名の `:latest` サフィックスは表示上省略する。役割の名前はモバイル幅では隠し、
  * アイコンだけを出す（ボタン名で読み上げる）。
  * 幅が足りないときに縮むのはモデル選択だけにする（左側は縮めず、モデル名を省略表示する）。
  * 左側も縮めると `whitespace-nowrap` の「Node: Local」が隣の役割ボタンに重なり、
  * 幅指定の無い select は縮んだ親からはみ出すため。
  *
- * @param props - モデル一覧・選択中モデル・変更コールバック・メニューの開閉状態・役割の表示名と編集の入口・書き出しの入口を持つ props
+ * @param props - モデル一覧・選択中モデル・変更コールバック・メニューとサイドバーの開閉状態・役割の表示名と編集の入口・書き出しの入口を持つ props
  */
 export default function Header({
   models,
@@ -56,6 +73,12 @@ export default function Header({
   menuId,
   isMenuOpen,
   onOpenMenu,
+  sidebarId,
+  isSidebarOpen,
+  onToggleSidebar,
+  isNewConversationMode,
+  onNewConversation,
+  onOpenSettings,
   roleLabel,
   onOpenRole,
   canExport,
@@ -77,6 +100,41 @@ export default function Header({
         >
           <Menu size={22} />
         </IconButton>
+        <div className="hidden md:flex items-center gap-1 -ml-2">
+          <IconButton
+            label="サイドバー"
+            tone="default"
+            onClick={onToggleSidebar}
+            aria-expanded={isSidebarOpen}
+            aria-controls={sidebarId}
+          >
+            {isSidebarOpen ? (
+              <PanelLeftClose size={20} />
+            ) : (
+              <PanelLeftOpen size={20} />
+            )}
+          </IconButton>
+          {!isSidebarOpen && (
+            <>
+              <IconButton
+                label="新しい会話"
+                tone="default"
+                onClick={onNewConversation}
+                disabled={isNewConversationMode}
+              >
+                <Plus size={20} />
+              </IconButton>
+              <IconButton
+                label="設定を開く"
+                tone="default"
+                onClick={onOpenSettings}
+                aria-haspopup="dialog"
+              >
+                <Settings size={20} />
+              </IconButton>
+            </>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 min-w-0">
           <StatusDot tone="green" size="md" />

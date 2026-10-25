@@ -25,7 +25,7 @@ UI コンポーネントは **Atomic Design**（atoms / molecules / organisms / 
 |---|---|
 | `hooks/` | カスタムフック（例: `hooks/chat/useChat.ts`・`hooks/sidebar/useConversations.ts`・`hooks/theme/useTheme.ts`） |
 | `constants/` | 2 ファイル以上から使う定数（例: `constants/chat/toolLabels.ts`） |
-| `lib/` | ユーティリティ・外部連携（`agent/`・`llm/`・`chat/`・`conversation/`・`server/`・`shared/`） |
+| `lib/` | ユーティリティ・外部連携（`agent/`・`llm/`・`chat/`・`conversation/`・`sidebar/`・`server/`・`shared/`） |
 | `types/` | 2 ファイル以上から使う型（`agent/`・`chat/`・`conversation/`・`theme/`） |
 
 **`hooks/`・`lib/`・`types/`・`constants/` の中は、機能ごとのディレクトリに分ける**（`src/<層>/<機能>/<ファイル>`。#160）。直下にファイルを置かない。新しいファイルは、使う機能のディレクトリに置き、無ければ作る。`components/` だけは上の Atomic Design の構成（`common/<階層>/` と `features/<機能>/<階層>/`）に従う。

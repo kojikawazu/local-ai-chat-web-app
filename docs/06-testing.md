@@ -382,13 +382,14 @@ front/tests/
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果を含む）
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
-│   ├── diagram.test.ts           # 図の種類の判定（mermaid / plantuml / puml）・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て・PlantUML の API の応答の解釈
+│   ├── diagram.test.ts           # 図の種類の判定（mermaid / plantuml / puml）・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て・PlantUML の API の応答の解釈・拡大の倍率の段階・保存の背景・PNG の大きさ（#176）
 │   ├── plantuml.test.ts          # PlantUML のエラーの理由と行番号（0 始まり→1 始まり）からメッセージを作る処理
 │   ├── export.test.ts            # 書き出しのファイル名（置き換え・切り詰め・絵文字）と、会話全体の Markdown / JSON の形
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
 │   ├── current-date.test.ts      # システムプロンプトに足す現在の日時（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン）
 │   ├── chat-state.test.ts        # 会話ごとのチャット状態（移す・残す・読み込みの反映・生成中の会話の一覧・捨てる）
 │   ├── search.test.ts            # 会話検索のクエリの検証・キーワードの分解・抜粋の切り出し・強調の分割・LIKE のエスケープ
+│   ├── sidebar-visibility.test.ts # サイドバーの表示状態の保存値の解釈（open / closed / 不正な値 / 未保存）（#24）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
@@ -426,7 +427,7 @@ front/tests/
     ├── conversation-switch.spec.ts # 生成中の会話の切り替え（応答が届き続ける・切り替え先の操作・途中で戻る・新規会話の最初の送信・サイドバーの印・削除で停止して保存しない・裏のエラー）
     ├── regenerate.spec.ts        # 応答の再生成（置き換えと永続化・最後の応答のみ・本文前の停止と生成失敗で旧応答へ復元・生成中は無効・置き換えの保存失敗と再試行）
     ├── search.spec.ts            # 会話検索（本文での一致と強調・AND・0 件・× と Escape・さらに表示・検索の失敗）
-    ├── sidebar.spec.ts           # サイドバー操作テスト
+    ├── sidebar.spec.ts           # サイドバー操作テスト・表示の切り替え（隠す・戻す・保存・不正な保存値・モバイルへの非影響・localStorage の例外の注入）
     ├── conversation.spec.ts      # 会話管理テスト（CRUD・永続化）
     ├── security.spec.ts          # セキュリティテスト（XSS・文字数制限）
     ├── responsive.spec.ts        # レスポンシブ・レイアウトテスト

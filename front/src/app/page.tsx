@@ -17,6 +17,7 @@ import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
+import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
 import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
@@ -29,7 +30,8 @@ import { getRoleLabel } from '@/lib/chat/system-prompt';
  * プロンプトの UI 設定を束ね、各機能フックと子コンポーネントへ受け渡す。
  * 会話の役割は会話ごとに DB に持つ。会話を作る前（新規会話）に選んだ役割は下書きとして持ち、
  * 最初の送信で会話と同時に保存する。
- * モデル一覧は {@link useModels}、ツール使用の有効状態とプロンプトプリセットの永続化は {@link useAgentSettings} が持つ。
+ * モデル一覧は {@link useModels}、ツール使用の有効状態とプロンプトプリセットの永続化は {@link useAgentSettings}、
+ * デスクトップのサイドバーの表示・非表示（#24）は {@link useSidebarVisibility} が持つ。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -42,6 +44,9 @@ export default function Home() {
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
   const menuId = useId();
+  // ヘッダーのサイドバーの切り替えボタン（aria-controls）とデスクトップのサイドバー（id）を結ぶ id
+  const sidebarId = useId();
+  const sidebar = useSidebarVisibility();
   const {
     enableTools,
     agentPromptPresetId,
@@ -170,7 +175,14 @@ export default function Home() {
 
   return (
     <ChatLayout
-      sidebar={<Sidebar {...sidebarProps} />}
+      sidebar={
+        <Sidebar
+          id={sidebarId}
+          isOpen={sidebar.isOpen}
+          animate={sidebar.isReady}
+          {...sidebarProps}
+        />
+      }
       drawer={
         <SidebarDrawer
           id={menuId}
@@ -187,6 +199,12 @@ export default function Home() {
           menuId={menuId}
           isMenuOpen={isMenuOpen}
           onOpenMenu={() => setIsMenuOpen(true)}
+          sidebarId={sidebarId}
+          isSidebarOpen={sidebar.isOpen}
+          onToggleSidebar={sidebar.toggle}
+          isNewConversationMode={isNewConversationMode}
+          onNewConversation={handleNewConversation}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           roleLabel={getRoleLabel(systemPrompt)}
           onOpenRole={() => setIsRoleDialogOpen(true)}
           canExport={canExport}
