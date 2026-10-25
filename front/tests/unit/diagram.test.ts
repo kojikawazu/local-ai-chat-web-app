@@ -1,16 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildMermaidThemeVariables,
-  isMermaidLanguage,
+  getDiagramKind,
   svgToDataUri,
   toMermaidId,
+  toPlantUmlDiagramState,
   withIntrinsicSize,
 } from '@/lib/chat/diagram';
 
 /**
- * `lib/chat/diagram` の UT（#169）。
- * Mermaid の図を `<img>` で表示するための、言語の判定・要素 ID・data: URI・SVG の大きさ・
- * テーマの色の組み立てを確かめる。純関数のため mock は使わない（CSS 変数の読み取りは表を渡す）。
+ * `lib/chat/diagram` の UT（#169・#171）。
+ * 図を `<img>` で表示するための、図の種類の判定・要素 ID・data: URI・SVG の大きさ・
+ * テーマの色の組み立てと、PlantUML の API の応答の解釈を確かめる。純関数のため mock は使わない（CSS 変数の読み取りは表を渡す）。
  */
 
 /** data: URI の接頭辞（`svgToDataUri` の出力の先頭） */
@@ -30,29 +31,39 @@ function decodeDataUri(uri: string): string {
 const MERMAID_SVG =
   '<svg id="mermaid-r1" width="100%" xmlns="http://www.w3.org/2000/svg" class="flowchart" style="max-width: 120.5px;" viewBox="0 0 120.5 300" role="graphics-document document"><g><text>A</text></g></svg>';
 
-describe('isMermaidLanguage', () => {
+describe('getDiagramKind', () => {
   describe('正常系', () => {
-    it('mermaid を Mermaid と判定する', () => {
-      expect(isMermaidLanguage('mermaid')).toBe(true);
+    it('mermaid は Mermaid、plantuml・puml は PlantUML と判定する', () => {
+      expect(getDiagramKind('mermaid')).toBe('mermaid');
+      expect(getDiagramKind('plantuml')).toBe('plantuml');
+      expect(getDiagramKind('puml')).toBe('plantuml');
     });
   });
 
   describe('準正常系', () => {
-    it('大文字が混ざっても Mermaid と判定する', () => {
-      expect(isMermaidLanguage('Mermaid')).toBe(true);
-      expect(isMermaidLanguage('MERMAID')).toBe(true);
+    it('大文字が混ざっても判定する', () => {
+      expect(getDiagramKind('Mermaid')).toBe('mermaid');
+      expect(getDiagramKind('PlantUML')).toBe('plantuml');
+      expect(getDiagramKind('PUML')).toBe('plantuml');
     });
 
-    it('別の言語は Mermaid と判定しない', () => {
-      expect(isMermaidLanguage('plantuml')).toBe(false);
-      expect(isMermaidLanguage('mermaidjs')).toBe(false);
+    it('図ではない言語・似た名前は判定しない', () => {
+      expect(getDiagramKind('typescript')).toBeNull();
+      expect(getDiagramKind('mermaidjs')).toBeNull();
+      expect(getDiagramKind('uml')).toBeNull();
     });
   });
 
   describe('異常系', () => {
-    it('言語の指定が無い（null）・空文字は Mermaid と判定しない', () => {
-      expect(isMermaidLanguage(null)).toBe(false);
-      expect(isMermaidLanguage('')).toBe(false);
+    it('言語の指定が無い（null）・空文字は判定しない', () => {
+      expect(getDiagramKind(null)).toBeNull();
+      expect(getDiagramKind('')).toBeNull();
+    });
+
+    it('オブジェクトが継承するプロパティ名を図の種類と取り違えない', () => {
+      expect(getDiagramKind('constructor')).toBeNull();
+      expect(getDiagramKind('toString')).toBeNull();
+      expect(getDiagramKind('__proto__')).toBeNull();
     });
   });
 });
@@ -205,6 +216,42 @@ describe('buildMermaidThemeVariables', () => {
       expect(variables).toEqual({
         background: '#000000',
         noteTextColor: '#000000',
+      });
+    });
+  });
+});
+
+describe('toPlantUmlDiagramState', () => {
+  describe('正常系', () => {
+    it('成功の svg を data: URI にする', () => {
+      const svg = '<svg viewBox="0 0 1 1"><text>A</text></svg>';
+      const state = toPlantUmlDiagramState(true, { svg });
+      expect(state).toEqual({ status: 'rendered', src: svgToDataUri(svg) });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('失敗の error をそのまま理由にする', () => {
+      expect(
+        toPlantUmlDiagramState(false, { error: 'Syntax Error?（2 行目）' })
+      ).toEqual({ status: 'error', error: 'Syntax Error?（2 行目）' });
+    });
+  });
+
+  describe('異常系', () => {
+    it.each([
+      ['JSON でない（null）', true, null],
+      ['成功なのに svg が無い', true, {}],
+      ['成功なのに svg が空', true, { svg: '' }],
+      ['成功なのに svg が文字列でない', true, { svg: 1 }],
+      ['失敗なのに error が無い', false, {}],
+      ['失敗なのに error が文字列でない', false, { error: ['x'] }],
+      ['失敗なのに svg がある', false, { svg: '<svg/>' }],
+      ['配列', true, ['<svg/>']],
+    ])('%sは想定外の応答として扱う', (_label, ok, json) => {
+      expect(toPlantUmlDiagramState(ok, json)).toEqual({
+        status: 'error',
+        error: 'PlantUML の図を受け取れませんでした',
       });
     });
   });

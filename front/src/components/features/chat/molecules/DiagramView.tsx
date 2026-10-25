@@ -1,34 +1,32 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useMermaidDiagram } from '@/hooks/chat/useMermaidDiagram';
+import type { DiagramState } from '@/types/chat/diagram';
 
-/** {@link MermaidDiagram} の props。 */
-type MermaidDiagramProps = {
-  /** Mermaid のソース（コードブロックの本文）。 */
-  source: string;
-  /** 応答の生成中か。生成中は描かず、`fallback` を表示する。 */
-  isStreaming: boolean;
+/** {@link DiagramView} の props。 */
+type DiagramViewProps = {
+  /** 図の描画の状態（描画のフックの戻り値）。 */
+  diagram: DiagramState;
+  /** 図の `<img>` の代替テキスト（例: `Mermaid の図`）。 */
+  alt: string;
   /** 図を描けるまで・描けなかったときに表示する、ソースのコードブロック（`pre`）。 */
   fallback: ReactNode;
 };
 
 /**
- * Mermaid のソースを図として表示する（#169）。
+ * 描画の状態に応じて、図かソースを表示する（#169・#171）。
  *
  * 図は SVG を data: URI にした `<img>` で表示する。DOM に SVG を直接入れないため、ラベルに
- * スクリプトが紛れても実行されない。生成中・描画中はソースを表示し、描けなかったときは
- * ソースの下に mermaid のメッセージを添える。
+ * スクリプトが紛れても実行されない。描画中はソースを表示し、描けなかったときはソースの下に理由を添える。
+ * 描画（フック）は呼び出し側の organisms が持ち、この部品は表示だけを受け持つ（`docs/12` の階層の判断基準）。
  *
- * @param props - Mermaid のソース・生成中か・ソースの表示を持つ props
+ * @param props - 描画の状態・代替テキスト・ソースの表示を持つ props
  */
-export default function MermaidDiagram({
-  source,
-  isStreaming,
+export default function DiagramView({
+  diagram,
+  alt,
   fallback,
-}: MermaidDiagramProps) {
-  const diagram = useMermaidDiagram(source, !isStreaming);
-
+}: DiagramViewProps) {
   if (diagram.status === 'rendered') {
     return (
       <div className="p-4 overflow-x-auto flex justify-center bg-nord-0">
@@ -36,8 +34,8 @@ export default function MermaidDiagram({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={diagram.src}
-          alt="Mermaid の図"
-          data-testid="mermaid-diagram"
+          alt={alt}
+          data-testid="diagram-image"
           className="max-w-full h-auto"
         />
       </div>
@@ -49,7 +47,7 @@ export default function MermaidDiagram({
       {fallback}
       {diagram.status === 'error' && (
         <p
-          data-testid="mermaid-error"
+          data-testid="diagram-error"
           className="px-4 py-2 border-t border-nord-3 text-xs text-nord-aurora-red whitespace-pre-wrap break-words"
         >
           図を描けませんでした: {diagram.error}

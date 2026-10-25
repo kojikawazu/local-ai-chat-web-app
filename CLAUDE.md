@@ -29,6 +29,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose。`web_search` ツールの検索エンジン） |
+| 図の描画 | mermaid（ブラウザ内）・PlantUML サーバー（Docker Compose。`PLANTUML_SECURITY_PROFILE=SANDBOX`） |
 | ORM | Prisma 7（クライアント出力先: `src/generated/prisma/`） |
 | ユニットテスト | Vitest（純ロジック対象） |
 | インテグレーションテスト | Vitest + Testcontainers（実PostgreSQL） |
@@ -80,7 +81,7 @@ E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、
 ### DB関連
 
 ```bash
-docker compose up -d                    # PostgreSQL・SearXNG起動（プロジェクトルートで実行）
+docker compose up -d                    # PostgreSQL・SearXNG・PlantUML起動（プロジェクトルートで実行）
 cd front && pnpm prisma migrate dev     # マイグレーション実行
 cd front && pnpm prisma studio          # Prisma Studio（DBブラウザ）
 cd front && pnpm prisma generate        # Prismaクライアント再生成
@@ -98,6 +99,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
+| `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 
 ## 開発手法
 
@@ -111,6 +113,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 ブラウザ → Next.js Route Handlers → Ollama API (localhost:11434)
                                   → Agent Loop → Tool Executor（ツール実行）→ SearXNG (Docker・Web検索)
                                   → Prisma ORM → PostgreSQL (Docker)
+                                  → PlantUML サーバー (Docker・図の描画)
 ```
 
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
@@ -136,6 +139,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可） |
 | PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成） |
 | POST | `/api/conversations/[id]/generate-title` | LLMで会話タイトル自動生成 |
+| POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -150,7 +154,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
-- **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）のコンテナ定義（プロジェクトルート）
+- **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）・PlantUML（図の描画）のコンテナ定義（プロジェクトルート）
 - **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化・Web 検索のエンジンの追加等。`docker-compose.yml` がマウントする）
 
 ### front/src/ ソースコード構成（層 → 機能）
@@ -161,27 +165,28 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/` — 会話CRUD
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
+  - `api/diagrams/plantuml/` — PlantUML の図の描画（PlantUML サーバーへ中継）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult, MermaidDiagram / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking）
+  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult, DiagramView / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
 - **`constants/`** — 定数（`chat/toolLabels.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useMermaidDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useMermaidDiagram,usePlantUmlDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, diagram.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
-  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 

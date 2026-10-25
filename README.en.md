@@ -46,6 +46,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |
 | Web search | SearXNG (Docker Compose) |
+| Diagrams | mermaid, PlantUML server (Docker Compose) |
 | ORM | Prisma 7 |
 | Testing | Vitest (unit) + Testcontainers (integration) + Playwright (E2E) |
 
@@ -59,7 +60,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 # 1. Pull an LLM model (a small model is recommended; the large default is ~48GB)
 ollama pull gemma3:4b
 
-# 2. Start PostgreSQL and SearXNG (web search) from the repo root
+# 2. Start PostgreSQL, SearXNG (web search) and PlantUML (diagrams) from the repo root
 docker compose up -d
 
 # 3. Set up the app (run inside front/)
@@ -82,6 +83,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `AGENT_MAX_TOOL_ROUNDS` | Max tool-calling rounds in agent mode | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | Tool execution timeout (ms) | `30000` |
 | `SEARXNG_URL` | SearXNG endpoint for web search (`web_search`) | `http://localhost:8888` |
+| `PLANTUML_URL` | PlantUML server endpoint for PlantUML diagrams | `http://localhost:8889` |
 
 ## Commands
 

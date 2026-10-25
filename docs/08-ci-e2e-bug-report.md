@@ -1,6 +1,6 @@
 # CI E2Eテスト バグレポート
 
-> 最終更新: 2026-10-17
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -33,6 +33,7 @@ GitHub Actions での E2E テスト導入時に発生した不具合と対応を
 | テストフレームワーク | Playwright |
 | LLM | Ollama (`qwen2.5:0.5b`) |
 | DB | PostgreSQL 16 (service container) |
+| 図の描画 | PlantUML サーバー `plantuml/plantuml-server:jetty-v1.2026.8`（service container。`PLANTUML_SECURITY_PROFILE=SANDBOX`。#171） |
 
 ---
 

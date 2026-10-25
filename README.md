@@ -47,6 +47,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | LLM | Ollama（ローカル実行） |
 | DB | PostgreSQL 16（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose） |
+| 図の描画 | mermaid・PlantUML サーバー（Docker Compose） |
 | ORM | Prisma 7 |
 | テスト | Vitest（UT）+ Testcontainers（IT）+ Playwright（E2E） |
 
@@ -60,7 +61,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 # 1. LLMモデルを取得（軽量モデル推奨。大型のデフォルトは約48GB）
 ollama pull gemma3:4b
 
-# 2. PostgreSQL と SearXNG（Web検索）を起動（プロジェクトルートで）
+# 2. PostgreSQL・SearXNG（Web検索）・PlantUML（図の描画）を起動（プロジェクトルートで）
 docker compose up -d
 
 # 3. アプリのセットアップ（front/ 内で実行）
@@ -83,6 +84,7 @@ pnpm dev                          # → http://localhost:3000
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントの最大ツール呼び出しラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
+| `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 
 ## コマンド一覧
 
@@ -117,7 +119,7 @@ make setup           # 初期セットアップ（DB起動→install→Prisma生
 make dev             # 開発サーバー起動
 make test            # UT + IT（Ollama不要）
 make test-e2e        # E2Eテスト（Ollama + PostgreSQL必須。要 ollama pull qwen2.5:0.5b）
-make db-up           # PostgreSQL・SearXNG 起動
+make db-up           # PostgreSQL・SearXNG・PlantUML 起動
 make db-migrate      # マイグレーション実行
 ```
 
@@ -128,6 +130,7 @@ make db-migrate      # マイグレーション実行
                                   → Agent Loop → Tool Executor（日時/計算/Web検索/URL取得）
                                                    Web検索 → SearXNG (Docker)
                                   → Prisma ORM → PostgreSQL (Docker)
+                                  → PlantUML サーバー (Docker・図の描画)
 ```
 
 - フロントエンドからOllamaへの直接通信はしない（Route Handlers経由）

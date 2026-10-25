@@ -5,6 +5,7 @@ import {
   toMermaidId,
   withIntrinsicSize,
 } from '@/lib/chat/diagram';
+import type { DiagramState } from '@/types/chat/diagram';
 
 /**
  * 図の文字のフォント。mermaid はページの中で文字の幅を測って枠の大きさを決めるが、`<img>` の中では
@@ -15,14 +16,8 @@ const DIAGRAM_FONT_FAMILY = 'Arial, Helvetica, sans-serif';
 /** テーマを表す `<html>` の属性（`useTheme` が付け外しする） */
 const THEME_ATTRIBUTE = 'data-theme';
 
-/** 図の描画の状態。`idle` はソースを表示する（生成中・空・描画待ち） */
-type MermaidDiagramState =
-  | { status: 'idle' }
-  | { status: 'rendered'; src: string }
-  | { status: 'error'; error: string };
-
 /** 描画の結果と、それを描いたときのソース（ソースが変わったら古い結果を使わないため） */
-type RenderResult = MermaidDiagramState & { source: string };
+type RenderResult = DiagramState & { source: string };
 
 /**
  * `<html>` の `data-theme` の変化を購読する（`useSyncExternalStore` 用）。
@@ -71,7 +66,7 @@ function getServerTheme(): string {
 export function useMermaidDiagram(
   source: string,
   enabled: boolean
-): MermaidDiagramState {
+): DiagramState {
   const id = toMermaidId(useId());
   const theme = useSyncExternalStore(subscribeTheme, getTheme, getServerTheme);
   const [result, setResult] = useState<RenderResult | null>(null);

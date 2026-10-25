@@ -32,13 +32,15 @@
 Next.js Route Handlers (API層)
     ├──→ Prisma ORM ──→ PostgreSQL (Docker)
     ├──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
-    └──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
+    ├──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
+    └──→ /api/diagrams/plantuml ──→ PlantUML サーバー (Docker・127.0.0.1:8889。SANDBOX)
 ```
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
+- 図は、Mermaid はブラウザの中で描き、PlantUML は Route Handler 経由でローカルの PlantUML サーバーに描かせる（#169・#171）。どちらも SVG を data: URI の `<img>` で表示する。PlantUML サーバーは外部の URL・ファイルの読み込みを止めた設定（`PLANTUML_SECURITY_PROFILE=SANDBOX`）で動かす。
 
 ## ディレクトリ構成
 
@@ -73,7 +75,7 @@ local-ai-chat-web-app/
 │   ├── playwright.config.ts   #   Playwright設定
 │   ├── package.json
 │   └── pnpm-lock.yaml
-├── docker-compose.yml         # PostgreSQL・SearXNG のコンテナ定義
+├── docker-compose.yml         # PostgreSQL・SearXNG・PlantUML のコンテナ定義
 ├── searxng/settings.yml       # SearXNG の設定（JSON API の有効化・Web 検索のエンジンの追加等）
 ├── CLAUDE.md
 └── README.md
@@ -90,6 +92,8 @@ front/src/
 │   └── api/                   #   Route Handlers
 │       ├── chat/
 │       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可）
+│       ├── diagrams/plantuml/
+│       │   └── route.ts       #     PlantUML の図の描画（PlantUML サーバーへ中継。#171）
 │       ├── models/
 │       │   └── route.ts       #     利用可能モデル一覧取得
 │       ├── tools/
@@ -117,7 +121,7 @@ front/src/
 │       │   ├── molecules/
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
-│       │   │   └── MermaidDiagram.tsx    # Mermaid のソースを図（data: URI の img）で表示。描けなければソースとエラー（#169）
+│       │   │   └── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示（#169・#171）
 │       │   └── organisms/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
@@ -149,7 +153,8 @@ front/src/
 │   ├── chat/
 │   │   ├── useChat.ts         #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
 │   │   ├── useModels.ts       #     利用可能なモデル一覧の取得と選択中のモデル
-│   │   └── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
+│   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
+│   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
 │   ├── clipboard/
 │   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
 │   ├── settings/
@@ -191,7 +196,8 @@ front/src/
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
-│   │   └── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
+│   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
+│   │   └── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
@@ -201,7 +207,8 @@ front/src/
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
     ├── chat/
-    │   └── message.ts         #     Message・MessageSaveState・HistoryEntry
+    │   ├── message.ts         #     Message・MessageSaveState・HistoryEntry
+    │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
     └── theme/
@@ -225,12 +232,12 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
-    │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済みを検証
+    │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
-    ├── diagram.spec.ts            # Mermaid の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行）
+    ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
@@ -362,6 +369,7 @@ model Message {
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
+| `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 
 ## 状態管理
 

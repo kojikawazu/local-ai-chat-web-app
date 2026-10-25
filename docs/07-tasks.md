@@ -527,7 +527,7 @@ AI応答の個別メッセージをMarkdown形式でコピー・ダウンロー�
 ## フェーズ20: シンタックスハイライト・図表レンダリング
 
 コードブロックに言語別のシンタックスハイライトを適用し、
-Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 着手）。20-3 以降は着手時に起票）
+Mermaid / PlantUML のコードブロックを図表としてレンダリングする。 — 親 #13（サブ issue: 20-1 は #144、20-2 は #169（2026-10-25 完了）、20-3 は #171（2026-10-25 着手）。20-4 は着手時に起票）
 
 現状: `react-markdown` でコードブロックは表示されるが全言語同一色（`text-nord-6`）。図表レンダリングは未対応。
 
@@ -550,12 +550,14 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 - [x] レンダリングエラー時のフォールバック表示（ソースコードをそのまま表示し、「図を描けませんでした」と mermaid のメッセージを添える）
 - [x] UT（`diagram.test.ts`。17 件）
 
-### 20-3: PlantUML図表レンダリング
+### 20-3: PlantUML図表レンダリング — #171
 
-- [ ] PlantUML レンダリング方式の選定（ローカルサーバー / WASM / Docker）
-- [ ] PlantUMLサーバーの導入（docker-compose.yml への追加等）
-- [ ] `language-plantuml` コードブロックの検出・図表レンダリング
-- [ ] レンダリングエラー時のフォールバック表示
+- [x] PlantUML レンダリング方式の選定（ローカルサーバー / WASM / Docker）→ Docker の公式 PlantUML サーバー（`jetty-v1.2026.8`）。理由は `docs/11`
+- [x] PlantUMLサーバーの導入（`docker-compose.yml` の `plantuml`・CI の E2E の `services:`。`PLANTUML_SECURITY_PROFILE=SANDBOX`・`127.0.0.1:8889`。`PLANTUML_URL`）
+- [x] `language-plantuml` コードブロックの検出・図表レンダリング（`plantuml`・`puml`。`POST /api/diagrams/plantuml` 経由で SVG を受け取り、data: URI の `<img>` で表示。生成中はソースのまま）
+- [x] レンダリングエラー時のフォールバック表示（ソース + PlantUML の理由と行番号。サーバーに繋がらないときは起動の案内）
+- [x] Mermaid の部品の階層の是正（フックを呼ぶ `MermaidDiagram`（molecules）を、表示だけの `DiagramView` と organisms のフック呼び出しに分けた）
+- [x] UT（`diagram.test.ts`・`plantuml.test.ts`・`request-body.test.ts`）・IT（`plantuml.test.ts`。13 件）
 
 ### 20-4: 図表の共通UI
 
@@ -566,13 +568,14 @@ Mermaid / PlantUML のコードブロックを図表としてレンダリング�
 ### 20-5: E2Eテスト
 
 - [x] シンタックスハイライトE2Eテスト作成（syntax-highlight.spec.ts: 正常系/準正常系/異常系）。UT は `code-block.test.ts`（言語名の取り出し・本文の連結）
-- [ ] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）。Mermaid の分（9 件）は #169 で作成済み。PlantUML の分は 20-3 で足す
+- [x] 図表レンダリングE2Eテスト作成（diagram.spec.ts: 正常系/準正常系/異常系）。Mermaid 9 件（#169）・PlantUML 6 件（#171）。E2E の開始前に PlantUML サーバーへの接続を確かめる
 
 ### 20-6: ドキュメント
 
 - [x] `docs/11-syntax-highlight-diagrams.md` 作成（シンタックスハイライト・図表レンダリング設計書）。20-1 の分を記載し、図表は未着手として節だけ置く
 - [x] 既存ドキュメント更新（20-1 の分: `CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/README.md`・`.claude/rules/frontend.md`・`security.md`・`documentation.md`）
 - [x] 既存ドキュメント更新（20-2 の分: `docs/11` の Mermaid の節・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/04`・`docs/05`・`docs/06`・`docs/12`・`.claude/rules/security.md`）
+- [x] 既存ドキュメント更新（20-3 の分: `docs/11` の PlantUML の節・`CLAUDE.md`・`README.md`・`README.en.md`・`docs/01`・`docs/02`・`docs/03`・`docs/04`・`docs/05`・`docs/06`・`docs/08`・`docs/12`・`manuals/setup-guide-macos.md`・`.claude/rules/`（`api.md`・`security.md`・`documentation.md`・`github-actions.md`）・`Makefile`）
 
 ## フェーズ21: エージェント機能（ツール呼び出し）
 

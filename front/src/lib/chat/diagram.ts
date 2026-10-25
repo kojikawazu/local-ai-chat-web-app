@@ -1,5 +1,15 @@
-/** Mermaid のコードフェンスの言語名（小文字で比べる） */
-const MERMAID_LANGUAGE = 'mermaid';
+import type { DiagramKind, DiagramState } from '@/types/chat/diagram';
+
+/** 図として描くコードフェンスの言語名（小文字で比べる）と、その種類 */
+const DIAGRAM_LANGUAGES: Record<string, DiagramKind> = {
+  mermaid: 'mermaid',
+  plantuml: 'plantuml',
+  puml: 'plantuml',
+};
+
+/** PlantUML の API が想定外の応答を返したときのメッセージ */
+const PLANTUML_UNEXPECTED_RESPONSE_ERROR =
+  'PlantUML の図を受け取れませんでした';
 
 /** mermaid の `render` に渡す SVG の要素 ID の接頭辞 */
 const MERMAID_ID_PREFIX = 'mermaid-';
@@ -26,13 +36,16 @@ const MERMAID_THEME_VARIABLES = {
 } as const;
 
 /**
- * コードフェンスの言語名が Mermaid か判定する（大文字小文字は区別しない）。
+ * コードフェンスの言語名から、図として描くブロックの種類を判定する（大文字小文字は区別しない）。
  *
  * @param language - `getCodeLanguage` が返した言語名。指定なしは `null`
- * @returns Mermaid の図として描くブロックなら `true`
+ * @returns `mermaid`、`plantuml`（`puml` も含む）のどちらか。図として描かないブロックは `null`
  */
-export function isMermaidLanguage(language: string | null): boolean {
-  return language?.toLowerCase() === MERMAID_LANGUAGE;
+export function getDiagramKind(language: string | null): DiagramKind | null {
+  if (!language) return null;
+  // Object.hasOwn で `constructor` 等の継承したプロパティ名を図の種類と取り違えない
+  const key = language.toLowerCase();
+  return Object.hasOwn(DIAGRAM_LANGUAGES, key) ? DIAGRAM_LANGUAGES[key] : null;
 }
 
 /**
@@ -112,4 +125,32 @@ export function buildMermaidThemeVariables(
     if (value) variables[key] = value;
   }
   return variables;
+}
+
+/**
+ * `POST /api/diagrams/plantuml` の応答を、図の描画の状態にする（#171）。
+ *
+ * 応答の型は信用しない。成功で `svg` が文字列なら data: URI にし、失敗で `error` が文字列ならそれを使う。
+ * それ以外（JSON でない・形が違う）は想定外の応答として扱う。
+ *
+ * @param ok - 応答が 2xx だったか
+ * @param json - 応答の本文を `JSON.parse` した値。JSON でなければ `null`
+ * @returns `rendered`（`src` は SVG の data: URI）か `error`
+ */
+export function toPlantUmlDiagramState(
+  ok: boolean,
+  json: unknown
+): DiagramState {
+  const body =
+    typeof json === 'object' && json !== null
+      ? // object であることは上で確認済み。各プロパティを unknown のまま取り出して下で検証するための型付け
+        (json as Record<string, unknown>)
+      : {};
+  if (ok && typeof body.svg === 'string' && body.svg) {
+    return { status: 'rendered', src: svgToDataUri(body.svg) };
+  }
+  if (!ok && typeof body.error === 'string' && body.error) {
+    return { status: 'error', error: body.error };
+  }
+  return { status: 'error', error: PLANTUML_UNEXPECTED_RESPONSE_ERROR };
 }

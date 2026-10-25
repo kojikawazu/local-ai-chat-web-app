@@ -8,15 +8,17 @@ import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
 import type { HastNode } from '@/lib/chat/code-block';
-import { isMermaidLanguage } from '@/lib/chat/diagram';
+import { getDiagramKind } from '@/lib/chat/diagram';
 import CopyButton from '@/components/common/molecules/CopyButton';
-import MermaidDiagram from '@/components/features/chat/molecules/MermaidDiagram';
+import DiagramView from '@/components/features/chat/molecules/DiagramView';
+import { useMermaidDiagram } from '@/hooks/chat/useMermaidDiagram';
+import { usePlantUmlDiagram } from '@/hooks/chat/usePlantUmlDiagram';
 
 /** {@link MarkdownContent} の props。 */
 interface MarkdownContentProps {
   /** 描画対象の Markdown テキスト。 */
   content: string;
-  /** 応答の生成中か。生成中は Mermaid の図を描かず、ソースのまま表示する（#169）。省略時は `false`。 */
+  /** 応答の生成中か。生成中は図（Mermaid・PlantUML）を描かず、ソースのまま表示する（#169・#171）。省略時は `false`。 */
   isStreaming?: boolean;
 }
 
@@ -33,6 +35,7 @@ const components: Components = {
     // remark はコードブロックの末尾に改行を 1 つ付けるため、コピー時は落とす
     const code = pre ? hastToText(pre).replace(/\n$/, '') : '';
     const language = pre ? getCodeLanguage(pre) : null;
+    const diagramKind = getDiagramKind(language);
     const body = (
       // 言語未指定のブロックの code はインライン用の見た目で描画されるため、ここで打ち消す
       <pre className="p-4 overflow-x-auto text-sm text-nord-6 [&_code]:p-0 [&_code]:border-0 [&_code]:rounded-none [&_code]:bg-transparent [&_code]:text-inherit">
@@ -51,8 +54,10 @@ const components: Components = {
             className="flex-row-reverse"
           />
         </div>
-        {isMermaidLanguage(language) ? (
+        {diagramKind === 'mermaid' ? (
           <MermaidCodeBlock source={code} fallback={body} />
+        ) : diagramKind === 'plantuml' ? (
+          <PlantUmlCodeBlock source={code} fallback={body} />
         ) : (
           body
         )}
@@ -141,27 +146,39 @@ const components: Components = {
   },
 };
 
-/** {@link MermaidCodeBlock} の props。 */
-type MermaidCodeBlockProps = {
-  /** Mermaid のソース。 */
+/** 図のコードブロック（{@link MermaidCodeBlock}・{@link PlantUmlCodeBlock}）の props。 */
+type DiagramCodeBlockProps = {
+  /** 図のソース。 */
   source: string;
   /** ソースのコードブロック（図を描けるまで・描けなかったときの表示）。 */
   fallback: ReactNode;
 };
 
 /**
- * Mermaid のコードブロックの本文を、生成中かを Context から読んで図にする。
+ * Mermaid のコードブロックの本文を、生成中かを Context から読んで図にする（#169）。
+ *
+ * 描画のフックは organisms に置き、表示は {@link DiagramView}（molecules）に任せる（`docs/12` の階層の判断基準）。
  *
  * @param props - Mermaid のソースと、ソースのコードブロックを持つ props
  */
-function MermaidCodeBlock({ source, fallback }: MermaidCodeBlockProps) {
+function MermaidCodeBlock({ source, fallback }: DiagramCodeBlockProps) {
   const isStreaming = use(StreamingContext);
+  const diagram = useMermaidDiagram(source, !isStreaming);
   return (
-    <MermaidDiagram
-      source={source}
-      isStreaming={isStreaming}
-      fallback={fallback}
-    />
+    <DiagramView diagram={diagram} alt="Mermaid の図" fallback={fallback} />
+  );
+}
+
+/**
+ * PlantUML のコードブロックの本文を、生成中かを Context から読んで図にする（#171）。
+ *
+ * @param props - PlantUML のソースと、ソースのコードブロックを持つ props
+ */
+function PlantUmlCodeBlock({ source, fallback }: DiagramCodeBlockProps) {
+  const isStreaming = use(StreamingContext);
+  const diagram = usePlantUmlDiagram(source, !isStreaming);
+  return (
+    <DiagramView diagram={diagram} alt="PlantUML の図" fallback={fallback} />
   );
 }
 
@@ -172,7 +189,7 @@ function MermaidCodeBlock({ source, fallback }: MermaidCodeBlockProps) {
  * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
  * 委ねるため、XSS 耐性を保つ。コードブロックは `rehype-highlight` で言語別に色付けし
  * （色は `globals.css` の `.hljs-*`）、右上に言語名とコピーボタンを付ける。言語の指定が
- * 無いブロックは自動判定せず単色のまま描画する。`mermaid` のブロックは図として描く（生成中はソースのまま）。
+ * 無いブロックは自動判定せず単色のまま描画する。`mermaid`・`plantuml` のブロックは図として描く（生成中はソースのまま）。
  *
  * @param props - 描画する Markdown テキストと、生成中かを持つ props
  */

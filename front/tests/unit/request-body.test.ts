@@ -3,6 +3,7 @@ import {
   parseChatBody,
   parseCreateConversationBody,
   parseGenerateTitleBody,
+  parsePlantUmlBody,
   parseReplaceMessageBody,
   parseSaveMessageBody,
   parseUpdateConversationBody,
@@ -11,6 +12,7 @@ import {
 import {
   MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
+  MAX_DIAGRAM_SOURCE_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
@@ -666,6 +668,55 @@ describe('parseGenerateTitleBody', () => {
       expect(
         errorOf(parseGenerateTitleBody({ message: 'やあ', model: 1 }))
       ).toBe('modelは文字列で指定してください');
+    });
+  });
+});
+
+describe('parsePlantUmlBody', () => {
+  describe('正常系', () => {
+    it('ソースを前後の空白・改行を含めて書かれたまま返す', () => {
+      const source = '\n@startuml\nA -> B\n@enduml\n';
+      expect(parsePlantUmlBody({ source })).toEqual({
+        ok: true,
+        value: { source },
+      });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('上限ちょうどの長さは受け付ける', () => {
+      const source = 'a'.repeat(MAX_DIAGRAM_SOURCE_LENGTH);
+      expect(parsePlantUmlBody({ source }).ok).toBe(true);
+    });
+
+    it('上限を 1 文字でも超えると失敗', () => {
+      const source = 'a'.repeat(MAX_DIAGRAM_SOURCE_LENGTH + 1);
+      expect(errorOf(parsePlantUmlBody({ source }))).toBe(
+        '図のソースは50,000文字以内で指定してください'
+      );
+    });
+
+    it('空白・改行だけのソースは失敗', () => {
+      expect(errorOf(parsePlantUmlBody({ source: ' \n\t ' }))).toBe(
+        '図のソースが空です'
+      );
+    });
+  });
+
+  describe('異常系', () => {
+    it.each(NON_OBJECT_BODIES)('ボディが%sなら失敗', (_label, body) => {
+      expect(parsePlantUmlBody(body).ok).toBe(false);
+    });
+
+    it.each([
+      ['未指定', {}],
+      ['null', { source: null }],
+      ['数値', { source: 1 }],
+      ['配列', { source: ['A -> B'] }],
+    ])('source が%sなら失敗', (_label, body) => {
+      expect(errorOf(parsePlantUmlBody(body))).toBe(
+        'sourceは文字列で指定してください'
+      );
     });
   });
 });

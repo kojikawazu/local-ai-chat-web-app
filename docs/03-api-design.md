@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ## 目次
 
@@ -17,9 +17,12 @@
   - [GET /api/models](#get-apimodels)
   - [GET /api/tools](#get-apitools)
   - [POST /api/conversations/[id]/generate-title](#post-apiconversationsidgenerate-title)
+  - [POST /api/diagrams/plantuml](#post-apidiagramsplantuml)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
+- [外部API（PlantUML サーバー）](#外部apiplantuml-サーバー)
+  - [POST /svg（PlantUML サーバー側）](#post-svgplantuml-サーバー側)
 
 ## 内部API（Next.js Route Handlers）
 
@@ -406,6 +409,37 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ---
 
+### POST /api/diagrams/plantuml
+
+応答の PlantUML のコードブロックを、ローカルの PlantUML サーバーで SVG にして返す（#171）。ブラウザから PlantUML サーバーへ直接つながず、ここを経由する。SVG はクライアントが data: URI の `<img>` で表示する。
+
+**リクエスト**
+
+```typescript
+{
+  source: string;   // PlantUML のソース（書かれたまま送る。@startuml が無ければ PlantUML サーバーが補う。上限 50,000 文字）
+}
+```
+
+**レスポンス**
+
+```typescript
+{
+  svg: string;      // PlantUML サーバーが返した SVG
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 描画成功 |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・`source` が文字列でない・空白だけ・上限 `MAX_DIAGRAM_SOURCE_LENGTH` 超過）、または PlantUML が描けなかった（構文の誤り・SANDBOX で止めた include 等）。後者の `error` は PlantUML の理由に 1 始まりの行番号を添える（例: `Syntax Error? (Assumed diagram type: sequence)（2 行目）`） |
+| 502 | PlantUML サーバーに繋がらない・10 秒で応答しない・想定外の応答（`error` に `docker compose up -d` での起動の案内を入れる） |
+| 499 | 応答前にクライアントが切断した（本文なし。`request.signal` で PlantUML への fetch も止める） |
+
+**備考**: 接続先は環境変数 `PLANTUML_URL`（既定 `http://localhost:8889`）。`lib/server/plantuml.ts` だけが読む。
+
+---
+
 ## 外部API（Ollama）
 
 ### POST /api/chat（Ollama側）
@@ -451,3 +485,20 @@ Ollamaで利用可能なモデル一覧を取得する。
   ]
 }
 ```
+
+---
+
+## 外部API（PlantUML サーバー）
+
+### POST /svg（PlantUML サーバー側）
+
+**接続先**: `${PLANTUML_URL}/svg`（公式イメージ `plantuml/plantuml-server`。`docker-compose.yml` の `plantuml` サービス）
+
+本文に PlantUML のソースをそのまま（`text/plain`）送ると、SVG（`image/svg+xml`）を返す。`/api/diagrams/plantuml` Route Handler から呼び出される。
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 描画成功。本文が SVG |
+| 400 | 描けなかった。理由を `X-PlantUML-Diagram-Error`、行番号（0 始まり）を `X-PlantUML-Diagram-Error-Line` に入れる（本文はエラーを描いた SVG） |
+
+**備考**: コンテナは `PLANTUML_SECURITY_PROFILE=SANDBOX` で動かす。外部の URL・ファイルの `!include` は「Cannot open URL」「cannot include」の 400 になる（同梱の標準ライブラリは使える）。理由は `docs/11-syntax-highlight-diagrams.md` の「セキュリティ（SANDBOX）」。
