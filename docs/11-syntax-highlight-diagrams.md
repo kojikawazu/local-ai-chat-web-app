@@ -2,7 +2,7 @@
 
 > 最終更新: 2026-10-25
 
-AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 / #144）、Mermaid / PlantUML を図表として描画する（フェーズ20-2 / #169。20-3・20-4 は未着手）ための設計。親 issue は #13。
+AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 / #144）、Mermaid / PlantUML を図表として描画する（フェーズ20-2 / #169・20-3 / #171。20-4 は未着手）ための設計。親 issue は #13。
 
 ## 目次
 
@@ -16,6 +16,7 @@ AI 応答のコードブロックを言語別に色付けし（フェーズ20-1 
   - [テスト](#テスト)
 - [図表レンダリング（20-2〜20-4）](#図表レンダリング20-220-4)
   - [Mermaid（20-2）](#mermaid20-2)
+  - [PlantUML（20-3）](#plantuml20-3)
 
 ## シンタックスハイライト（20-1）
 
@@ -98,7 +99,7 @@ Markdown（応答の本文）
 
 ## 図表レンダリング（20-2〜20-4）
 
-Mermaid（20-2 / #169）・PlantUML（20-3）・図表の共通 UI（20-4）は、それぞれ #13 のサブ issue として起票してから設計する。方式の候補は #13 の「技術的な検討事項」を参照。PlantUML と 20-4 は未着手。
+Mermaid（20-2 / #169）・PlantUML（20-3）・図表の共通 UI（20-4）は、それぞれ #13 のサブ issue として起票してから設計する。方式の候補は #13 の「技術的な検討事項」を参照。20-4 は未着手。
 
 ### Mermaid（20-2）
 
@@ -117,10 +118,10 @@ Mermaid（20-2 / #169）・PlantUML（20-3）・図表の共通 UI（20-4）は�
 
 ```
 components.pre（MarkdownContent.tsx）
-  └ getCodeLanguage(pre) が mermaid か（isMermaidLanguage。大文字小文字は区別しない）
-      ├ 違う → 今までどおりのコードブロック
-      └ そう → MermaidDiagram（components/features/chat/molecules/）
-            └ useMermaidDiagram（hooks/chat/）
+  └ getDiagramKind(言語名) が 'mermaid' か（大文字小文字は区別しない）
+      ├ 違う → 今までどおりのコードブロック（PlantUML は下の節）
+      └ そう → MermaidCodeBlock（organisms。MarkdownContent.tsx 内）
+            └ useMermaidDiagram（hooks/chat/）→ 状態を DiagramView（molecules）に渡す
                  1. 生成中なら何もしない（ソースのまま表示）
                  2. import('mermaid') → initialize（テーマの色・securityLevel 等）
                  3. mermaid.render(id, ソース) → SVG の文字列
@@ -208,13 +209,14 @@ components.pre（MarkdownContent.tsx）
 
 | ファイル | 内容 |
 |---|---|
-| `lib/chat/diagram.ts`（新規） | 純粋な関数: `isMermaidLanguage`・`toMermaidId`・`svgToDataUri`・`withIntrinsicSize`・`buildMermaidThemeVariables` |
-| `hooks/chat/useMermaidDiagram.ts`（新規） | mermaid の読み込み・初期化・描画・テーマの追従。`{ status: 'idle' \| 'rendered' \| 'error', src?, error? }` を返す |
-| `components/features/chat/molecules/MermaidDiagram.tsx`（新規） | 図またはソース・エラーの表示 |
-| `components/features/chat/organisms/MarkdownContent.tsx` | `pre` で Mermaid を分岐。`isStreaming` を足す |
+| `lib/chat/diagram.ts` | 純粋な関数: `getDiagramKind`・`toMermaidId`・`svgToDataUri`・`withIntrinsicSize`・`buildMermaidThemeVariables`（PlantUML の `toPlantUmlDiagramState` も同居） |
+| `types/chat/diagram.ts` | `DiagramKind`・`DiagramState`（`idle` / `rendered` / `error`） |
+| `hooks/chat/useMermaidDiagram.ts` | mermaid の読み込み・初期化・描画・テーマの追従。`DiagramState` を返す |
+| `components/features/chat/molecules/DiagramView.tsx` | 状態に応じて図またはソース・エラーを表示（フックを呼ばない） |
+| `components/features/chat/organisms/MarkdownContent.tsx` | `pre` で図の種類を分岐し、`MermaidCodeBlock` がフックを呼ぶ。`isStreaming` を Context で届ける |
 | `components/features/chat/organisms/ChatWindow.tsx` | 生成中の応答に `isStreaming` を渡す |
 
-`MermaidDiagram` は `MarkdownContent`（organisms）からしか使わず、ドメイン（Markdown の応答）を知るため、機能の molecules に置く。
+#169 の時点では、フックを呼ぶ `MermaidDiagram` を molecules に置いていた。molecules はドメインのフックを持たない（`docs/12`）ため、#171 で表示だけの `DiagramView` に改名し、フックの呼び出しを organisms へ移した（下の「Mermaid の部品の階層の是正」）。
 
 #### Mermaid のセキュリティ
 
@@ -227,9 +229,118 @@ components.pre（MarkdownContent.tsx）
 
 | 層 | ファイル | 内容 |
 |---|---|---|
-| UT | `tests/unit/diagram.test.ts` | `isMermaidLanguage`（大文字・別の言語・`null`）、`toMermaidId`（`useId` の記号を落とす・空にならない）、`svgToDataUri`（`#`・`%`・日本語・改行を含む SVG を `decodeURIComponent` で戻せる）、`withIntrinsicSize`（`viewBox` の大きさの書き込み・既存の `width` / `height` の置き換え・`viewBox` が無い／壊れている SVG はそのまま）、`buildMermaidThemeVariables`（変数の対応・値の前後の空白・未定義の変数） |
+| UT | `tests/unit/diagram.test.ts` | `getDiagramKind`（大文字・別の言語・`null`・継承したプロパティ名）、`toMermaidId`（`useId` の記号を落とす・空にならない）、`svgToDataUri`（`#`・`%`・日本語・改行を含む SVG を `decodeURIComponent` で戻せる）、`withIntrinsicSize`（`viewBox` の大きさの書き込み・既存の `width` / `height` の置き換え・`viewBox` が無い／壊れている SVG はそのまま）、`buildMermaidThemeVariables`（変数の対応・値の前後の空白・未定義の変数） |
 | E2E | `tests/e2e/diagram.spec.ts` | 正常系: 保存済みの応答の図が `<img>` で表示され、SVG にノードの文字が入る／ソースをコピーできる／図が 2 つあっても両方描ける／テーマを切り替えると色が変わる／ストリーミングの応答（`page.route` で `/api/chat` を差し替え）が終わると図になる。準正常系: 構文の誤り→ソースとエラーの表示／空のブロック／`Mermaid`（大文字）。異常系: ラベルの `<img onerror>`・`click` 文が実行されない／図の失敗が他のメッセージの表示を壊さない |
 
 - 応答は 20-1 と同じく API で投入する（モデルが Mermaid を出すかは決まらないため。軽量モデル・CI でも動く）。
 - ストリーミングの応答だけは `page.route` で `/api/chat` の応答を差し替える（通信の境界の障害注入。`.claude/rules/testing.md`）。
 - 図の画素を比べるスクリーンショットは足さない（フォントの描画が環境で変わり、基準画像が安定しないため）。色の追従は `<img src>` の SVG に入ったテーマの色の値で確かめる。
+
+### PlantUML（20-3）
+
+#### 範囲
+
+| 含める | 含めない（別の段階） |
+|---|---|
+| ` ```plantuml ` / ` ```puml ` のブロックを図として描く・PlantUML サーバーの導入（`docker-compose.yml`・CI）・描けないとき／サーバーに繋がらないときはソースを表示する・Mermaid の部品の階層の是正（下記） | ズーム・PNG/SVG での保存・ソースとの切り替え（20-4） |
+
+#### 描画方式の選定
+
+| 観点 | Docker の PlantUML サーバー（採用） | WASM（ブラウザ内） | 外部の公開サーバー |
+|---|---|---|---|
+| ローカル完結 | する | する | しない（応答の内容を外へ送る） |
+| 既存の構成との整合 | SearXNG と同じく `docker-compose.yml` のサービスにできる | 新しい仕組み（大きな WASM の配布） | — |
+| 成熟度 | 公式イメージ・公式の HTTP API | 版が古く、日本語・図の種類の対応に懸念 | — |
+| 費用 | Java のコンテナ（常駐で約 340MB。実測） | ブラウザで重い初回読み込み | — |
+
+公式イメージ `plantuml/plantuml-server` の **`jetty-v1.2026.8`** に固定する（公開から 2 週間以上たった版。2026-10-25 時点の最新 v1.2026.9 は 2026-10-18 公開のため見送る）。
+
+#### セキュリティ（SANDBOX）
+
+PlantUML の既定の設定では、`!include https://…` で**サーバーが外部の URL を取りに行く**（実測: 取得して描画に成功した）。応答の本文はモデルが書いたもので、Web 検索・URL 取得の結果に紛れた指示から作られることもある。そのため、応答に含まれる URL を PlantUML サーバーに取りに行かせない。
+
+- コンテナに **`PLANTUML_SECURITY_PROFILE=SANDBOX`** を渡す。実測で次を確かめた:
+
+| 書いたもの | 既定 | SANDBOX |
+|---|---|---|
+| `!include https://…`（外部の URL） | 取りに行き、描画できる | 「Cannot open URL」で失敗 |
+| `!include /etc/passwd`（コンテナ内のファイル） | 「cannot include」で失敗 | 失敗 |
+| `%getenv("HOME")`（環境変数） | 空 | 空 |
+| `!include <C4/C4_Container>`（同梱の標準ライブラリ） | 使える | 使える |
+
+- ポートは `127.0.0.1` だけに公開する（`.claude/rules/security.md`「ローカルの補助サービス」）。
+- 返ってきた SVG は Mermaid と同じく `data:image/svg+xml` の `<img>` で表示し、DOM に入れない。
+
+#### 描画の流れ
+
+```
+components.pre（MarkdownContent.tsx）
+  └ getDiagramKind(言語名) が 'plantuml' か（plantuml / puml。大文字小文字は区別しない）
+      └ PlantUmlCodeBlock（organisms。MarkdownContent.tsx 内）
+            └ usePlantUmlDiagram（hooks/chat/）
+                 1. 生成中・空なら何もしない（ソースのまま表示）
+                 2. 上限（MAX_DIAGRAM_SOURCE_LENGTH）を超えたら送らずにエラー
+                 3. POST /api/diagrams/plantuml { source }
+                       └ Route Handler → lib/server/plantuml.ts → PlantUML サーバーの POST /svg
+                 4. { svg } を data: URI にして DiagramView（molecules）の <img> に入れる
+```
+
+- **ブラウザから PlantUML サーバーへ直接つながない。** Route Handler を経由する（フロントは外部へ直接通信しない。CSP の `connect-src 'self'` もそのまま）。
+- ソースはそのまま送る。`@startuml` / `@enduml` を書かないブロックも、PlantUML サーバーが補って描く（実測）。`@startmindmap` などの別の図もそのまま描ける。1 つのブロックに図が 2 つあれば、最初の図だけを描く（PlantUML サーバーの動作）。
+- 生成中は描かない・描けるまではソースを表示する・`useId` は使わない（サーバーで描くため ID が要らない）。前のリクエストは、ソースが変わったとき・アンマウントしたときに `AbortController` で止める。
+
+#### API: `POST /api/diagrams/plantuml`
+
+| 項目 | 内容 |
+|---|---|
+| リクエスト | `{ source: string }`（`lib/server/request-body.ts` の `parsePlantUmlBody`。空白だけ・文字列でない・`MAX_DIAGRAM_SOURCE_LENGTH`（50,000 文字。mermaid の `maxTextSize` と同じ）超は 400） |
+| 200 | `{ svg: string }` |
+| 400 | 入力の誤り、または PlantUML が描けなかった（構文の誤り・SANDBOX で止めた include 等）。`error` は PlantUML の `X-PlantUML-Diagram-Error` と行番号から作る（例: `Syntax Error? (Assumed diagram type: sequence)（2 行目）`） |
+| 502 | PlantUML サーバーに繋がらない・10 秒（`PLANTUML_TIMEOUT_MS`）で応答しない・想定外の応答。`error` は「PlantUML サーバーに接続できませんでした。`docker compose up -d` で起動してください」等 |
+
+- エラーの形は既存と同じ `{ error: string }`。
+- 接続先は環境変数 **`PLANTUML_URL`**（既定 `http://localhost:8889`）。`lib/server/plantuml.ts` だけが読む（`SEARXNG_URL` と同じ扱い）。
+- `request.signal` を PlantUML への `fetch` に渡し、ブラウザが去ったら止める（`.claude/rules/api.md`）。
+- 返す SVG の大きさは、入力の上限（50,000 文字）と PlantUML の画像の上限（既定 4096px）で抑えられるため、受信の上限は別に設けない。
+
+#### 配色
+
+**PlantUML の既定の見た目（白い地）のまま描き、テーマには追従させない。** 図の種類（シーケンス図・クラス図・アクティビティ図・マインドマップ等）ごとに `skinparam` が分かれていて、一部の種類だけ暗い色に上書きすると、上書きしていない要素が白いまま残って崩れる。応答に `!theme` や `skinparam` が書かれていれば、それがそのまま効く（こちらで上書きしない）。
+
+#### 描けないとき
+
+| ケース | 表示 |
+|---|---|
+| 構文の誤り・SANDBOX で止めた include（400） | ソース + 「図を描けませんでした: <PlantUML のメッセージ>（N 行目）」 |
+| サーバーに繋がらない・時間切れ（502） | ソース + 「図を描けませんでした: PlantUML サーバーに接続できませんでした。…」 |
+| 空のブロック | 描かず、空のコードブロックのまま（エラーも出さない） |
+| 上限を超える | 送らずに、ソース + 「図を描けませんでした: 図のソースが長すぎます（上限 50,000 文字）」 |
+
+#### Mermaid の部品の階層の是正
+
+`docs/12-ui-components.md` の「階層の判断基準」では、molecules は**ドメインのフックを持たない**。#169 の `MermaidDiagram`（molecules）は `useMermaidDiagram` を呼んでいて、これに反していた。PlantUML でも同じ形の部品が要るため、ここで次の形に揃える。
+
+| 部品 | 階層 | 役割 |
+|---|---|---|
+| `DiagramView`（`MermaidDiagram` を改名して中身を表示だけにする） | molecules | 描画の状態（`DiagramState`）・代わりのソース・`alt` を受け取り、図の `<img>` かソース + エラーを出す。フックを呼ばない |
+| `MermaidCodeBlock`・`PlantUmlCodeBlock` | organisms（`MarkdownContent.tsx` 内） | 生成中かを Context から読み、それぞれのフックを呼んで `DiagramView` に渡す |
+
+- 描画の状態の型 `DiagramState`（`idle` / `rendered` / `error`）は 2 つのフックと `DiagramView` から参照されるため、`types/chat/diagram.ts` に置く（`typescript.md`「2 箇所目で昇格」）。
+- `isMermaidLanguage` は `getDiagramKind`（`'mermaid' | 'plantuml' | null`）に置き換える。
+
+#### 導入（Docker・CI・環境変数）
+
+- `docker-compose.yml` に `plantuml` サービスを足す（イメージの固定・`PLANTUML_SECURITY_PROFILE: SANDBOX`・`127.0.0.1:8889:8080`）。`docker compose up -d` で PostgreSQL・SearXNG と一緒に起動する。
+- CI の E2E（`e2e-test.yml`）の `services:` にも同じイメージ・設定で足す。`services:` のイメージは Dependabot の対象外のため、手動で更新する（`.claude/rules/github-actions.md`）。
+- `front/.env.example` に `PLANTUML_URL` を足し、環境変数の一覧（`CLAUDE.md`・`README.md`・`README.en.md`・`docs/02`・`manuals/setup-guide-macos.md`）とポートの重複表（`.claude/rules/documentation.md`）を同期する。
+- E2E の `global-setup.ts` で PlantUML サーバーに繋がるかを確かめ、繋がらなければ開始前に止める（起動し忘れで PlantUML の E2E だけが分かりにくく落ちないように）。
+
+#### PlantUML のテスト
+
+| 層 | ファイル | 内容 |
+|---|---|---|
+| UT | `tests/unit/diagram.test.ts` | `getDiagramKind`（`plantuml`・`puml`・大文字・別の言語・`null`）、`toPlantUmlDiagramState`（成功の `svg`・失敗の `error`・想定外の形） |
+| UT | `tests/unit/plantuml.test.ts` | PlantUML のエラーの見出しと行番号からメッセージを作る処理（行番号なし・不正な値） |
+| UT | `tests/unit/request-body.test.ts`（追記） | `parsePlantUmlBody`（空白だけ・非文字列・上限ちょうど／超え） |
+| IT | `tests/integration/plantuml.test.ts` | Route Handler を PlantUML のスタブ（`stubFetch`）で: 200 の中継／入力の誤り→400／PlantUML の 400→400 とメッセージ／接続失敗・時間切れ・想定外の状態→502／ソースをそのまま POST していること |
+| E2E | `tests/e2e/diagram.spec.ts`（追記） | 実際の PlantUML サーバーで: シーケンス図が `<img>` で描かれる／`@startuml` なしでも描ける／`puml`。準正常系: 構文の誤り→ソースとエラー／空のブロック。異常系: `!include https://…` が SANDBOX で止まりエラーになる／サーバーの失敗（`page.route` で 502 を注入）でもソースとエラーを出し、他の表示を壊さない |

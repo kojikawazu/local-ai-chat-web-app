@@ -33,5 +33,19 @@ services:
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
 
+  # PlantUML の図の描画（#171）。/api/diagrams/plantuml から POST /svg でソースを送り、SVG を受け取る
+  plantuml:
+    # latest は破壊的に上がるため固定する。公開から 2 週間以上たった版を選ぶ
+    image: plantuml/plantuml-server:jetty-v1.2026.8
+    container_name: chat_plantuml
+    restart: unless-stopped
+    environment:
+      # 既定では `!include https://…` で外部の URL を取りに行く（実測）。応答に紛れた URL を
+      # 取りに行かせないよう、URL・ファイルの読み込みを止める（同梱の標準ライブラリは使える）
+      PLANTUML_SECURITY_PROFILE: SANDBOX
+    # アプリだけが使うため、この PC の中からだけつながるようにする
+    ports:
+      - '127.0.0.1:8889:8080'
+
 volumes:
   postgres_data:

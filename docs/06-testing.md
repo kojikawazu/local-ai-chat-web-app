@@ -357,7 +357,7 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 | 上書き | `E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e`（大モデルで全件） |
 | 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される |
 | 事前準備 | `ollama pull qwen2.5:0.5b` |
-| 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略） |
+| 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略）。あわせて `/api/diagrams/plantuml` で PlantUML サーバーに繋がるかを確かめ、繋がらなければ `docker compose up -d` の案内とともに止める（#171） |
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
 | 応答の完了待ち | `waitForResponseComplete`（`helpers/test-data.ts`）を使う。送信ボタンは入力欄が空だと有効にならないため、1 文字入力してから有効化を待つ（#115）。ローディング表示は最初のチャンクまでしか出ないので完了の判定には使えない |
 | 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
@@ -370,7 +370,7 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 front/tests/
 ├── unit/                         # ユニットテスト（Vitest）
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
-│   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限）
+│   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限・図のソースの上限）
 │   ├── conversation-history.test.ts # 会話履歴の組み立て（失敗した user の除外・件数／長さの上限）
 │   ├── regenerate.test.ts        # 再生成できる応答の判定（最後・保存済み）と送り直す質問・履歴
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー・要約・失敗の isError
@@ -382,7 +382,8 @@ front/tests/
 │   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果を含む）
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
-│   ├── diagram.test.ts           # Mermaid の判定・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て
+│   ├── diagram.test.ts           # 図の種類の判定（mermaid / plantuml / puml）・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て・PlantUML の API の応答の解釈
+│   ├── plantuml.test.ts          # PlantUML のエラーの理由と行番号（0 始まり→1 始まり）からメッセージを作る処理
 │   ├── export.test.ts            # 書き出しのファイル名（置き換え・切り詰め・絵文字）と、会話全体の Markdown / JSON の形
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
 │   ├── current-date.test.ts      # システムプロンプトに足す現在の日時（書式・タイムゾーン・モードごとの指示・不正なタイムゾーン）
@@ -405,18 +406,19 @@ front/tests/
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
+│   ├── plantuml.test.ts          # /api/diagrams/plantuml（PlantUML fetchスタブ・SVG の中継・PlantUML の 400→400 と理由・入力の 400・接続失敗/時間切れ/500→502・切断→499）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/
     ├── helpers/
     │   ├── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts        # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
-    │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済みを検証
+    │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
     ├── chat-loading.spec.ts      # ローディング表示テスト
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
-    ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）
+    ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）、PlantUML の図（実サーバーでの描画・@startuml なし・構文の誤りと行番号・空・SANDBOX の include 拒否・API の失敗の注入）
     ├── export.spec.ts            # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── system-prompt.spec.ts     # 会話の役割（新規会話での保存と送信への付与・既存会話の変更・役割なし・キャンセル/Escape・新規会話で持ち越さない・エージェントでの連結・保存失敗・上限）
     ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語（COBOL）・インラインコード・HTML タグの非実行・閉じていないフェンス）

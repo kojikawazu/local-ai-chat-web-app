@@ -59,6 +59,23 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # PlantUML の図の描画（#171）。docker-compose.yml の plantuml サービスと同じイメージ・設定にする。
+      # services のイメージは Dependabot の対象外のため、docker-compose.yml と揃えて手動で更新する。
+      # 繋がらなければ E2E の global-setup が開始前に止める
+      plantuml:
+        image: plantuml/plantuml-server:jetty-v1.2026.8
+        env:
+          # 外部の URL・ファイルの include を止める（docker-compose.yml の理由を参照）
+          PLANTUML_SECURITY_PROFILE: SANDBOX
+        ports:
+          - 8889:8080
+        # Jetty が応答するまで待ってからステップを始める（イメージに curl が入っている）
+        options: >-
+          --health-cmd "curl -fsS -o /dev/null http://localhost:8080/"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7

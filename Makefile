@@ -52,10 +52,10 @@ test-e2e: ## E2Eテスト（Playwright・Ollama + PostgreSQL必須。既定モ�
 
 ## --- DB（PostgreSQL / Prisma） ---
 
-db-up: ## PostgreSQL・SearXNG コンテナ起動
+db-up: ## PostgreSQL・SearXNG・PlantUML コンテナ起動
 	docker compose up -d
 
-db-down: ## PostgreSQL・SearXNG コンテナ停止
+db-down: ## PostgreSQL・SearXNG・PlantUML コンテナ停止
 	docker compose down
 
 db-migrate: ## マイグレーション実行（開発）

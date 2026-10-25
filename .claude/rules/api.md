@@ -10,6 +10,7 @@ globs: "front/src/app/api/**"
 - Next.js App Router の Route Handlers を API 層として使用する。
 - フロントエンドから Ollama / Prisma への直接通信は禁止。Route Handlers を経由する。
 - **Route Handler から Ollama へ直接 `fetch` しない。** 接続先・モデル解決は `lib/llm/ollama.ts` に集約し、`streamChat()`（ストリーミング）・`chatOnce()`（非ストリーミング）・`listModels()`・`getDefaultModel()` を経由する。`process.env.OLLAMA_*` を読むのも同ファイルのみとする（route ごとに既定値を持つと、チャット本体とタイトル生成で別モデルを呼ぶような不整合が起きる）。
+- **Route Handler から PlantUML サーバーへ直接 `fetch` しない。** 接続先（`PLANTUML_URL`）の解決とエラーの解釈は `lib/server/plantuml.ts` の `renderPlantUml()` に集約する（#171）。
 
 ## ディレクトリ構成
 
@@ -18,6 +19,7 @@ front/src/app/api/
 ├── chat/route.ts                          # Ollama ストリーミング通信（通常 / エージェント）
 ├── models/route.ts                        # 利用可能モデル一覧取得
 ├── tools/route.ts                         # エージェントの利用可能ツール一覧取得
+├── diagrams/plantuml/route.ts             # PlantUML の図の描画（PlantUML サーバーへ中継）
 └── conversations/
     ├── route.ts                           # 会話一覧取得・新規作成
     ├── search/route.ts                    # 会話のキーワード検索

@@ -4,6 +4,7 @@ import {
   getMaxMessageLength,
   isValidUUID,
   MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_DIAGRAM_SOURCE_LENGTH,
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_HISTORY_MESSAGES,
   MAX_MESSAGE_LENGTH,
@@ -82,6 +83,12 @@ export type GenerateTitleBody = {
   message: string;
   /** 使用モデル。未指定なら `lib/llm/ollama.ts` の既定に任せる */
   model?: string;
+};
+
+/** `POST /api/diagrams/plantuml` の検証済みボディ（#171）。 */
+export type PlantUmlBody = {
+  /** PlantUML のソース（前後の空白を含め、書かれたまま PlantUML サーバーへ送る） */
+  source: string;
 };
 
 /** 会話履歴・保存で許可する role。`system` は `systemPrompt`、`tool` はサーバー内のエージェントループだけが作る */
@@ -476,4 +483,29 @@ export function parseGenerateTitleBody(
   if (!model.ok) return model;
 
   return { ok: true, value: { message, model: model.value } };
+}
+
+/**
+ * `POST /api/diagrams/plantuml` のボディを検証する（#171）。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`source` が文字列でない・空白だけ・上限超過なら失敗
+ */
+export function parsePlantUmlBody(body: unknown): ParseResult<PlantUmlBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+
+  const { source } = body;
+  if (typeof source !== 'string') {
+    return { ok: false, error: 'sourceは文字列で指定してください' };
+  }
+  if (!source.trim()) {
+    return { ok: false, error: '図のソースが空です' };
+  }
+  if (source.length > MAX_DIAGRAM_SOURCE_LENGTH) {
+    return {
+      ok: false,
+      error: `図のソースは${formatCount(MAX_DIAGRAM_SOURCE_LENGTH)}文字以内で指定してください`,
+    };
+  }
+  return { ok: true, value: { source } };
 }

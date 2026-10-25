@@ -50,6 +50,7 @@ globs:
 | API エンドポイント一覧 | `front/src/app/api/**/route.ts`（実体） | `CLAUDE.md`、`docs/03`、`.claude/rules/api.md` |
 | 環境変数一覧 | `front/.env.example` | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`manuals/setup-guide-macos.md` |
 | SearXNG の接続先（ポート `8888`） | `docker-compose.yml`（`searxng` の `ports`） | `front/src/lib/agent/tools/web-search.ts`（`DEFAULT_SEARXNG_URL`）、`front/.env.example`、`CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`docs/09`、`manuals/setup-guide-macos.md` |
+| PlantUML サーバーの接続先（ポート `8889`）とイメージの版 | `docker-compose.yml`（`plantuml` の `ports`・`image`） | `front/src/lib/server/plantuml.ts`（`DEFAULT_PLANTUML_URL`）、`front/.env.example`、`.github/workflows/e2e-test.yml`（`services.plantuml`）、`CLAUDE.md`、`README.md`、`README.en.md`、`docs/02`、`docs/05`、`manuals/setup-guide-macos.md` |
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
 | CI のトリガー定義（`on:` / `paths-ignore`） | `.github/workflows/quality.yml` | `unit-test.yml`・`integration-test.yml`・`e2e-test.yml`（**`workflow-lint.yml` が一致を機械検査**） |

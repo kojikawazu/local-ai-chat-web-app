@@ -18,7 +18,7 @@
 - [Git管理から除外するファイル](#git管理から除外するファイル)
   - [秘匿ファイルの混入検出（Secret scan）](#秘匿ファイルの混入検出secret-scan)
 - [CORS設定](#cors設定)
-- [ローカルの補助サービス（SearXNG）](#ローカルの補助サービスsearxng)
+- [ローカルの補助サービス（SearXNG・PlantUML）](#ローカルの補助サービスsearxngplantuml)
 
 ## 前提条件
 
@@ -135,10 +135,16 @@ connect-src 'self';
 - ローカル利用のためCORS制限は不要
 - Next.jsのデフォルト設定（同一オリジンのみ許可）を維持する
 
-## ローカルの補助サービス（SearXNG）
+## ローカルの補助サービス（SearXNG・PlantUML）
 
 Web検索ツール（`web_search`）は、`docker-compose.yml` で起動するローカルの SearXNG を経由する（#151）。
 
 - **この PC の中だけに公開する**: ポートは `127.0.0.1:8888` に限る。ローカル利用のため同時アクセスの制限（`limiter`）を止めており、外へ公開すると第三者の検索の中継に使われうる。
 - **秘密鍵を置かない**: SearXNG は `server.secret_key` が既定値だと起動しない。`SEARXNG_SECRET` が空なら起動ごとにランダムな鍵を作り、リポジトリにも `.env` にも置かない（鍵は Cookie 等の署名にしか使わない）。
 - **検索結果はデータとして扱う**: 検索結果のタイトル・概要は外部のページ由来のため、モデルへの指示として扱わない（プロンプトインジェクションの経路になりうる）。URL は http / https のものだけを採る。
+
+応答の PlantUML の図は、`docker-compose.yml` で起動するローカルの PlantUML サーバーで描く（#171）。
+
+- **外部の URL・ファイルを読ませない**: PlantUML の既定の設定では、`!include https://…` でサーバーが外部の URL を取りに行く（実測）。応答の本文はモデルが書いたもので、Web 検索・URL 取得の結果に紛れた指示から作られることもあるため、`PLANTUML_SECURITY_PROFILE=SANDBOX` で URL・ファイルの読み込みを止める（同梱の標準ライブラリは使える）。CI の E2E の `services:` も同じ設定にする。
+- **この PC の中だけに公開する**: ポートは `127.0.0.1:8889` に限る。
+- **ブラウザから直接つながない**: `/api/diagrams/plantuml` を経由し、返った SVG は data: URI の `<img>` で表示する（DOM に入れない）。ソースは 50,000 文字（`MAX_DIAGRAM_SOURCE_LENGTH`）までに制限し、10 秒で打ち切る。

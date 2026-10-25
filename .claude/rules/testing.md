@@ -86,6 +86,7 @@ globs: "front/tests/**"
   - 大モデルで回す場合は `E2E_OLLAMA_MODEL=<model> pnpm test:e2e`。
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。
+  - 同じく、PlantUML サーバーに繋がらなければ開始前に止める（PlantUML の図の E2E は実際の PlantUML サーバーで描くため。ローカルは `docker compose up -d`、CI は `e2e-test.yml` の `services:`）。
 - 失敗時: スクリーンショット + トレースを保存
 - テストファイル配置: `front/tests/e2e/`
 - Base URL: `http://localhost:3000`

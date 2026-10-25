@@ -74,12 +74,12 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
-    │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済みを検証
+    │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
-    ├── diagram.spec.ts            # Mermaid の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行）
+    ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト

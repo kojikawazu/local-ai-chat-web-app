@@ -68,3 +68,10 @@ export const MAX_SEARCH_QUERY_LENGTH = 100;
  * 語ごとに「タイトルかメッセージ本文に含む」条件を足すため、際限なく増やすとクエリが重くなる。
  */
 export const MAX_SEARCH_TERMS = 5;
+/**
+ * 図のソース（Mermaid・PlantUML のコードブロックの本文）の最大文字数（#171）。
+ *
+ * mermaid の `maxTextSize` の既定（50,000 文字）に揃える。PlantUML はサーバーへ送る前にこの上限で止め、
+ * 際限なく大きいソースで PlantUML サーバーを占有させない。
+ */
+export const MAX_DIAGRAM_SOURCE_LENGTH = 50_000;

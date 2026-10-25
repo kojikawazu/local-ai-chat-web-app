@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-25
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -12,7 +12,7 @@
 4. [Docker Desktop のインストール](#4-docker-desktop-のインストール)
 5. [Ollama のインストールとモデル取得](#5-ollama-のインストールとモデル取得)
 6. [リポジトリのクローン](#6-リポジトリのクローン)
-7. [PostgreSQL と SearXNG の起動](#7-postgresql-と-searxng-の起動)
+7. [PostgreSQL・SearXNG・PlantUML の起動](#7-postgresqlsearxngplantuml-の起動)
 8. [アプリケーションのセットアップ](#8-アプリケーションのセットアップ)
 9. [アプリケーションの起動](#9-アプリケーションの起動)
 10. [動作確認](#10-動作確認)
@@ -227,12 +227,12 @@ cd local-ai-chat-web-app
 
 ---
 
-## 7. PostgreSQL と SearXNG の起動
+## 7. PostgreSQL・SearXNG・PlantUML の起動
 
-プロジェクトルートディレクトリで実行します。会話履歴を保存する PostgreSQL と、Web検索（エージェントの `web_search` ツール）に使う SearXNG が起動します。
+プロジェクトルートディレクトリで実行します。会話履歴を保存する PostgreSQL、Web検索（エージェントの `web_search` ツール）に使う SearXNG、応答の PlantUML の図を描く PlantUML サーバーが起動します。
 
 ```bash
-# PostgreSQL・SearXNG のコンテナを起動
+# PostgreSQL・SearXNG・PlantUML のコンテナを起動
 docker compose up -d
 ```
 
@@ -249,9 +249,12 @@ docker compose ps
 NAME           IMAGE                                 STATUS    PORTS
 chat_db        postgres:16                           Up ...    0.0.0.0:5499->5432/tcp
 chat_searxng   searxng/searxng:2026.10.2-a5659a536   Up ...    127.0.0.1:8888->8080/tcp
+chat_plantuml  plantuml/plantuml-server:jetty-v1.2026.8   Up ...    127.0.0.1:8889->8080/tcp
 ```
 
 SearXNG はブラウザで `http://localhost:8888` を開くと検索画面が表示されます（この PC の中からだけアクセスできます）。
+
+PlantUML サーバーは、外部の URL・ファイルの読み込み（`!include https://…` 等）を止めた設定（`PLANTUML_SECURITY_PROFILE=SANDBOX`）で起動します。同梱の標準ライブラリ（`!include <C4/C4_Container>` 等）は使えます。
 
 ---
 
@@ -273,6 +276,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=gemma3:4b
 DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
 SEARXNG_URL=http://localhost:8888
+PLANTUML_URL=http://localhost:8889
 EOF
 ```
 
@@ -341,7 +345,7 @@ Nordic Frostデザインのチャット画面が表示されます。
 
 開発サーバーが動作しているターミナルで `Ctrl + C` を押してください。
 
-### PostgreSQL・SearXNG の停止
+### PostgreSQL・SearXNG・PlantUML の停止
 
 ```bash
 # プロジェクトルートディレクトリで実行
@@ -420,6 +424,25 @@ curl -s "http://localhost:8888/search?q=test&format=json" | head -c 300
 curl -s "http://localhost:8888/search?q=test&format=json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["unresponsive_engines"])'
 ```
 
+### PlantUML の図が表示されない
+
+PlantUML のコードブロックの下に「図を描けませんでした: PlantUML サーバーに接続できませんでした」と表示される場合は、PlantUML サーバーが起動していません。
+
+**対処法:**
+
+```bash
+# プロジェクトルートで、コンテナの状態を確認（chat_plantuml が Up か）
+docker compose ps
+
+# 停止している場合は起動
+docker compose up -d
+
+# 図を描けるか確認（HTTP 200 と表示されれば OK）
+printf 'A -> B\n' | curl -s -X POST --data-binary @- -o /dev/null -w 'HTTP %{http_code}\n' http://localhost:8889/svg
+```
+
+「Cannot open URL」「cannot include」と表示される場合は、外部の URL・ファイルの読み込みを止めているためです（安全のための設定。同梱の標準ライブラリは使えます）。
+
 ### pnpm install でエラーが出る
 
 ```bash
@@ -491,7 +514,7 @@ xcode-select --install
 セットアップ完了後、以下を確認してください:
 
 - [ ] Docker Desktop が起動中
-- [ ] `docker compose ps` で PostgreSQL・SearXNG が `Up` 状態
+- [ ] `docker compose ps` で PostgreSQL・SearXNG・PlantUML が `Up` 状態
 - [ ] Ollama が起動中（メニューバーにアイコン表示）
 - [ ] `ollama list` でモデルがダウンロード済み
 - [ ] `pnpm dev` で開発サーバーが起動

@@ -28,7 +28,7 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
-| Markdown表示 | react-markdown + remark-gfm + rehype-highlight + mermaid |
+| Markdown表示 | react-markdown + remark-gfm + rehype-highlight + mermaid（PlantUML は PlantUML サーバー） |
 | パッケージマネージャー | pnpm |
 | LLMバックエンド | Ollama |
 | LLMモデル | qwen3.8:27b（動的にモデル切替可能） |
@@ -87,6 +87,8 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
      - 言語の指定が無いブロックは自動判定せず単色で表示し、言語名も出さない。highlight.js に無い言語は色付けせず、言語名は出す
    - ` ```mermaid ` のブロックは図として表示する（#169）。色はテーマに追従する
      - 応答の生成中はソースのまま表示し、生成が終わってから図にする。描けないときはソースを表示し、描けなかったことを添える
+   - ` ```plantuml ` / ` ```puml ` のブロックも図として表示する（#171）。ローカルの PlantUML サーバー（Docker）で描き、PlantUML の既定の見た目（白い地）のままにする（テーマには追従しない）
+     - 外部の URL・ファイルの読み込み（`!include https://…` 等）は描かずにエラーにする。PlantUML サーバーに繋がらないときはソースを表示し、起動の手順を添える
    - テーブル、リスト、引用、リンク等のサポート
    - react-markdown + remark-gfm + rehype-highlight + mermaid を使用（詳細は [11-syntax-highlight-diagrams.md](./11-syntax-highlight-diagrams.md)）
 
