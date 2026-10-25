@@ -4,6 +4,10 @@ import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import IconButton from '@/components/common/atoms/IconButton';
+import { cn } from '@/lib/shared/class-names';
+
+/** ダイアログの幅の種類。 */
+type ModalSize = 'md' | 'wide';
 
 /** {@link Modal} の props。 */
 type ModalProps = {
@@ -17,10 +21,20 @@ type ModalProps = {
   closeDisabled?: boolean;
   /** 背景のクリックで閉じるか。入力を失いやすいダイアログでは false のままにする。省略時は false */
   closeOnBackdropClick?: boolean;
+  /**
+   * 幅。`md` は設定・入力のダイアログ（`max-w-lg`）、`wide` は図の拡大など中身を大きく見せるもの
+   * （画面いっぱいから上下左右 1rem を引いた大きさ。高さも固定）。省略時は `md`
+   */
+  size?: ModalSize;
   /** 本文の下に区切って出す操作（ボタン等）。省略時はフッターを出さない */
   footer?: ReactNode;
   /** 本文。高さが足りなければ本文だけをスクロールする */
   children: ReactNode;
+};
+
+const SIZE_CLASSES: Record<ModalSize, string> = {
+  md: 'max-w-lg max-h-[calc(100dvh-2rem)]',
+  wide: 'max-w-none h-[calc(100dvh-2rem)]',
 };
 
 /**
@@ -38,6 +52,7 @@ export default function Modal({
   onClose,
   closeDisabled = false,
   closeOnBackdropClick = false,
+  size = 'md',
   footer,
   children,
 }: ModalProps) {
@@ -90,7 +105,10 @@ export default function Modal({
           requestClose();
         }
       }}
-      className="w-[calc(100%-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] m-auto p-0 open:flex flex-col rounded-2xl bg-nord-1 text-nord-6 border border-nord-3 shadow-2xl shadow-black/40 backdrop:bg-black/60"
+      className={cn(
+        'w-[calc(100%-2rem)] m-auto p-0 open:flex flex-col rounded-2xl bg-nord-1 text-nord-6 border border-nord-3 shadow-2xl shadow-black/40 backdrop:bg-black/60',
+        SIZE_CLASSES[size]
+      )}
     >
       <div className="flex items-center justify-between px-6 py-4 border-b border-nord-3">
         <h2 id={titleId} className="text-lg font-bold">

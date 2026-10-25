@@ -65,7 +65,7 @@ export function usePlantUmlDiagram(
   // ソースが変わった直後は前の結果が残っているため、今のソースで描いた結果だけを使う
   if (result?.source !== source) return { status: 'idle' };
   if (result.status === 'rendered') {
-    return { status: 'rendered', src: result.src };
+    return { status: 'rendered', src: result.src, svg: result.svg };
   }
   if (result.status === 'error') {
     return { status: 'error', error: result.error };

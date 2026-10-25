@@ -1,4 +1,10 @@
-import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import type {
+  APIRequestContext,
+  Download,
+  Locator,
+  Page,
+} from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import {
   cleanupAllConversations,
@@ -8,11 +14,13 @@ import {
 } from './helpers/test-data';
 
 /**
- * Mermaid・PlantUML のコードブロックを図として描く E2E（#169・#171）。
+ * Mermaid・PlantUML のコードブロックを図として描く E2E（#169・#171）と、描けた図の拡大・保存・
+ * ソースとの切り替え（#176）。
  *
  * 保存済みの応答は API で投入する（モデルが Mermaid を出すかは決まらず、描画の検証はモデルに依存しないため。
  * 軽量モデル・CI でも動く）。生成中の応答だけは `page.route` で `/api/chat` の応答を差し替える（通信の境界の障害注入）。
- * data: URI・SVG の大きさ・テーマの色の組み立ては UT（diagram.test.ts）が担い、ここでは描画・追従・XSS 耐性を見る。
+ * data: URI・SVG の大きさ・テーマの色の組み立て・倍率の段階・保存の背景・PNG の大きさは UT（diagram.test.ts）が担い、
+ * ここでは描画・追従・XSS 耐性と、ダイアログの操作・保存したファイルの中身を見る。
  *
  * PlantUML は実際の PlantUML サーバー（docker compose の plantuml。CI は services）で描く。開始前に
  * `global-setup.ts` が繋がることを確かめる。API のエラーの契約は IT（plantuml.test.ts）が担う。
@@ -464,6 +472,306 @@ test.describe('PlantUML の図', () => {
       await expect(page.locator('main pre')).toHaveCount(1);
       await expect(page.locator('main pre')).toContainText('Alice -> Bob');
       await expect(page.getByText('PlantUML の後の本文です。')).toBeVisible();
+    });
+  });
+});
+
+/** PNG のファイルの先頭の 8 バイト（シグネチャ） */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** 保存のファイル名（`buildExportFileName` の `<種類>_<YYYY-MM-DD>_<HHmm>.<拡張子>`） */
+const fileNamePattern = (kind: string, extension: string) =>
+  new RegExp(`^${kind}_\\d{4}-\\d{2}-\\d{2}_\\d{4}\\.${extension}$`);
+
+/**
+ * 図を描き終えるのを待ってから、拡大のダイアログを開く。
+ *
+ * @param page - 対象のページ
+ * @param title - ダイアログの名前（`Mermaid の図` 等）
+ * @returns ダイアログのロケーター
+ */
+async function openZoomDialog(page: Page, title: string) {
+  await expect(diagrams(page)).toBeVisible({ timeout: RENDER_TIMEOUT_MS });
+  await page.getByRole('button', { name: '図を拡大' }).click();
+  const dialog = page.getByRole('dialog', { name: title });
+  await expect(dialog).toBeVisible();
+  // 図の元の大きさが読めるまで、保存・倍率の操作は押せない
+  await expect(dialog.getByRole('button', { name: 'PNG' })).toBeEnabled();
+  return dialog;
+}
+
+/**
+ * ダイアログの保存のボタンを押し、ダウンロードを受け取る。
+ *
+ * @param page - 対象のページ
+ * @param dialog - 拡大のダイアログ
+ * @param format - 押すボタン（`SVG` / `PNG`）
+ * @returns ダウンロード
+ */
+async function saveAs(page: Page, dialog: Locator, format: 'SVG' | 'PNG') {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: format }).click(),
+  ]);
+  return download;
+}
+
+/**
+ * ダウンロードしたファイルの中身を読む。
+ *
+ * @param download - ダウンロード
+ * @returns ファイルの中身
+ */
+async function readDownload(download: Download) {
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  return readFile(path as string);
+}
+
+/**
+ * PNG の幅・高さを IHDR（シグネチャの直後のチャンク）から読む。
+ *
+ * @param png - PNG のファイルの中身
+ * @returns 幅と高さ（px）
+ */
+function pngSize(png: Buffer) {
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
+/**
+ * 拡大のダイアログの図の元の大きさを読む。
+ *
+ * @param dialog - 拡大のダイアログ
+ * @returns `naturalWidth` / `naturalHeight`
+ */
+function naturalSizeOf(dialog: Locator) {
+  return dialog
+    .getByTestId('diagram-zoom-image')
+    .evaluate((img: HTMLImageElement) => ({
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    }));
+}
+
+test.describe('図の拡大・保存・ソースとの切り替え', () => {
+  test.beforeEach(async ({ page, request }) => {
+    await cleanupAllConversations(request);
+    await page.addInitScript(
+      (key) => localStorage.removeItem(key),
+      THEME_STORAGE_KEY
+    );
+  });
+
+  test.afterAll(async ({ request }) => {
+    await cleanupAllConversations(request);
+  });
+
+  test.describe('正常系', () => {
+    test('ソースを表示に切り替えるとソースのコードブロックが出て、戻すと図に戻る', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(page, request, FLOWCHART);
+      await expect(diagrams(page)).toBeVisible({ timeout: RENDER_TIMEOUT_MS });
+
+      const toggle = page.getByRole('button', { name: 'ソースを表示' });
+      await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('main pre')).toContainText('graph TD');
+      await expect(diagrams(page)).toHaveCount(0);
+
+      await toggle.click();
+      await expect(diagrams(page)).toBeVisible();
+      await expect(page.locator('main pre')).toHaveCount(0);
+    });
+
+    test('拡大のダイアログで倍率を変えると図の大きさが変わり、Escape で閉じる', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(page, request, FLOWCHART);
+      const dialog = await openZoomDialog(page, 'Mermaid の図');
+      const level = dialog.getByTestId('diagram-zoom-level');
+      const image = dialog.getByTestId('diagram-zoom-image');
+      const natural = await naturalSizeOf(dialog);
+      const fit = dialog.getByRole('button', { name: '全体' });
+      // 開いたときは「全体」で、そのときの表示の倍率を出す
+      await expect(fit).toHaveAttribute('aria-pressed', 'true');
+      await expect(level).toHaveText(/^\d+%$/);
+
+      // 「全体」から拡大すると、そのときの表示より大きい段階へ移る（表示の倍率が必ず変わる）
+      const fitLevel = await level.textContent();
+      await dialog.getByRole('button', { name: '拡大', exact: true }).click();
+      await expect(fit).toHaveAttribute('aria-pressed', 'false');
+      await expect(level).toHaveText(/^\d+%$/);
+      await expect(level).not.toHaveText(fitLevel ?? '');
+
+      await dialog.getByRole('button', { name: '100%' }).click();
+      await expect(level).toHaveText('100%');
+      expect((await image.boundingBox())?.width).toBeCloseTo(natural.width, 0);
+
+      await dialog.getByRole('button', { name: '拡大', exact: true }).click();
+      await expect(level).toHaveText('150%');
+      expect((await image.boundingBox())?.width).toBeCloseTo(
+        natural.width * 1.5,
+        0
+      );
+
+      await fit.click();
+      await expect(fit).toHaveAttribute('aria-pressed', 'true');
+      await expect(level).not.toHaveText('150%');
+
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      // 閉じても図はそのまま
+      await expect(diagrams(page)).toBeVisible();
+    });
+
+    test('Mermaid の図を SVG で保存すると、画面と同じ地の色の背景が付く', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(page, request, FLOWCHART);
+      const dialog = await openZoomDialog(page, 'Mermaid の図');
+      const background = await themeValue(page, '--color-nord-0');
+
+      const download = await saveAs(page, dialog, 'SVG');
+      expect(download.suggestedFilename()).toMatch(
+        fileNamePattern('mermaid', 'svg')
+      );
+      const svg = (await readDownload(download)).toString('utf-8');
+      expect(svg.startsWith('<svg')).toBe(true);
+      expect(svg).toContain('ユーザー');
+      expect(svg).toMatch(
+        new RegExp(`<svg[^>]*><rect [^>]*fill="${background}"/>`)
+      );
+    });
+
+    test('Mermaid の図を PNG で保存すると、元の大きさの 2 倍の PNG になる', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(page, request, FLOWCHART);
+      const dialog = await openZoomDialog(page, 'Mermaid の図');
+      const natural = await naturalSizeOf(dialog);
+
+      const download = await saveAs(page, dialog, 'PNG');
+      expect(download.suggestedFilename()).toMatch(
+        fileNamePattern('mermaid', 'png')
+      );
+      const png = await readDownload(download);
+      expect([...png.subarray(0, 8)]).toEqual(PNG_SIGNATURE);
+      expect(pngSize(png)).toEqual({
+        width: Math.ceil(natural.width * 2),
+        height: Math.ceil(natural.height * 2),
+      });
+    });
+
+    test('PlantUML の図も SVG・PNG で保存できる', async ({ page, request }) => {
+      await openAnswer(page, request, SEQUENCE);
+      const dialog = await openZoomDialog(page, 'PlantUML の図');
+
+      const svgDownload = await saveAs(page, dialog, 'SVG');
+      expect(svgDownload.suggestedFilename()).toMatch(
+        fileNamePattern('plantuml', 'svg')
+      );
+      const svg = (await readDownload(svgDownload)).toString('utf-8');
+      expect(svg).toContain('Alice');
+
+      const pngDownload = await saveAs(page, dialog, 'PNG');
+      expect(pngDownload.suggestedFilename()).toMatch(
+        fileNamePattern('plantuml', 'png')
+      );
+      const png = await readDownload(pngDownload);
+      expect([...png.subarray(0, 8)]).toEqual(PNG_SIGNATURE);
+    });
+  });
+
+  test.describe('準正常系', () => {
+    test('描けなかった図には、切り替え・拡大のボタンを出さない', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(
+        page,
+        request,
+        fence(['graph TD', '  A --> ', '  これは図ではない ]]'])
+      );
+      await expect(page.getByTestId('diagram-error')).toBeVisible({
+        timeout: RENDER_TIMEOUT_MS,
+      });
+      await expect(
+        page.getByRole('button', { name: 'ソースを表示' })
+      ).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '図を拡大' })).toHaveCount(
+        0
+      );
+      // コピーは残る
+      await expect(
+        page.getByRole('button', { name: 'コードをコピー' })
+      ).toBeVisible();
+    });
+
+    test('倍率の端（400%・25%）では、それ以上の拡大・縮小のボタンを押せない', async ({
+      page,
+      request,
+    }) => {
+      await openAnswer(page, request, FLOWCHART);
+      const dialog = await openZoomDialog(page, 'Mermaid の図');
+      const level = dialog.getByTestId('diagram-zoom-level');
+      const zoomIn = dialog.getByRole('button', { name: '拡大', exact: true });
+      const zoomOut = dialog.getByRole('button', { name: '縮小' });
+
+      await dialog.getByRole('button', { name: '100%' }).click();
+      for (const expected of ['150%', '200%', '300%', '400%']) {
+        await zoomIn.click();
+        await expect(level).toHaveText(expected);
+      }
+      await expect(zoomIn).toBeDisabled();
+
+      for (const expected of [
+        '300%',
+        '200%',
+        '150%',
+        '100%',
+        '75%',
+        '50%',
+        '25%',
+      ]) {
+        await zoomOut.click();
+        await expect(level).toHaveText(expected);
+      }
+      await expect(zoomOut).toBeDisabled();
+      await expect(zoomIn).toBeEnabled();
+    });
+  });
+
+  test.describe('異常系', () => {
+    test('PNG に変換できなくても、理由を出してダイアログを閉じず、SVG では保存できる', async ({
+      page,
+      request,
+    }) => {
+      // ブラウザ API の境界の障害注入: 大きすぎる canvas などで書き出せないときの toBlob（null を渡す）を再現する
+      await page.addInitScript(() => {
+        HTMLCanvasElement.prototype.toBlob = function (callback) {
+          setTimeout(() => callback(null), 0);
+        };
+      });
+      await openAnswer(page, request, FLOWCHART);
+      const dialog = await openZoomDialog(page, 'Mermaid の図');
+
+      await dialog.getByRole('button', { name: 'PNG' }).click();
+      const error = dialog.getByTestId('diagram-png-error');
+      await expect(error).toHaveText(
+        'PNG にできませんでした: 画像を書き出せませんでした'
+      );
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'PNG' })).toBeEnabled();
+
+      const download = await saveAs(page, dialog, 'SVG');
+      expect(download.suggestedFilename()).toMatch(
+        fileNamePattern('mermaid', 'svg')
+      );
     });
   });
 });

@@ -2,16 +2,19 @@ import { describe, it, expect } from 'vitest';
 import {
   buildMermaidThemeVariables,
   getDiagramKind,
+  getPngSize,
+  stepZoom,
   svgToDataUri,
   toMermaidId,
   toPlantUmlDiagramState,
+  withBackground,
   withIntrinsicSize,
 } from '@/lib/chat/diagram';
 
 /**
- * `lib/chat/diagram` の UT（#169・#171）。
+ * `lib/chat/diagram` の UT（#169・#171・#176）。
  * 図を `<img>` で表示するための、図の種類の判定・要素 ID・data: URI・SVG の大きさ・
- * テーマの色の組み立てと、PlantUML の API の応答の解釈を確かめる。純関数のため mock は使わない（CSS 変数の読み取りは表を渡す）。
+ * テーマの色の組み立てと、PlantUML の API の応答の解釈、拡大の倍率の段階・保存の背景・PNG の大きさを確かめる。純関数のため mock は使わない（CSS 変数の読み取りは表を渡す）。
  */
 
 /** data: URI の接頭辞（`svgToDataUri` の出力の先頭） */
@@ -223,10 +226,14 @@ describe('buildMermaidThemeVariables', () => {
 
 describe('toPlantUmlDiagramState', () => {
   describe('正常系', () => {
-    it('成功の svg を data: URI にする', () => {
+    it('成功の svg を data: URI にし、保存用に元の SVG も持つ', () => {
       const svg = '<svg viewBox="0 0 1 1"><text>A</text></svg>';
       const state = toPlantUmlDiagramState(true, { svg });
-      expect(state).toEqual({ status: 'rendered', src: svgToDataUri(svg) });
+      expect(state).toEqual({
+        status: 'rendered',
+        src: svgToDataUri(svg),
+        svg,
+      });
     });
   });
 
@@ -253,6 +260,140 @@ describe('toPlantUmlDiagramState', () => {
         status: 'error',
         error: 'PlantUML の図を受け取れませんでした',
       });
+    });
+  });
+});
+
+describe('stepZoom', () => {
+  describe('正常系', () => {
+    it.each([
+      [1, 'in', 1.5],
+      [1, 'out', 0.75],
+      [0.25, 'in', 0.5],
+      [3, 'in', 4],
+    ] as const)('%s から %s で %s へ移る', (scale, direction, expected) => {
+      expect(stepZoom(scale, direction)).toBe(expected);
+    });
+
+    it('段階の間の倍率（「全体」の表示）からは、今より大きい／小さい最も近い段階へ移る', () => {
+      expect(stepZoom(0.6, 'in')).toBe(0.75);
+      expect(stepZoom(0.6, 'out')).toBe(0.5);
+    });
+  });
+
+  describe('準正常系', () => {
+    it('端の段階ではそれ以上動かない', () => {
+      expect(stepZoom(4, 'in')).toBeNull();
+      expect(stepZoom(0.25, 'out')).toBeNull();
+    });
+
+    it('計算の誤差で段階とほぼ同じ倍率は、その段階とみなす', () => {
+      expect(stepZoom(1.0000000001, 'in')).toBe(1.5);
+      expect(stepZoom(0.9999999999, 'out')).toBe(0.75);
+    });
+  });
+
+  describe('異常系', () => {
+    it('段階の範囲外の倍率からは、範囲内の端へ移る', () => {
+      expect(stepZoom(0.1, 'in')).toBe(0.25);
+      expect(stepZoom(0.1, 'out')).toBeNull();
+      expect(stepZoom(10, 'out')).toBe(4);
+      expect(stepZoom(10, 'in')).toBeNull();
+    });
+  });
+});
+
+describe('withBackground', () => {
+  describe('正常系', () => {
+    it('viewBox の範囲を塗る rect をルートの先頭に足す', () => {
+      const svg = '<svg viewBox="0 0 100 50"><g/></svg>';
+      expect(withBackground(svg, '#2e3440')).toBe(
+        '<svg viewBox="0 0 100 50"><rect x="0" y="0" width="100" height="50" fill="#2e3440"/><g/></svg>'
+      );
+    });
+
+    it('viewBox の原点が 0 でなくても、その範囲を塗る', () => {
+      const svg = '<svg viewBox="-8 -8 116.5 66"><g/></svg>';
+      expect(withBackground(svg, '#fff')).toContain(
+        '<rect x="-8" y="-8" width="116.5" height="66" fill="#fff"/>'
+      );
+    });
+  });
+
+  describe('準正常系', () => {
+    it('viewBox が無ければ width / height（px 付きも）の範囲を塗る', () => {
+      const svg = '<svg width="120px" height="40"><g/></svg>';
+      expect(withBackground(svg, '#fff')).toContain(
+        '<rect x="0" y="0" width="120" height="40" fill="#fff"/>'
+      );
+    });
+
+    it('色の前後の空白は落とす（CSS 変数の値は先頭に空白が付くことがある）', () => {
+      expect(
+        withBackground('<svg viewBox="0 0 1 1"></svg>', ' #000 ')
+      ).toContain('fill="#000"');
+    });
+
+    it.each([
+      ['viewBox も大きさも無い', '<svg><g/></svg>'],
+      ['大きさが % で決まらない', '<svg width="100%" height="100%"><g/></svg>'],
+      ['viewBox の大きさが 0', '<svg viewBox="0 0 0 10"><g/></svg>'],
+      ['ルートが空要素', '<svg viewBox="0 0 1 1"/>'],
+      ['SVG でない', '<p>x</p>'],
+    ])('%sときはそのまま返す', (_label, svg) => {
+      expect(withBackground(svg, '#fff')).toBe(svg);
+    });
+  });
+
+  describe('異常系', () => {
+    it('色に属性を閉じる文字が入っていても、属性の外に出さない', () => {
+      const result = withBackground(
+        '<svg viewBox="0 0 1 1"></svg>',
+        '#000" onload="alert(1)'
+      );
+      expect(result).toContain('fill="#000&quot; onload=&quot;alert(1)"');
+      expect(result).not.toContain('onload="');
+    });
+
+    it('置き換え後の文字列の $& を置換パターンとして解釈しない', () => {
+      expect(withBackground('<svg viewBox="0 0 1 1"></svg>', '$&')).toContain(
+        'fill="$&amp;"'
+      );
+    });
+  });
+});
+
+describe('getPngSize', () => {
+  describe('正常系', () => {
+    it('元の大きさの 2 倍にする', () => {
+      expect(getPngSize(400, 300)).toEqual({ width: 800, height: 600 });
+    });
+
+    it('小数は切り上げる', () => {
+      expect(getPngSize(100.3, 50.2)).toEqual({ width: 201, height: 101 });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('長辺が 8192px を超えるなら、縦横比を保って収まるまで縮める', () => {
+      expect(getPngSize(8000, 2000)).toEqual({ width: 8192, height: 2048 });
+      expect(getPngSize(1000, 20000)).toEqual({ width: 410, height: 8192 });
+    });
+
+    it('ちょうど上限の 2 倍になる大きさは縮めない', () => {
+      expect(getPngSize(4096, 100)).toEqual({ width: 8192, height: 200 });
+    });
+  });
+
+  describe('異常系', () => {
+    it.each([
+      [0, 100],
+      [100, 0],
+      [-1, 100],
+      [Number.NaN, 100],
+      [Number.POSITIVE_INFINITY, 100],
+    ])('元の大きさが %s × %s なら null を返す', (width, height) => {
+      expect(getPngSize(width, height)).toBeNull();
     });
   });
 });

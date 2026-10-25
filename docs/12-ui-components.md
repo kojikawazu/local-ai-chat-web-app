@@ -122,7 +122,7 @@ src/
 | 部品 | props | 使っている箇所 |
 |---|---|---|
 | `Button` | `variant: 'primary' \| 'secondary' \| 'subtle' \| 'link'`・`size: 'sm' \| 'md' \| 'lg'`（`link` は余白なし）。`type` の既定は `'button'` | 保存・Close（`primary`）、キャンセル（`secondary`）、さらに表示（`subtle`）、再試行・再送・再生成（`link`） |
-| `IconButton` | `label`（必須。`aria-label` になる）・`tone: 'muted' \| 'default' \| 'danger' \| 'primary' \| 'inherit'`・`size: 'xs' \| 'sm' \| 'md' \| 'lg'`（`inherit`・`xs` は段階 3 で追加。周りの文字色のまま余白なしで文字の並びに混ぜる） | 閉じる（`Modal`・ドロワー）・検索をやめる・設定を開く・メニューを開く（`default`）・会話の削除（`danger`）・送信と停止（`primary`・`lg`）・コピー（`inherit`・`xs`） |
+| `IconButton` | `label`（必須。`aria-label` になる）・`tone: 'muted' \| 'default' \| 'danger' \| 'primary' \| 'inherit'`・`size: 'xs' \| 'sm' \| 'md' \| 'lg'`（`inherit`・`xs` は段階 3 で追加。周りの文字色のまま余白なしで文字の並びに混ぜる）。押せないとき（`disabled`）は、`primary` 以外も薄くして hover の色を付けない（#176 で追加。それまでは見た目が変わらなかった） | 閉じる（`Modal`・ドロワー）・検索をやめる・設定を開く・メニューを開く（`default`）・会話の削除（`danger`）・送信と停止（`primary`・`lg`）・コピー（`inherit`・`xs`） |
 | `ToggleChip` | `pressed`（`aria-pressed`） | 役割のプリセット |
 | `Switch` | `checked`。**見た目だけ**（`aria-hidden`）。操作と読み上げは、ラベルごと包む呼び出し側のボタンが持つ（行全体を押せるようにするため） | 設定のツールの ON/OFF |
 | `TextInput`・`TextArea`・`Select` | 素の要素の props。`Select` は `variant: 'default' \| 'compact'`（`compact` はブラウザの矢印を消す。矢印は呼び出し側が重ねる） | 検索欄・役割の入力欄・モデル選択（設定は `default`、ヘッダーは `compact`） |
@@ -151,8 +151,9 @@ src/
 | 部品 | props | 使っている箇所 |
 |---|---|---|
 | `SearchBox` | `value`・`onValueChange`・`onClear`・`label`（入力欄の名前とプレースホルダー）・`clearLabel`（× の名前）と素の `<input>` の props。虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。入力がある間の Escape はクリアだけにして外へ伝えない（ドロワーを閉じさせない） | `ConversationSearch` の検索欄 |
-| `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`・`ExportDialog`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
+| `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`size`（`md`（既定。`max-w-lg`）/ `wide`（画面いっぱいから 1rem ずつ引いた大きさ）。#176 で追加）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`・`ExportDialog`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
 | `CopyButton` | `text`・`label`・`className`。コピーと結果の一時表示。中のボタンは `IconButton`（`inherit`・`xs`） | 応答・コードブロックのコピー。フック（`useCopyFeedback`）は `hooks/clipboard/`、コピー処理（`clipboard.ts`）は `lib/shared/` へ移した（チャットに依存しないため） |
+| `CodeBlockFrame`（#176） | `language`（見出し行の言語名。`null` なら出さない）・`code`（コピーする原文）・`actions`（コピーの前に並べる操作）・`children`（本文）。枠と見出し行（言語名・操作・`CopyButton`） | `MarkdownContent` のコードブロック、`DiagramView`（切り替え・拡大のボタンを `actions` で渡す）。`MarkdownContent` の `pre` から切り出した |
 
 `SettingsModal` を `Modal` に揃えたことによる差:
 
@@ -173,7 +174,7 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `sidebar` | organisms | `Sidebar`・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal` | `components/settings/` |
@@ -185,7 +186,8 @@ src/
 | `WebSearchResult` | `text`（web_search の結果テキスト）。1 件も読み取れなければ元のテキストをそのまま出す |
 | `ConversationListItem` | `conversation`・`isCurrent`・`isGenerating`・`alwaysShowDelete`（ドロワーでは true。デスクトップは hover・フォーカスの間だけ削除ボタンを出す）・`onSelect`・`onDelete` |
 | `SearchResultItem` | `result`・`terms`（強調するキーワード）・`isCurrent`・`onSelect` |
-| `DiagramView`（#169・#171） | `diagram`（描画の状態 `DiagramState`。フックの戻り値）・`alt`（図の代替テキスト）・`fallback`（描けるまで・描けないときに出すソースの `pre`）。フックは呼ばず、`MarkdownContent` 内の organisms（`MermaidCodeBlock`・`PlantUmlCodeBlock`）が描画のフックを呼んで渡す |
+| `DiagramView`（#169・#171・#176） | `diagram`（描画の状態 `DiagramState`。フックの戻り値）・`kind`（図の種類。`alt`・見出し・ファイル名に使う）・`language`・`code`（見出し行の言語名とコピーする原文）・`fallback`（描けるまで・描けないとき・ソースへ切り替えたときに出すソースの `pre`）。`CodeBlockFrame` で枠ごと描き、描けたときだけ切り替え・拡大のボタンを出す。切り替えとダイアログの開閉は UI の状態として持つ。フックは呼ばず、`MarkdownContent` 内の organisms（`MermaidCodeBlock`・`PlantUmlCodeBlock`）が描画のフックを呼んで渡す |
+| `DiagramZoomDialog`（#176） | `kind`・`title`・`src`（SVG の data: URI）・`svg`（保存する SVG）・`onClose`。共通の `Modal`（`wide`）の中で倍率を変え（`ResizeObserver` で表示の倍率を測る）、SVG / PNG で保存する。PNG にできなかった理由はダイアログの中に出す |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
 - 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。

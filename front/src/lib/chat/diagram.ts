@@ -135,7 +135,7 @@ export function buildMermaidThemeVariables(
  *
  * @param ok - 応答が 2xx だったか
  * @param json - 応答の本文を `JSON.parse` した値。JSON でなければ `null`
- * @returns `rendered`（`src` は SVG の data: URI）か `error`
+ * @returns `rendered`（`src` は SVG の data: URI、`svg` は受け取った SVG）か `error`
  */
 export function toPlantUmlDiagramState(
   ok: boolean,
@@ -147,10 +147,137 @@ export function toPlantUmlDiagramState(
         (json as Record<string, unknown>)
       : {};
   if (ok && typeof body.svg === 'string' && body.svg) {
-    return { status: 'rendered', src: svgToDataUri(body.svg) };
+    return { status: 'rendered', src: svgToDataUri(body.svg), svg: body.svg };
   }
   if (!ok && typeof body.error === 'string' && body.error) {
     return { status: 'error', error: body.error };
   }
   return { status: 'error', error: PLANTUML_UNEXPECTED_RESPONSE_ERROR };
+}
+
+/**
+ * 拡大のダイアログの倍率の段階（#176）。`−` / `+` でこの段階を前後に移る。
+ * 100% を中心に、縮小は 25% 刻み、拡大は読みやすさが変わる程度に間を広げる。
+ */
+const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4] as const;
+
+/** 倍率を段階と比べるときの誤差の許容（「全体」の倍率が計算で段階とほぼ同じになった場合を同じとみなす） */
+const ZOOM_EPSILON = 1e-6;
+
+/** PNG にするときの、図の元の大きさに対する倍率（高解像度の画面で粗くならないように） */
+const PNG_SCALE = 2;
+
+/** PNG の長辺の上限（px）。ブラウザの `<canvas>` の上限に当たると `toBlob` が `null` を返すため、それより小さく抑える */
+const MAX_PNG_SIDE = 8192;
+
+/** 拡大・縮小の向き */
+type ZoomDirection = 'in' | 'out';
+
+/**
+ * 今の倍率から、1 つ大きい（`in`）／小さい（`out`）倍率の段階を返す（#176）。
+ *
+ * 今の倍率は段階の値でなくてよい（「全体」で縮めて表示しているときの倍率など）。その場合も、
+ * 今より大きい／小さい最も近い段階へ移る。
+ *
+ * @param scale - 今の倍率（1 が元の大きさ）
+ * @param direction - `in` で拡大、`out` で縮小
+ * @returns 次の倍率。それ以上拡大／縮小できなければ `null`
+ */
+export function stepZoom(
+  scale: number,
+  direction: ZoomDirection
+): number | null {
+  if (direction === 'in') {
+    return ZOOM_LEVELS.find((level) => level > scale + ZOOM_EPSILON) ?? null;
+  }
+  return ZOOM_LEVELS.findLast((level) => level < scale - ZOOM_EPSILON) ?? null;
+}
+
+/**
+ * 属性値に入れる文字列の `&`・`"`・`<` を文字参照にする。
+ *
+ * @param value - 属性値に入れる文字列
+ * @returns エスケープした文字列
+ */
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+/**
+ * SVG の長さの属性（`width="800"`・`width="800px"`）を数にする。
+ *
+ * @param openTag - ルートの `<svg>` の開始タグ
+ * @param name - 属性名
+ * @returns 正の数。無い・単位が px 以外（`100%` 等）・不正な値なら `null`
+ */
+function readLength(openTag: string, name: 'width' | 'height'): number | null {
+  const value = openTag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1]?.trim();
+  if (!value || !/^\d+(\.\d+)?(px)?$/.test(value)) return null;
+  const length = parseFloat(value);
+  return length > 0 ? length : null;
+}
+
+/**
+ * SVG の全体を塗る背景の `<rect>` を、ルートの `<svg>` の先頭に足す（#176）。
+ *
+ * Mermaid の SVG は背景が透明で、文字の色はテーマの明るい色のため、白い地のビューアで開くと読めない。
+ * 保存するときに画面と同じ地の色を付ける。塗る範囲は `viewBox`（原点が 0 でない場合も含む）、
+ * 無ければ `width` / `height`。どちらも無い・ルートが空要素のときは、そのまま返す。
+ *
+ * @param svg - SVG の文字列
+ * @param color - 背景の色（CSS の色の値。例: `#2e3440`）
+ * @returns 背景の `<rect>` を足した SVG の文字列
+ */
+export function withBackground(svg: string, color: string): string {
+  const openTag = svg.match(/<svg\b[^>]*>/)?.[0];
+  if (!openTag || openTag.endsWith('/>')) return svg;
+
+  const viewBox = openTag
+    .match(/\sviewBox="([^"]*)"/)?.[1]
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  let box: [number, number, number, number] | null = null;
+  if (
+    viewBox?.length === 4 &&
+    viewBox.every(Number.isFinite) &&
+    viewBox[2] > 0 &&
+    viewBox[3] > 0
+  ) {
+    box = [viewBox[0], viewBox[1], viewBox[2], viewBox[3]];
+  } else {
+    const width = readLength(openTag, 'width');
+    const height = readLength(openTag, 'height');
+    if (width && height) box = [0, 0, width, height];
+  }
+  if (!box) return svg;
+
+  const [x, y, width, height] = box;
+  const rect = `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeAttribute(color.trim())}"/>`;
+  // 置き換え後の文字列の `$&` 等を置換パターンとして解釈させないよう、関数で渡す
+  return svg.replace(openTag, () => openTag + rect);
+}
+
+/**
+ * 図を PNG にするときの画像の大きさを決める（#176）。
+ *
+ * 元の大きさの {@link PNG_SCALE} 倍にする。長辺が {@link MAX_PNG_SIDE} を超えるなら、収まるまで倍率を下げる。
+ *
+ * @param width - 図の元の幅（px。`<img>` の `naturalWidth`）
+ * @param height - 図の元の高さ（px）
+ * @returns PNG の幅・高さ（整数の px）。元の大きさが正の有限の数でなければ `null`
+ */
+export function getPngSize(
+  width: number,
+  height: number
+): { width: number; height: number } | null {
+  if (![width, height].every((n) => Number.isFinite(n) && n > 0)) return null;
+  const scale = Math.min(PNG_SCALE, MAX_PNG_SIDE / Math.max(width, height));
+  return {
+    width: Math.min(MAX_PNG_SIDE, Math.ceil(width * scale)),
+    height: Math.min(MAX_PNG_SIDE, Math.ceil(height * scale)),
+  };
 }

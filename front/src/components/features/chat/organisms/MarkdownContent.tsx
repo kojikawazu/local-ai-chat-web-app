@@ -9,7 +9,7 @@ import type { Components } from 'react-markdown';
 import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
 import type { HastNode } from '@/lib/chat/code-block';
 import { getDiagramKind } from '@/lib/chat/diagram';
-import CopyButton from '@/components/common/molecules/CopyButton';
+import CodeBlockFrame from '@/components/common/molecules/CodeBlockFrame';
 import DiagramView from '@/components/features/chat/molecules/DiagramView';
 import { useMermaidDiagram } from '@/hooks/chat/useMermaidDiagram';
 import { usePlantUmlDiagram } from '@/hooks/chat/usePlantUmlDiagram';
@@ -42,26 +42,21 @@ const components: Components = {
         {children}
       </pre>
     );
+    // 図の種類が決まるのは言語名がある場合だけ
+    if (diagramKind === 'mermaid' && language) {
+      return (
+        <MermaidCodeBlock source={code} language={language} fallback={body} />
+      );
+    }
+    if (diagramKind === 'plantuml' && language) {
+      return (
+        <PlantUmlCodeBlock source={code} language={language} fallback={body} />
+      );
+    }
     return (
-      <div className="my-3 rounded-lg bg-nord-0 border border-nord-3 overflow-hidden">
-        {/* 言語名とコピーボタンは pre の外の見出し行に置き、横スクロールしても本文と重ならない。
-            ホバーの無いスマホでも押せるよう常に表示 */}
-        <div className="flex items-center justify-end gap-3 px-3 py-1.5 border-b border-nord-3 text-xs text-nord-4">
-          {language && <span data-testid="code-language">{language}</span>}
-          <CopyButton
-            text={code}
-            label="コードをコピー"
-            className="flex-row-reverse"
-          />
-        </div>
-        {diagramKind === 'mermaid' ? (
-          <MermaidCodeBlock source={code} fallback={body} />
-        ) : diagramKind === 'plantuml' ? (
-          <PlantUmlCodeBlock source={code} fallback={body} />
-        ) : (
-          body
-        )}
-      </div>
+      <CodeBlockFrame language={language} code={code}>
+        {body}
+      </CodeBlockFrame>
     );
   },
   code({ children, className }) {
@@ -148,9 +143,11 @@ const components: Components = {
 
 /** 図のコードブロック（{@link MermaidCodeBlock}・{@link PlantUmlCodeBlock}）の props。 */
 type DiagramCodeBlockProps = {
-  /** 図のソース。 */
+  /** 図のソース（コピーするソースの原文でもある）。 */
   source: string;
-  /** ソースのコードブロック（図を描けるまで・描けなかったときの表示）。 */
+  /** 見出し行に出す言語名（コードフェンスに書かれたまま）。 */
+  language: string;
+  /** ソースのコードブロック（図を描けるまで・描けなかったとき・ソースへ切り替えたときの表示）。 */
   fallback: ReactNode;
 };
 
@@ -159,26 +156,46 @@ type DiagramCodeBlockProps = {
  *
  * 描画のフックは organisms に置き、表示は {@link DiagramView}（molecules）に任せる（`docs/12` の階層の判断基準）。
  *
- * @param props - Mermaid のソースと、ソースのコードブロックを持つ props
+ * @param props - Mermaid のソース・言語名と、ソースのコードブロックを持つ props
  */
-function MermaidCodeBlock({ source, fallback }: DiagramCodeBlockProps) {
+function MermaidCodeBlock({
+  source,
+  language,
+  fallback,
+}: DiagramCodeBlockProps) {
   const isStreaming = use(StreamingContext);
   const diagram = useMermaidDiagram(source, !isStreaming);
   return (
-    <DiagramView diagram={diagram} alt="Mermaid の図" fallback={fallback} />
+    <DiagramView
+      diagram={diagram}
+      kind="mermaid"
+      language={language}
+      code={source}
+      fallback={fallback}
+    />
   );
 }
 
 /**
  * PlantUML のコードブロックの本文を、生成中かを Context から読んで図にする（#171）。
  *
- * @param props - PlantUML のソースと、ソースのコードブロックを持つ props
+ * @param props - PlantUML のソース・言語名と、ソースのコードブロックを持つ props
  */
-function PlantUmlCodeBlock({ source, fallback }: DiagramCodeBlockProps) {
+function PlantUmlCodeBlock({
+  source,
+  language,
+  fallback,
+}: DiagramCodeBlockProps) {
   const isStreaming = use(StreamingContext);
   const diagram = usePlantUmlDiagram(source, !isStreaming);
   return (
-    <DiagramView diagram={diagram} alt="PlantUML の図" fallback={fallback} />
+    <DiagramView
+      diagram={diagram}
+      kind="plantuml"
+      language={language}
+      code={source}
+      fallback={fallback}
+    />
   );
 }
 
@@ -188,8 +205,8 @@ function PlantUmlCodeBlock({ source, fallback }: DiagramCodeBlockProps) {
  * `remark-gfm` で GFM（表・打ち消し線等）に対応し、各要素をテーマ色付きの
  * カスタムコンポーネントで描画する。HTML はパースせず React の標準エスケープに
  * 委ねるため、XSS 耐性を保つ。コードブロックは `rehype-highlight` で言語別に色付けし
- * （色は `globals.css` の `.hljs-*`）、右上に言語名とコピーボタンを付ける。言語の指定が
- * 無いブロックは自動判定せず単色のまま描画する。`mermaid`・`plantuml` のブロックは図として描く（生成中はソースのまま）。
+ * （色は `globals.css` の `.hljs-*`）、見出し行に言語名とコピーボタンを付ける（`CodeBlockFrame`）。言語の指定が
+ * 無いブロックは自動判定せず単色のまま描画する。`mermaid`・`plantuml` のブロックは図として描く（生成中はソースのまま）。描けた図は拡大・保存・ソースとの切り替えができる（#176）。
  *
  * @param props - 描画する Markdown テキストと、生成中かを持つ props
  */
