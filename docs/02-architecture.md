@@ -123,6 +123,7 @@ front/src/
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
+│       │       ├── ExportDialog.tsx # 会話全体の書き出しの形式（Markdown・JSON）を選ぶダイアログ（#12）
 │       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き）
 │       │       ├── AgentThinking.tsx   # エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │       │       └── ToolCallResult.tsx  # ツール実行結果の折りたたみ表示
@@ -181,7 +182,8 @@ front/src/
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
-│   │   └── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
+│   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
+│   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
@@ -190,7 +192,8 @@ front/src/
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
-│       └── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
+│       ├── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
+│       └── download.ts        #     文字列をファイルとして保存させる（Blob と <a download>）
 └── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
@@ -224,6 +227,7 @@ front/tests/
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
     ├── chat-loading.spec.ts       # ローディング表示テスト
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
+    ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト

@@ -13,6 +13,7 @@ import ChatBar, {
 import Footer from '@/components/features/chat/organisms/Footer';
 import SettingsModal from '@/components/features/settings/organisms/SettingsModal';
 import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
+import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
@@ -36,6 +37,7 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   // 会話を作る前に選んだ役割。最初の送信で会話と同時に保存する
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
@@ -125,6 +127,9 @@ export default function Home() {
   }, [currentConversationId, loadMessages, clearMessages]);
 
   const isNewConversationMode = !currentConversationId && messages.length === 0;
+  // 生成中は本文が途中のため書き出させない。作成直後で一覧に無い間も、会話の情報が無いため書き出せない
+  const canExport =
+    currentConversation !== undefined && messages.length > 0 && !isLoading;
 
   const handleNewConversation = useCallback(() => {
     selectConversation(null);
@@ -184,6 +189,8 @@ export default function Home() {
           onOpenMenu={() => setIsMenuOpen(true)}
           roleLabel={getRoleLabel(systemPrompt)}
           onOpenRole={() => setIsRoleDialogOpen(true)}
+          canExport={canExport}
+          onOpenExport={() => setIsExportDialogOpen(true)}
         />
       }
       notice={error}
@@ -199,6 +206,13 @@ export default function Home() {
       footer={<Footer />}
       dialogs={
         <>
+          {isExportDialogOpen && currentConversation && (
+            <ExportDialog
+              conversation={currentConversation}
+              messages={messages}
+              onClose={() => setIsExportDialogOpen(false)}
+            />
+          )}
           {isRoleDialogOpen && (
             <RoleDialog
               initialPrompt={systemPrompt}
@@ -228,6 +242,7 @@ export default function Home() {
         isLoading={isLoading}
         onRetrySave={retrySave}
         onRegenerate={regenerate}
+        conversationTitle={currentConversation?.title}
       />
     </ChatLayout>
   );

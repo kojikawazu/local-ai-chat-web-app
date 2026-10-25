@@ -151,7 +151,7 @@ src/
 | 部品 | props | 使っている箇所 |
 |---|---|---|
 | `SearchBox` | `value`・`onValueChange`・`onClear`・`label`（入力欄の名前とプレースホルダー）・`clearLabel`（× の名前）と素の `<input>` の props。虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。入力がある間の Escape はクリアだけにして外へ伝えない（ドロワーを閉じさせない） | `ConversationSearch` の検索欄 |
-| `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
+| `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`・`ExportDialog`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
 | `CopyButton` | `text`・`label`・`className`。コピーと結果の一時表示。中のボタンは `IconButton`（`inherit`・`xs`） | 応答・コードブロックのコピー。フック（`useCopyFeedback`）は `hooks/clipboard/`、コピー処理（`clipboard.ts`）は `lib/shared/` へ移した（チャットに依存しないため） |
 
 `SettingsModal` を `Modal` に揃えたことによる差:
@@ -172,7 +172,7 @@ src/
 
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
-| `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult` | `features/chat/components/` |
+| `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加） | `features/chat/components/` |
 | `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `sidebar` | organisms | `Sidebar`・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
@@ -211,7 +211,7 @@ src/
   | `notice` | 本文と入力欄の間。空なら出さない | `useChat` のエラー |
   | `composer` | 本文の下 | `ChatBar` |
   | `footer` | メイン領域の下端 | `Footer` |
-  | `dialogs` | 枠の最後 | `RoleDialog`・`SettingsModal` |
+  | `dialogs` | 枠の最後 | `ExportDialog`・`RoleDialog`・`SettingsModal` |
 
 - `app/page.tsx`: フックを呼び、organisms を組み立てて `ChatLayout` へ渡す。レイアウトのクラス（`flex h-screen …`）とエラーの帯の見た目は `ChatLayout` へ移した。DOM の構造は移す前と同じ。
 - `page.tsx` に残っていたモデル一覧の取得は `hooks/chat/useModels.ts`、ツール使用の有効状態とエージェントのプリセットの localStorage への保存は `hooks/settings/useAgentSettings.ts` へ移した（`frontend.md` の「ロジック分離」。localStorage のキーは変えていない）。
