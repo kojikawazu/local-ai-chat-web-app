@@ -525,6 +525,29 @@ export function parseUpdateConversationBody(
   return { ok: true, value: { systemPrompt: systemPrompt.value } };
 }
 
+/** `POST /api/agent/approvals/[id]` の検証済みボディ。 */
+export type ApprovalBody = {
+  /** 許可なら true、拒否なら false */
+  approved: boolean;
+};
+
+/**
+ * `POST /api/agent/approvals/[id]` のボディを検証する（ツールの実行前の承認。#148 Phase A2）。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`approved` が真偽値でなければ失敗
+ */
+export function parseApprovalBody(body: unknown): ParseResult<ApprovalBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  if (typeof body.approved !== 'boolean') {
+    return {
+      ok: false,
+      error: 'approvedは true（許可）か false（拒否）で指定してください',
+    };
+  }
+  return { ok: true, value: { approved: body.approved } };
+}
+
 /**
  * `POST /api/conversations/[id]/messages` のボディを検証する。
  *

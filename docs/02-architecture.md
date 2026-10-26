@@ -90,6 +90,8 @@ front/src/
 │   ├── layout.tsx             #   ルートレイアウト
 │   ├── page.tsx               #   トップページ（チャット画面・状態管理の中心）
 │   └── api/                   #   Route Handlers
+│       ├── agent/approvals/[id]/
+│       │   └── route.ts       #     ツールの実行前の承認に許可・拒否を渡す（#148 Phase A2）
 │       ├── attachments/[id]/
 │       │   └── route.ts       #     添付画像の取得（#6）
 │       ├── chat/
@@ -123,6 +125,7 @@ front/src/
 │       │   ├── atoms/
 │       │   │   └── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
 │       │   ├── molecules/
+│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（差分・許可 / 拒否。#148 Phase A2）
 │       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像の拡大のダイアログ（#6）
@@ -182,6 +185,7 @@ front/src/
 │   │   ├── agent.ts           #     エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
 │   │   ├── agent-config.ts    #     エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   │   ├── agent-prompts.ts   #     エージェントモードのシステムプロンプトプリセット定義
+│   │   ├── approvals.ts       #     ツールの実行前の承認待ち（globalThis の Map・5 分で時間切れ・停止で取り消し。#148 Phase A2）
 │   │   └── tools/             #     ツール実装
 │   │       ├── types.ts       #       ツール関連型定義
 │   │       ├── index.ts       #       ツールレジストリ（register/get/execute）
@@ -198,7 +202,11 @@ front/src/
 │   │           ├── text.ts    #         バイナリの判定・行の切り出し・ワイルドカード
 │   │           ├── list-directory.ts #  フォルダの直下の一覧
 │   │           ├── search-files.ts #    ファイル名・中身の検索
-│   │           └── read-file.ts #       行番号付きの読み取り
+│   │           ├── read-file.ts #       行番号付きの読み取り
+│   │           ├── write-guard.ts #     書き込み先の判定（新規は親のフォルダ・.git・秘匿）と既存の中身のハッシュ（#148 Phase A2）
+│   │           ├── diff.ts    #         承認で見せる差分（jsdiff）と見出し
+│   │           ├── write-file.ts #      ファイルの作成・上書き（承認が要る）
+│   │           └── edit-file.ts #       1 か所だけ一致する文字列の置き換え（承認が要る・CRLF）
 │   ├── llm/                   #   LLM（Ollama）との通信
 │   │   ├── ollama.ts          #     Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   │   └── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
@@ -260,7 +268,7 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
-    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
+    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files）と LOCAL_FILE_WRITE_ROOTS（OS の一時フォルダ）（#148）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
@@ -289,6 +297,7 @@ front/tests/
     ├── agent-timeline.spec.ts     # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
     ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
+    ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -434,6 +443,7 @@ model Attachment {
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
+| `LOCAL_FILE_WRITE_ROOTS` | エージェントのファイルの書き込み（作成・編集。実行前に承認が要る）をしてよいフォルダの絶対パス（`LOCAL_FILE_ROOTS` の中だけ・カンマ区切り・`~` 可） | 未設定（書き込みのツールを使わない） |
 
 ## 状態管理
 

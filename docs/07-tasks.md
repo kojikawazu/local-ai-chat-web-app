@@ -1024,3 +1024,16 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] UT（`agent-timeline.test.ts` 10 件・`message-metadata.test.ts` に 2 件）・IT（`chat-agent.test.ts` に 2 件）・E2E（`agent-timeline.spec.ts` 3 件。`agent.spec.ts` の「結果」のラベルの探し方を完全一致に直した。思考過程の本文の「結果」に当たっていたため）
 - [x] ドキュメント（`docs/09`・`docs/02`・`docs/04`・`docs/06`・`docs/12`・`CLAUDE.md`）
 
+## フェーズ40: ツールの承認とファイルの書き込み（#148 Phase A2）
+
+エージェントがファイルを作成・編集する前に、差分を見せて利用者の承認を挟む。承認の仕組みはコマンドの実行（Phase B）・ブラウザの操作（#149）でも使い回す。設計は [15-tool-approval.md](./15-tool-approval.md)。 — #148・サブ issue #188（2026-10-26 着手）
+
+- [x] 設計（`docs/15-tool-approval.md`。ストリームを開いたまま承認を待つ・書き込みの場所は別の環境変数・差分は jsdiff）
+- [x] 設計のレビュー（推奨どおり: 書き込みは別の環境変数・jsdiff・毎回の承認・ストリームを開いたまま待つ）
+- [x] 承認待ち（`lib/agent/approvals.ts`）と承認の API（`POST /api/agent/approvals/[id]`）
+- [x] エージェントループの prepare → 承認 → run・`tool_approval_request` のイベント
+- [x] `write_file`・`edit_file`（書き込み先の判定・差分・上限・CRLF・承認の間の変更の検出）
+- [x] 承認カード（`ApprovalCard`）と `useChat`・会話ごとの承認待ち
+- [x] UT（`tool-approval.test.ts` 18 件）・IT（`local-file-write.test.ts` 12 件・`chat-agent-approval.test.ts` 7 件・`tools.test.ts`）・E2E（`file-write-approval.spec.ts` 4 件。承認カードの操作の 2 件は大モデルのみ）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`12`・`15`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{api,security,testing}.md`）
+

@@ -142,7 +142,8 @@ async function saveMessage(
  *   コールバックを含む。各フィールドの意味は {@link UseChatOptions} を参照。
  * @returns 表示中の会話のチャット状態と操作関数。`messages` はメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
- *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`generatingConversationIds` は
+ *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`pendingApprovals` は承認を待っている
+ *   ツールの実行（#148 Phase A2）、`respondToApproval` はそれに許可か拒否かを返す関数、`generatingConversationIds` は
  *   応答を生成中の会話 ID の一覧（表示中でない会話も含む）、`sendMessage` は
  *   本文と添付画像（#6。user メッセージと同じトランザクションで保存し、ID で LLM へ渡す）を送信して
  *   応答をストリーム受信する関数、`stopGeneration` は表示中の会話の生成中の応答を
@@ -162,10 +163,8 @@ export function useChat({
 }: UseChatOptions) {
   const [chats, setChats] = useState<ChatStates>({});
   const currentKey = chatKey(conversationId);
-  const { messages, isLoading, error, activeToolCall } = getChat(
-    chats,
-    currentKey
-  );
+  const { messages, isLoading, error, activeToolCall, pendingApprovals } =
+    getChat(chats, currentKey);
   // 会話 ID → 生成中の応答の AbortController。停止は表示中の会話のものだけを中断する
   const abortControllersRef = useRef(new Map<string, AbortController>());
   // 保存に失敗したメッセージ ID → 再送内容。表示用の state とは分け、再試行時に参照する
@@ -519,8 +518,34 @@ export function useChat({
                         : msg
                     )
                   );
+                } else if (event.type === 'tool_approval_request') {
+                  // 承認を待つ。承認カードを出し、利用者の許可・拒否は respondToApproval で返す（#148 Phase A2）
+                  const { approvalId, name, preview } = event;
+                  updateChatOf(convId, (chat) => ({
+                    ...chat,
+                    pendingApprovals: [
+                      ...chat.pendingApprovals,
+                      { approvalId, name, preview },
+                    ],
+                  }));
                 } else if (event.type === 'tool_call_result') {
                   patchChat(convId, { activeToolCall: null });
+                  if (event.approval) {
+                    // 時間切れなど、画面から答えずに決着した承認のカードを消す（答えた分は respondToApproval で消してある）
+                    updateChatOf(convId, (chat) => {
+                      const index = chat.pendingApprovals.findIndex(
+                        (request) => request.name === event.name
+                      );
+                      return index < 0
+                        ? chat
+                        : {
+                            ...chat,
+                            pendingApprovals: chat.pendingApprovals.filter(
+                              (_, i) => i !== index
+                            ),
+                          };
+                    });
+                  }
                   // pending キューから先頭の arguments と本文の位置を取り出す（FIFO）
                   const argsQueue = pendingToolArgs.get(event.name) ?? [];
                   const started = argsQueue.shift();
@@ -538,6 +563,7 @@ export function useChat({
                     isEmpty: event.isEmpty,
                     durationMs: 0,
                     contentOffset: started?.contentOffset,
+                    approval: event.approval,
                   };
                   toolCallRecords.push(record);
                   // 最後のツール呼び出しレコードを結果で更新
@@ -555,6 +581,7 @@ export function useChat({
                           isError: event.isError,
                           summary: event.summary,
                           isEmpty: event.isEmpty,
+                          approval: event.approval,
                         };
                       }
                       return {
@@ -647,7 +674,12 @@ export function useChat({
         });
         discardResponse();
       } finally {
-        patchChat(convId, { isLoading: false, activeToolCall: null });
+        // 応答が終われば、答えていない承認も決着している（サーバーは停止・切断で取り消す）
+        patchChat(convId, {
+          isLoading: false,
+          activeToolCall: null,
+          pendingApprovals: [],
+        });
         if (abortControllersRef.current.get(convId) === controller) {
           abortControllersRef.current.delete(convId);
         }
@@ -661,6 +693,7 @@ export function useChat({
       persist,
       requestTitleGeneration,
       patchChat,
+      updateChatOf,
       setMessagesOf,
     ]
   );
@@ -818,6 +851,45 @@ export function useChat({
     [persist, setSaveState]
   );
 
+  /**
+   * 承認を待っているツールの実行に、許可か拒否かを返す（#148 Phase A2）。
+   *
+   * 承認カードはすぐに消し、承認の API に送る。API が失敗した（時間切れで決着済み等）ときはエラーを出す。
+   * 結果はエージェントのストリームの `tool_call_result` で届く。
+   *
+   * @param approvalId - 承認 ID
+   * @param approved - 許可なら true、拒否なら false
+   */
+  const respondToApproval = useCallback(
+    async (approvalId: string, approved: boolean) => {
+      const convId = currentKey;
+      updateChatOf(convId, (chat) => ({
+        ...chat,
+        pendingApprovals: chat.pendingApprovals.filter(
+          (request) => request.approvalId !== approvalId
+        ),
+      }));
+      try {
+        const res = await fetch(`/api/agent/approvals/${approvalId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            data.error || `承認を送れませんでした (${res.status})`
+          );
+        }
+      } catch (err) {
+        patchChat(convId, {
+          error: err instanceof Error ? err.message : '承認を送れませんでした',
+        });
+      }
+    },
+    [currentKey, updateChatOf, patchChat]
+  );
+
   // 表示中の会話の生成中の応答を止める。生成中でなければ何もしない（送信直後の保存待ちの間など）。
   // 裏で生成中の別の会話は止めない
   const stopGeneration = useCallback(() => {
@@ -859,11 +931,13 @@ export function useChat({
     isLoading,
     error,
     activeToolCall,
+    pendingApprovals,
     generatingConversationIds: generatingConversationIds(chats),
     sendMessage,
     stopGeneration,
     regenerate,
     retrySave,
+    respondToApproval,
     clearMessages,
     loadMessages,
     discardConversation,

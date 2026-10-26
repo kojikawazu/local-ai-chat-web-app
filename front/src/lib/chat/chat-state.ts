@@ -1,4 +1,7 @@
-import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type {
+  ToolApprovalRequest,
+  ToolCallInfo,
+} from '@/types/agent/tool-call';
 import type { Message } from '@/types/chat/message';
 
 /**
@@ -21,6 +24,8 @@ export type ChatState = {
   error: string | null;
   /** 実行中のツール呼び出し。無ければ `null` */
   activeToolCall: ActiveToolCall | null;
+  /** 承認を待っているツールの実行（届いた順。#148 Phase A2）。無ければ空配列 */
+  pendingApprovals: ToolApprovalRequest[];
 };
 
 /** 会話ごとのチャット状態。キーは会話 ID か {@link NEW_CONVERSATION_KEY}。 */
@@ -32,6 +37,7 @@ export const EMPTY_CHAT: ChatState = {
   isLoading: false,
   error: null,
   activeToolCall: null,
+  pendingApprovals: [],
 };
 
 /**

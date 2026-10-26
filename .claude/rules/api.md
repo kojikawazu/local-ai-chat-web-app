@@ -11,6 +11,7 @@ globs: "front/src/app/api/**"
 - フロントエンドから Ollama / Prisma への直接通信は禁止。Route Handlers を経由する。
 - **Route Handler から Ollama へ直接 `fetch` しない。** 接続先・モデル解決は `lib/llm/ollama.ts` に集約し、`streamChat()`（ストリーミング）・`chatOnce()`（非ストリーミング）・`listModels()`・`getDefaultModel()` を経由する。`process.env.OLLAMA_*` を読むのも同ファイルのみとする（route ごとに既定値を持つと、チャット本体とタイトル生成で別モデルを呼ぶような不整合が起きる）。
 - **添付画像の形式はサーバーが中身で決める。** 保存 API はクライアントの申告を受け取らず、`lib/server/attachment.ts` の `detectImageMimeType()`（マジックナンバー）で PNG / JPEG だけを受け付ける。`/api/chat` は画像を ID で受け、DB から読んで Ollama へ渡す（LLM へ渡す画像の選び方は `lib/server/chat-images.ts`。#6）。
+- **ツールの承認待ちはモジュールの変数に置かない。** `/api/chat` が登録し、承認の API（`/api/agent/approvals/[id]`）が決着させるため、`lib/agent/approvals.ts` が `globalThis` に持つ（route ごとにモジュールが別に読み込まれても共有するため。#148 Phase A2）。
 - **Route Handler から PlantUML サーバーへ直接 `fetch` しない。** 接続先（`PLANTUML_URL`）の解決とエラーの解釈は `lib/server/plantuml.ts` の `renderPlantUml()` に集約する（#171）。
 
 ## ディレクトリ構成
@@ -22,6 +23,7 @@ front/src/app/api/
 ├── tools/route.ts                         # エージェントの利用可能ツール一覧取得
 ├── diagrams/plantuml/route.ts             # PlantUML の図の描画（PlantUML サーバーへ中継）
 ├── attachments/[id]/route.ts              # 添付画像の取得（#6）
+├── agent/approvals/[id]/route.ts          # ツールの実行前の承認に許可・拒否を渡す（#148 Phase A2）
 └── conversations/
     ├── route.ts                           # 会話一覧取得・新規作成
     ├── search/route.ts                    # 会話のキーワード検索

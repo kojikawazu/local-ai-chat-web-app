@@ -2,10 +2,12 @@ import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
 import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
 import { parsePositiveIntEnv } from './agent-config';
 import { getAllToolDefinitions, executeTool, getTool } from './tools/index';
-import type { ToolCallInfo } from '@/types/agent/tool-call';
+import { waitForApproval } from './approvals';
+import type { ToolApproval, ToolCallInfo } from '@/types/agent/tool-call';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
+  Tool,
   ToolAccess,
   ToolExecution,
   ToolOutput,
@@ -111,17 +113,22 @@ function encodeEvent(event: AgentStreamEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event) + '\n');
 }
 
-// ツール実行（タイムアウト付き、全体タイムアウトはリトライ含む合計に適用）
+/** {@link withToolTimeout} の結果。 */
+type TimedResult<T> =
+  | { ok: true; value: T; durationMs: number }
+  | { ok: false; message: string; durationMs: number };
+
+// ツールの処理をタイムアウト付きで実行する（全体タイムアウトはリトライ含む合計に適用）。
 // タイムアウト時は race で応答を返すだけでなく signal を abort し、ツール内の
 // fetch・本文読み取り・リトライ待機を止めてバックグラウンドに処理を残さない。
 // signal を見ないツールがあっても応答が返るよう race は残す。
 // ループ全体の中断（ブラウザの停止・切断）でもツールを止めるため、loopSignal と合成して渡す。
-// ツール自身の失敗は戻り値の isError で届く。ここで isError にするのは例外（タイムアウト・未登録のツール）だけ
-async function runTool(
+// 承認が要るツールは、準備（prepare）と実行（run）にそれぞれ掛ける（承認を待つ時間には掛けない。#148 Phase A2）
+async function withToolTimeout<T>(
   name: string,
-  args: Record<string, unknown>,
+  task: (signal: AbortSignal) => Promise<T>,
   loopSignal: AbortSignal
-): Promise<ToolExecution & { durationMs: number }> {
+): Promise<TimedResult<T>> {
   const start = Date.now();
   const abortController = new AbortController();
   const toolSignal = AbortSignal.any([abortController.signal, loopSignal]);
@@ -138,22 +145,130 @@ async function runTool(
   });
 
   try {
-    const output = await Promise.race([
-      executeTool(name, args, toolSignal),
-      timeoutPromise,
-    ]);
+    const value = await Promise.race([task(toolSignal), timeoutPromise]);
     clearTimeout(timeoutId);
-    return { ...output, durationMs: Date.now() - start };
+    return { ok: true, value, durationMs: Date.now() - start };
   } catch (e) {
     clearTimeout(timeoutId);
-    const msg = e instanceof Error ? e.message : String(e);
     return {
-      result: msg,
-      isError: true,
-      summary: msg,
+      ok: false,
+      message: e instanceof Error ? e.message : String(e),
       durationMs: Date.now() - start,
     };
   }
+}
+
+/**
+ * タイムアウト・例外で終わった処理を、失敗の実行結果にする。
+ *
+ * @param message - 失敗の理由
+ * @returns `isError: true` の実行結果
+ */
+function failedOutput(message: string): ToolExecution {
+  return { result: message, isError: true, summary: message };
+}
+
+// ツール実行（タイムアウト付き）。ツール自身の失敗は戻り値の isError で届く。
+// ここで isError にするのは例外（タイムアウト・未登録のツール）だけ
+async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+  loopSignal: AbortSignal
+): Promise<ToolExecution & { durationMs: number }> {
+  const timed = await withToolTimeout(
+    name,
+    (signal) => executeTool(name, args, signal),
+    loopSignal
+  );
+  return timed.ok
+    ? { ...timed.value, durationMs: timed.durationMs }
+    : { ...failedOutput(timed.message), durationMs: timed.durationMs };
+}
+
+/**
+ * 承認されずに書き込み等を行わなかったことを表す結果（#148 Phase A2）。
+ *
+ * @param decision - 承認の結果（拒否か時間切れ）
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+export function declinedOutput(
+  decision: Exclude<ToolApproval, 'approved'>
+): ToolOutput {
+  return decision === 'expired'
+    ? {
+        result:
+          'エラー: 承認が得られなかった（時間切れ）ため実行しませんでした。必要なら、改めて実行してよいか利用者に確かめてください。',
+        isError: true,
+        summary: '承認されませんでした（時間切れ）',
+      }
+    : {
+        result:
+          'エラー: 利用者が拒否したため実行しませんでした。理由を聞くか、別の方法を提案してください。',
+        isError: true,
+        summary: '拒否されました',
+      };
+}
+
+/**
+ * 承認が要るツールを、準備 → 承認 → 実行の順に進める（#148 Phase A2。`docs/15-tool-approval.md`）。
+ *
+ * 準備で失敗したら承認は求めず、その結果を返す。準備できたら `tool_approval_request` を送り、
+ * 承認の API から結果が届くまで待つ（停止・切断で取り消し、5 分で時間切れ）。許可されたら準備で作った処理を実行する。
+ * 所要時間は準備と実行の合計（承認を待つ時間は含めない）。
+ *
+ * @param tool - 承認が要るツール（`prepare` を持つ）
+ * @param args - LLM から渡された引数
+ * @param send - イベントを送る関数
+ * @param loopSignal - ループ全体の中断の signal
+ * @returns 実行結果・所要時間・承認の結果（準備で失敗したら承認の結果は無し）
+ */
+async function runWithApproval(
+  tool: Tool & { prepare: NonNullable<Tool['prepare']> },
+  args: Record<string, unknown>,
+  send: (event: AgentStreamEvent) => void,
+  loopSignal: AbortSignal
+): Promise<ToolExecution & { durationMs: number; approval?: ToolApproval }> {
+  const name = tool.definition.name;
+  const prepared = await withToolTimeout(
+    name,
+    (signal) => tool.prepare(args, signal),
+    loopSignal
+  );
+  if (!prepared.ok) {
+    return {
+      ...failedOutput(prepared.message),
+      durationMs: prepared.durationMs,
+    };
+  }
+  if (!prepared.value.ok) {
+    return { ...prepared.value.output, durationMs: prepared.durationMs };
+  }
+
+  const approvalId = crypto.randomUUID();
+  send({
+    type: 'tool_approval_request',
+    approvalId,
+    name,
+    preview: prepared.value.preview,
+  });
+  const decision = await waitForApproval({
+    id: approvalId,
+    signal: loopSignal,
+  });
+  if (decision !== 'approved') {
+    return {
+      ...declinedOutput(decision),
+      durationMs: prepared.durationMs,
+      approval: decision,
+    };
+  }
+
+  const { run } = prepared.value;
+  const ran = await withToolTimeout(name, run, loopSignal);
+  const durationMs = prepared.durationMs + ran.durationMs;
+  return ran.ok
+    ? { ...ran.value, durationMs, approval: 'approved' }
+    : { ...failedOutput(ran.message), durationMs, approval: 'approved' };
 }
 
 // Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
@@ -316,6 +431,8 @@ async function relayOllamaResponse(
  * ツールが接続先ごと使えない失敗（`unavailable`）を返したら、同じ応答の中ではそのツールを
  * 再び実行せず、実行しなかったことを結果として返す（#157）。
  * ローカルのファイルを読むツールが成功した後は、外部と通信するツールを実行しない（#148。{@link shouldBlockTool}）。
+ * 承認が要るツール（`prepare` を持つ。ファイルの書き込み等）は、`tool_approval_request` を送って利用者の許可を待ってから実行する
+ * （#148 Phase A2。{@link runWithApproval}）。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * `signal` の abort、または返したストリームの cancel（ブラウザの停止・切断）でループを止める。
@@ -455,14 +572,22 @@ export function runAgentLoop(
               });
 
               const skipReason = unavailableTools.get(name);
-              const access = getTool(name)?.access;
+              const tool = getTool(name);
+              const access = tool?.access;
               // unavailable はループだけが読む印。画面・DB へは送らない
               const { durationMs, unavailable, ...output } =
                 skipReason !== undefined
                   ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
                   : shouldBlockTool(access, hasReadLocalFiles)
                     ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
-                    : await runTool(name, args, loopSignal);
+                    : tool?.prepare
+                      ? await runWithApproval(
+                          { ...tool, prepare: tool.prepare },
+                          args,
+                          send,
+                          loopSignal
+                        )
+                      : await runTool(name, args, loopSignal);
               if (unavailable) {
                 unavailableTools.set(name, output.summary ?? output.result);
               }

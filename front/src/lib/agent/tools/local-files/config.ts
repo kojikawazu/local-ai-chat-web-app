@@ -1,6 +1,7 @@
 import { realpathSync, statSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
+import { isWithinRoot } from './path-guard';
 
 /** {@link parseRootList} の結果。 */
 type RootList = {
@@ -90,4 +91,40 @@ export function getLocalFileRoots(): string[] {
   }
   cachedRoots = resolveRoots(paths);
   return cachedRoots;
+}
+
+/** 起動後に 1 度だけ解釈した書き込みのフォルダ。`undefined` はまだ解釈していない */
+let cachedWriteRoots: string[] | undefined;
+
+/**
+ * 書き込みのツールが書いてよいフォルダを、環境変数 `LOCAL_FILE_WRITE_ROOTS` から解決する（#148 Phase A2）。
+ *
+ * 書き方は `LOCAL_FILE_ROOTS` と同じ（カンマ区切りの絶対パス・`~` 可）。読み取りのフォルダ（{@link getLocalFileRoots}）の
+ * 中に無いものは `console.warn` で知らせて外す（書く前に read_file で中身を確かめられるように）。
+ * 初めて呼んだときに 1 度だけ解釈する。`process.env.LOCAL_FILE_WRITE_ROOTS` を読むのはこの関数だけ。
+ *
+ * @returns 書き込んでよいフォルダの実体のパス。未設定・全部外れたら空配列（書き込みのツールを使わない）
+ */
+export function getLocalFileWriteRoots(): string[] {
+  if (cachedWriteRoots) return cachedWriteRoots;
+  const { paths, invalid } = parseRootList(
+    process.env.LOCAL_FILE_WRITE_ROOTS,
+    homedir()
+  );
+  for (const value of invalid) {
+    console.warn(
+      `LOCAL_FILE_WRITE_ROOTS の "${value}" は絶対パスではないため使いません`
+    );
+  }
+  const readRoots = getLocalFileRoots();
+  cachedWriteRoots = resolveRoots(paths).filter((root) => {
+    const readable = readRoots.some((readRoot) => isWithinRoot(root, readRoot));
+    if (!readable) {
+      console.warn(
+        `LOCAL_FILE_WRITE_ROOTS の "${root}" は LOCAL_FILE_ROOTS の中に無いため使いません`
+      );
+    }
+    return readable;
+  });
+  return cachedWriteRoots;
 }

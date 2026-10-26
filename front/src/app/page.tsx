@@ -109,11 +109,13 @@ export default function Home() {
     isLoading,
     error,
     activeToolCall,
+    pendingApprovals,
     generatingConversationIds,
     sendMessage,
     stopGeneration,
     regenerate,
     retrySave,
+    respondToApproval,
     clearMessages,
     loadMessages,
     discardConversation,
@@ -285,6 +287,8 @@ export default function Home() {
         onRetrySave={retrySave}
         onRegenerate={regenerate}
         conversationTitle={currentConversation?.title}
+        pendingApprovals={pendingApprovals}
+        onRespondApproval={respondToApproval}
       />
     </ChatLayout>
   );

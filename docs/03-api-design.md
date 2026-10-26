@@ -19,6 +19,7 @@
   - [POST /api/conversations/[id]/generate-title](#post-apiconversationsidgenerate-title)
   - [POST /api/diagrams/plantuml](#post-apidiagramsplantuml)
   - [GET /api/attachments/[id]](#get-apiattachmentsid)
+  - [POST /api/agent/approvals/[id]](#post-apiagentapprovalsid)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
@@ -485,6 +486,26 @@ Ollamaで利用可能なモデル一覧を取得する。
 | 400 | 無効なUUID |
 | 404 | 添付が見つからない（会話の削除でカスケード削除された場合を含む） |
 | 500 | サーバー内部エラー |
+
+---
+
+### POST /api/agent/approvals/[id]
+
+エージェントのツールの実行前の承認に、許可か拒否かを渡す（#148 Phase A2。`docs/15-tool-approval.md`）。`[id]` は `/api/chat` のストリームの `tool_approval_request` の `approvalId`。
+
+**リクエスト**
+
+```json
+{ "approved": true }
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 204 | 待っている承認に結果を渡した（実行の結果は `/api/chat` のストリームの `tool_call_result` で届く） |
+| 400 | 無効な UUID・`approved` が真偽値でない |
+| 404 | 待っている承認が無い（知らない ID・決着済み・5 分の時間切れ・停止済み） |
+
+**備考**: 承認待ちはサーバーのメモリ（`lib/agent/approvals.ts`。`globalThis`）に持つ。ストリームを開いたまま待つため、サーバーのプロセスが 1 つであることが前提（localhost の個人利用）。
 
 ---
 

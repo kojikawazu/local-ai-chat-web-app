@@ -25,6 +25,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
 | Markdown表示 | react-markdown + remark-gfm + rehype-highlight（コードブロックのシンタックスハイライト）+ mermaid（Mermaid の図。使うときだけ読み込む） |
+| 差分 | diff（jsdiff。ファイルの書き込みの承認カードの unified diff） |
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
 | DB | PostgreSQL 16（Docker Compose） |
@@ -101,6 +102,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
+| `LOCAL_FILE_WRITE_ROOTS` | エージェントのファイルの書き込み（作成・編集。実行前に承認が要る）をしてよいフォルダの絶対パス（`LOCAL_FILE_ROOTS` の中だけ・カンマ区切り・`~` 可） | 未設定（書き込みのツールを使わない） |
 
 ## 開発手法
 
@@ -128,7 +130,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt/imageIds指定可。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt/imageIds指定可。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得 |
 | GET | `/api/conversations` | 会話一覧取得 |
@@ -142,6 +144,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/conversations/[id]/generate-title` | LLMで会話タイトル自動生成 |
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 | GET | `/api/attachments/[id]` | 添付画像の中身を返す |
+| POST | `/api/agent/approvals/[id]` | エージェントのツールの実行前の承認に、許可か拒否かを渡す（`approved`。#148 Phase A2） |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -169,22 +172,23 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
   - `api/diagrams/plantuml/` — PlantUML の図の描画（PlantUML サーバーへ中継）
   - `api/attachments/[id]/` — 添付画像の取得
+  - `api/agent/approvals/[id]/` — ツールの実行前の承認（許可・拒否）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
 - **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
-  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
+  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
-      - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148）
+      - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
@@ -232,10 +236,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/12-ui-components.md` | UI コンポーネント 設計書（Atomic Design） |
 | `docs/13-image-attachment.md` | 画像添付（マルチモーダル） 設計書 |
 | `docs/14-local-file-tools.md` | ローカルファイルの検索・読み取りツール 設計書 |
+| `docs/15-tool-approval.md` | ツールの承認とファイルの書き込み 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`15-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`16-`〜）を付与する。
 
 ## Instruction Shortcuts
 
