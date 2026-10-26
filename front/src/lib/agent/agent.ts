@@ -61,7 +61,7 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
 }
 
 /**
- * ローカルのファイルを読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
+ * ローカルのファイル・コマンドの出力を読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
  *
  * 読んだ内容を検索語・URL に埋めて外へ送らせないため。Web の結果などに仕込まれた指示で
  * ファイルを読まされた場合でも、そこから外へ出す手段を無くす。
@@ -71,9 +71,10 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
  */
 function blockedNetworkToolOutput(name: string): ToolOutput {
   return {
-    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイルを読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
+    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
     isError: true,
-    summary: '実行しませんでした（ローカルのファイルを読んだ後のため）',
+    summary:
+      '実行しませんでした（ローカルのファイル・コマンドの出力を読んだ後のため）',
   };
 }
 
@@ -123,11 +124,13 @@ type TimedResult<T> =
 // fetch・本文読み取り・リトライ待機を止めてバックグラウンドに処理を残さない。
 // signal を見ないツールがあっても応答が返るよう race は残す。
 // ループ全体の中断（ブラウザの停止・切断）でもツールを止めるため、loopSignal と合成して渡す。
-// 承認が要るツールは、準備（prepare）と実行（run）にそれぞれ掛ける（承認を待つ時間には掛けない。#148 Phase A2）
+// 承認が要るツールは、準備（prepare）と実行（run）にそれぞれ掛ける（承認を待つ時間には掛けない。#148 Phase A2）。
+// 実行には、ツールが持つ上限（runTimeoutMs）があればそれを使う（コマンドの実行。#148 Phase B）
 async function withToolTimeout<T>(
   name: string,
   task: (signal: AbortSignal) => Promise<T>,
-  loopSignal: AbortSignal
+  loopSignal: AbortSignal,
+  timeoutMs: number = TOOL_TIMEOUT_MS
 ): Promise<TimedResult<T>> {
   const start = Date.now();
   const abortController = new AbortController();
@@ -137,11 +140,11 @@ async function withToolTimeout<T>(
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       const timeoutError = new Error(
-        `ツール "${name}" がタイムアウトしました (${TOOL_TIMEOUT_MS}ms)`
+        `ツール "${name}" がタイムアウトしました (${timeoutMs}ms)`
       );
       abortController.abort(timeoutError);
       reject(timeoutError);
-    }, TOOL_TIMEOUT_MS);
+    }, timeoutMs);
   });
 
   try {
@@ -264,7 +267,7 @@ async function runWithApproval(
   }
 
   const { run } = prepared.value;
-  const ran = await withToolTimeout(name, run, loopSignal);
+  const ran = await withToolTimeout(name, run, loopSignal, tool.runTimeoutMs);
   const durationMs = prepared.durationMs + ran.durationMs;
   return ran.ok
     ? { ...ran.value, durationMs, approval: 'approved' }

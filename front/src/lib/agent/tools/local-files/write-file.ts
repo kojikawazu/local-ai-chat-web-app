@@ -1,16 +1,12 @@
 import { writeFile } from 'fs/promises';
 import type { Tool, ToolExecution } from '../types';
-import { toolError } from '../output';
-import type { ApprovalPreview } from '@/types/agent/tool-call';
+import { toolError, toolNeedsApproval } from '../output';
+import type { FileApprovalPreview } from '@/types/agent/tool-call';
 import { buildPreview, describePreview } from './diff';
 import { readExistingText, resolveWritablePath } from './write-guard';
 
 /** 1 回に書き込む中身の最大の文字数。モデルがこれを超える量を一度に書くのは現実的でなく、誤って巨大な文字列を書かせない */
 const MAX_CONTENT_CHARS = 200_000;
-
-/** 承認を求めずに実行されたときの理由（承認の要るツールは、エージェントループが prepare から進める） */
-const NEEDS_APPROVAL_REASON =
-  'このツールは利用者の承認が必要なため、ここでは実行できません';
 
 /**
  * 書き込んだことを、モデルへ返す結果にする。
@@ -18,7 +14,7 @@ const NEEDS_APPROVAL_REASON =
  * @param preview - 承認で見せた内容
  * @returns 書き込んだ結果。見出しは承認で見せた見出しと同じ
  */
-export function writtenOutput(preview: ApprovalPreview): ToolExecution {
+export function writtenOutput(preview: FileApprovalPreview): ToolExecution {
   const verb = { create: '作成', overwrite: '上書き', edit: '編集' }[
     preview.action
   ];
@@ -80,7 +76,7 @@ export function createWriteFileTool(roots: string[]): Tool {
       },
     },
     async execute() {
-      return toolError(NEEDS_APPROVAL_REASON);
+      return toolNeedsApproval();
     },
     async prepare(args) {
       const { content } = args;

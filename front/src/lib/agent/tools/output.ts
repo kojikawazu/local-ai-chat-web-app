@@ -25,3 +25,17 @@ export function toolError(reason: string): ToolOutput {
 export function toolUnavailable(reason: string): ToolExecution {
   return { ...toolError(reason), unavailable: true };
 }
+
+/**
+ * 承認が要るツールが、承認を経ずに `execute` で呼ばれたときの結果を作る（#148 Phase A2）。
+ *
+ * 承認が要るツールは、エージェントループが `prepare` → 承認 → `run` の順に進めるため、`execute` は通らない。
+ * 通るのはループの外から直接呼ばれたとき（誤った使い方）だけで、そのときも実行しない。
+ *
+ * @returns `isError: true` の実行結果
+ */
+export function toolNeedsApproval(): ToolOutput {
+  return toolError(
+    'このツールは利用者の承認が必要なため、ここでは実行できません'
+  );
+}

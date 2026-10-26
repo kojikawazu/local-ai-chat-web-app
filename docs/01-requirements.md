@@ -1,6 +1,6 @@
 # 要件定義書
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-27
 
 ## 目次
 
@@ -114,6 +114,7 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
    - 利用可能ツール: get_current_datetime, calculate, web_search, url_fetch
    - ローカルのファイルのツール（#148）: list_directory（フォルダの一覧）・search_files（ファイル名・中身の検索）・read_file（行番号付きの読み取り）。環境変数 `LOCAL_FILE_ROOTS` で指定したフォルダの中だけを読み、未設定なら使えない。`.env`・鍵などの秘匿ファイルは読ませない。ファイルを読んだ応答の中では Web 検索・URL 取得を止める（設計は `docs/14-local-file-tools.md`）
    - ファイルの書き込みのツール（#148 Phase A2）: write_file（作成・上書き）・edit_file（1 か所だけ一致する文字列の置き換え）。`LOCAL_FILE_WRITE_ROOTS`（`LOCAL_FILE_ROOTS` の中）だけに書き、`.git` の中・秘匿ファイルには書かない。**書き込みのたびに差分の承認カードを出し、利用者が許可したときだけ書く**（拒否・5 分の時間切れ・停止なら書かない。承認を待つ間にファイルが変わったら書かない。設計は `docs/15-tool-approval.md`）
+   - コマンドの実行のツール（#148 Phase B）: run_command（コマンドを 1 つ、シェルを介さずに実行し、出力と終了コードを返す）。`LOCAL_COMMANDS` に書いたプログラムだけを、`LOCAL_FILE_WRITE_ROOTS` の中を作業フォルダにして実行する。**実行のたびにコマンド・実行ファイル・作業フォルダの承認カードを出し、利用者が許可したときだけ実行する**。時間の上限（`LOCAL_COMMAND_TIMEOUT_MS`。既定 120 秒）・停止で、子のプロセスまで止める（設計は `docs/16-command-execution.md`）
    - ツール実行中インジケーター表示（ToolCallIndicator）
    - ツール実行結果の折りたたみ表示（ToolCallResult）
    - Web 検索結果のリッチ表示（リンク付き）

@@ -37,6 +37,8 @@ export default defineConfig({
       LOCAL_FILE_ROOTS: `${E2E_LOCAL_FILES_DIR},${E2E_WRITE_DIR}`,
       // 書き込みは OS の一時フォルダの E2E 用のフォルダだけ（#148 Phase A2）
       LOCAL_FILE_WRITE_ROOTS: E2E_WRITE_DIR,
+      // コマンドの実行は node だけ（#148 Phase B）。どの環境にもあり、作業フォルダは上の書き込みのフォルダに限られる
+      LOCAL_COMMANDS: 'node',
     },
   },
 });

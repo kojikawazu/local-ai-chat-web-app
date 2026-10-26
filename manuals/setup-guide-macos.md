@@ -288,6 +288,8 @@ EOF
 > **任意**: エージェントにローカルのファイルを探して読ませる場合は、読んでよいフォルダを `LOCAL_FILE_ROOTS` に絶対パス（カンマ区切り・`~` 可）で足します（例: `LOCAL_FILE_ROOTS=~/developer/my-project`）。未設定ならファイルのツールは使われません。プロジェクトのフォルダなど必要な範囲だけを指定してください（`docs/14-local-file-tools.md`）。
 >
 > **任意**: ファイルの作成・編集もさせる場合は、書いてよいフォルダを `LOCAL_FILE_WRITE_ROOTS` に足します（`LOCAL_FILE_ROOTS` の中だけ。例: `LOCAL_FILE_WRITE_ROOTS=~/developer/my-project`）。書き込みのたびに画面に差分が出て、許可するまで書かれません（`docs/15-tool-approval.md`）。
+>
+> **任意**: コマンド（テスト・`git status` 等）も実行させる場合は、実行してよいプログラムの名前を `LOCAL_COMMANDS` に足します（例: `LOCAL_COMMANDS=git,pnpm`）。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけで、実行のたびに画面にコマンドが出て、許可するまで実行されません。書いたプログラムは何でも実行できる前提で選んでください（`node`・`pnpm` は任意のコードを実行できます。`curl` など外へ送るものは書かないでください）。実行時間の上限は `LOCAL_COMMAND_TIMEOUT_MS`（既定 120 秒）です（`docs/16-command-execution.md`）。
 
 ### データベースのマイグレーション
 

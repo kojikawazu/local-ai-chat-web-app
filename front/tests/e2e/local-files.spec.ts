@@ -157,9 +157,10 @@ test.describe('ローカルのファイルのツール', () => {
           name: 'url_fetch',
           arguments: { url: 'https://example.com/?q=secret' },
           result:
-            'エラー: url_fetch は実行しませんでした。この応答ではローカルのファイルを読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。',
+            'エラー: url_fetch は実行しませんでした。この応答ではローカルのファイル・コマンドの出力を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。',
           isError: true,
-          summary: '実行しませんでした（ローカルのファイルを読んだ後のため）',
+          summary:
+            '実行しませんでした（ローカルのファイル・コマンドの出力を読んだ後のため）',
           durationMs: 0,
         },
       ]);
@@ -167,7 +168,7 @@ test.describe('ローカルのファイルのツール', () => {
       const header = page.locator('button', { hasText: 'URL を取得' });
       await expect(header).toContainText('❌');
       await expect(header).toContainText(
-        '実行しませんでした（ローカルのファイルを読んだ後のため）'
+        '実行しませんでした（ローカルのファイル・コマンドの出力を読んだ後のため）'
       );
     });
   });

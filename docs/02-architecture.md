@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-27
 
 ## 目次
 
@@ -125,7 +125,7 @@ front/src/
 │       │   ├── atoms/
 │       │   │   └── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
 │       │   ├── molecules/
-│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（差分・許可 / 拒否。#148 Phase A2）
+│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・許可 / 拒否。#148 Phase A2・B）
 │       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像の拡大のダイアログ（#6）
@@ -189,13 +189,19 @@ front/src/
 │   │   └── tools/             #     ツール実装
 │   │       ├── types.ts       #       ツール関連型定義
 │   │       ├── index.ts       #       ツールレジストリ（register/get/execute）
-│   │       ├── output.ts      #       ツールの実行結果の組み立て（失敗の toolError・接続先ごと使えない失敗の toolUnavailable）
+│   │       ├── output.ts      #       ツールの実行結果の組み立て（失敗の toolError・接続先ごと使えない失敗の toolUnavailable・承認を経ない呼び出しの toolNeedsApproval）
 │   │       ├── registry.ts    #       ツール登録の初期化（initializeTools）
 │   │       ├── get-current-datetime.ts # 現在日時取得ツール
 │   │       ├── calculate.ts   #       数式計算ツール
 │   │       ├── web-search.ts  #       Web検索ツール（SearXNG）
 │   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
 │   │       ├── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       ├── local-commands/ #      コマンドの実行のツール（#148 Phase B。LOCAL_COMMANDS と LOCAL_FILE_WRITE_ROOTS があるときだけ登録）
+│   │       │   ├── config.ts  #         LOCAL_COMMANDS（シェル等を外す）・LOCAL_COMMAND_TIMEOUT_MS の解釈
+│   │       │   ├── parse.ts   #         文字列 → 引数の配列（クォート・シェルの記号を断る）・クォートし直し
+│   │       │   ├── resolve.ts #         PATH から実行ファイルを探す・作業フォルダの判定
+│   │       │   ├── process.ts #         シェルを介さない実行・環境変数の絞り込み・プロセスグループごとの停止・出力の先頭と末尾
+│   │       │   └── run-command.ts #     run_command（承認が要る）と結果の文章
 │   │       └── local-files/   #       ローカルのファイルのツール（#148。LOCAL_FILE_ROOTS があるときだけ登録）
 │   │           ├── config.ts  #         LOCAL_FILE_ROOTS の解釈（~・realpath・不正値の警告）
 │   │           ├── path-guard.ts #      パスの判定（実体のパスでの包含・秘匿ファイル・たどらないフォルダ）
@@ -268,7 +274,7 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
-    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files）と LOCAL_FILE_WRITE_ROOTS（OS の一時フォルダ）（#148）
+    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files）と LOCAL_FILE_WRITE_ROOTS（OS の一時フォルダ。コマンドの作業フォルダも兼ねる）（#148）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
@@ -298,6 +304,7 @@ front/tests/
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
     ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
+    ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -444,6 +451,8 @@ model Attachment {
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
 | `LOCAL_FILE_WRITE_ROOTS` | エージェントのファイルの書き込み（作成・編集。実行前に承認が要る）をしてよいフォルダの絶対パス（`LOCAL_FILE_ROOTS` の中だけ・カンマ区切り・`~` 可） | 未設定（書き込みのツールを使わない） |
+| `LOCAL_COMMANDS` | エージェントが実行してよいプログラムの名前（カンマ区切り。実行前に承認が要る。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけ。シェル・`env`・`sudo` 等は書いても使わない） | 未設定（コマンドの実行のツールを使わない） |
+| `LOCAL_COMMAND_TIMEOUT_MS` | コマンドの実行時間の上限（ms。上限 600000） | `120000` |
 
 ## 状態管理
 

@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from 'diff';
-import type { ApprovalPreview } from '@/types/agent/tool-call';
+import type { FileApprovalPreview } from '@/types/agent/tool-call';
 
 /** 差分の前後に付ける、変更の無い行の数 */
 const CONTEXT_LINES = 3;
@@ -17,11 +17,11 @@ const CONTEXT_LINES = 3;
  * @returns 承認で見せる内容
  */
 export function buildPreview(
-  action: ApprovalPreview['action'],
+  action: FileApprovalPreview['action'],
   file: string,
   before: string,
   after: string
-): ApprovalPreview {
+): FileApprovalPreview {
   const patch = createTwoFilesPatch(file, file, before, after, '', '', {
     context: CONTEXT_LINES,
   });
@@ -43,7 +43,7 @@ export function buildPreview(
  * @param preview - 承認で見せる内容
  * @returns `README.md を編集（+3 −1）` の形
  */
-export function describePreview(preview: ApprovalPreview): string {
+export function describePreview(preview: FileApprovalPreview): string {
   const name = preview.path.split('/').at(-1) ?? preview.path;
   const verb = { create: '作成', overwrite: '上書き', edit: '編集' }[
     preview.action
