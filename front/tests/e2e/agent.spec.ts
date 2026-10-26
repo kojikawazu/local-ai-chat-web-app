@@ -208,16 +208,13 @@ test.describe('エージェント機能', () => {
       await expect(toolResultButton).toBeVisible({ timeout: 5000 });
       await toolResultButton.click();
 
-      // 展開後に「結果」ラベルが表示される
-      await expect(page.getByText('結果').first()).toBeVisible({
-        timeout: 3000,
-      });
+      // 展開後に「結果」ラベルが表示される。思考過程の本文にも「結果」が出うるため、ラベルだけに完全一致させる
+      const resultLabel = page.getByText('結果', { exact: true }).first();
+      await expect(resultLabel).toBeVisible({ timeout: 3000 });
 
       // 再クリックで折りたたむ
       await toolResultButton.click();
-      await expect(page.getByText('結果').first()).toBeHidden({
-        timeout: 3000,
-      });
+      await expect(resultLabel).toBeHidden({ timeout: 3000 });
     });
   });
 

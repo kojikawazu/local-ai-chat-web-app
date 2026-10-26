@@ -9,6 +9,7 @@ import type { Components } from 'react-markdown';
 import { getCodeLanguage, hastToText } from '@/lib/chat/code-block';
 import type { HastNode } from '@/lib/chat/code-block';
 import { getDiagramKind } from '@/lib/chat/diagram';
+import { cn } from '@/lib/shared/class-names';
 import CodeBlockFrame from '@/components/common/molecules/CodeBlockFrame';
 import DiagramView from '@/components/features/chat/molecules/DiagramView';
 import { useMermaidDiagram } from '@/hooks/chat/useMermaidDiagram';
@@ -20,7 +21,20 @@ interface MarkdownContentProps {
   content: string;
   /** 応答の生成中か。生成中は図（Mermaid・PlantUML）を描かず、ソースのまま表示する（#169・#171）。省略時は `false`。 */
   isStreaming?: boolean;
+  /**
+   * 文字の大きさ。`default` は回答の本文、`compact` はエージェントのツールの前の説明など
+   * 回答と見分けたい補助の本文（小さく薄く出す。#186）。省略時は `default`
+   */
+  size?: MarkdownSize;
 }
+
+/** {@link MarkdownContent} の文字の大きさの種類。 */
+type MarkdownSize = 'default' | 'compact';
+
+const SIZE_CLASSES: Record<MarkdownSize, string> = {
+  default: 'text-sm md:text-base',
+  compact: 'text-xs md:text-sm text-nord-4/80',
+};
 
 /**
  * 生成中かを `components.pre` に届ける。`components` を描画のたびに作り直すと React が別の
@@ -208,14 +222,15 @@ function PlantUmlCodeBlock({
  * （色は `globals.css` の `.hljs-*`）、見出し行に言語名とコピーボタンを付ける（`CodeBlockFrame`）。言語の指定が
  * 無いブロックは自動判定せず単色のまま描画する。`mermaid`・`plantuml` のブロックは図として描く（生成中はソースのまま）。描けた図は拡大・保存・ソースとの切り替えができる（#176）。
  *
- * @param props - 描画する Markdown テキストと、生成中かを持つ props
+ * @param props - 描画する Markdown テキストと、生成中か・文字の大きさを持つ props
  */
 export default function MarkdownContent({
   content,
   isStreaming = false,
+  size = 'default',
 }: MarkdownContentProps) {
   return (
-    <div className="leading-relaxed text-sm md:text-base prose-nord">
+    <div className={cn('leading-relaxed prose-nord', SIZE_CLASSES[size])}>
       <StreamingContext value={isStreaming}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

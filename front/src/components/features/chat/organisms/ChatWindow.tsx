@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
+import { buildAgentTimeline } from '@/lib/chat/agent-timeline';
 import { buildMessageExport } from '@/lib/chat/export';
 import { downloadTextFile } from '@/lib/shared/download';
 import MarkdownContent from './MarkdownContent';
@@ -20,6 +21,7 @@ import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCall
 import MessageImages from '@/components/features/chat/molecules/MessageImages';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
+import AgentSteps from './AgentSteps';
 import Button from '@/components/common/atoms/Button';
 import LoadingDots from '@/components/common/atoms/LoadingDots';
 import IconButton from '@/components/common/atoms/IconButton';
@@ -46,7 +48,8 @@ type ChatWindowProps = {
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
  * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピー・Markdown で保存のボタンを付随表示する。停止した応答には
- * 「生成を中断しました」を添える。最初のチャンク
+ * 「生成を中断しました」を添える。ツールの呼び出しに本文の位置（`contentOffset`）があれば、思考過程 → 説明と
+ * ツールの結果（呼んだ順）→ 回答の吹き出しの順に並べ、回答を一番下に出す（#186。古いデータは吹き出し → ツールの一覧）。最初のチャンク
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
  * 再生成できる応答（最後の保存済みの応答）には再生成ボタンを付け、生成中は押させない。
@@ -69,10 +72,7 @@ export default function ChatWindow({
     }
   }, [messages]);
 
-  // 最後のメッセージが assistant かつ content が空 = 最初のチャンク待ち
   const lastMsg = messages[messages.length - 1];
-  const isWaitingFirstChunk =
-    isLoading && lastMsg?.role === 'assistant' && lastMsg.content === '';
   // 生成中の応答 = 生成中の最後の assistant。Mermaid の図は生成が終わってから描く（#169）
   const streamingId =
     isLoading && lastMsg?.role === 'assistant' ? lastMsg.id : null;
@@ -100,7 +100,27 @@ export default function ChatWindow({
       ) : (
         <>
           {messages.map((msg) => {
-            const isThisWaiting = isWaitingFirstChunk && msg.id === lastMsg.id;
+            // ツールの呼び出しに本文の位置があれば、本文とツールの結果を時系列に並べる（#186）
+            const timeline =
+              msg.role === 'assistant'
+                ? buildAgentTimeline(msg.content, msg.metadata?.toolCalls ?? [])
+                : null;
+            // 吹き出しに出す本文。時系列のときは最後のツールの後の回答だけ
+            const bubbleText = timeline ? timeline.answer : msg.content;
+            // 生成中の最後の応答で、吹き出しの本文がまだ無い = 次の本文を待っている。
+            // ツールの実行中は実行中の表示（ToolCallIndicator）が出るため、待ちの点は出さない
+            const isThisWaiting =
+              isLoading &&
+              msg.id === lastMsg.id &&
+              msg.role === 'assistant' &&
+              bubbleText === '' &&
+              !activeToolCall;
+            // 時系列のとき、回答がまだ無く待ってもいなければ（停止・回答の無い応答）吹き出しを出さない
+            const showBubble = !timeline || bubbleText !== '' || isThisWaiting;
+            const thinking = msg.role === 'assistant' &&
+              msg.metadata?.thinkingText && (
+                <AgentThinking content={msg.metadata.thinkingText} />
+              );
 
             return (
               <div
@@ -109,51 +129,62 @@ export default function ChatWindow({
                   msg.role === 'user' ? 'ml-auto' : 'mr-auto'
                 }`}
               >
-                <div
-                  className={`p-5 md:p-6 ${
-                    msg.role === 'user'
-                      ? 'bg-nord-frost-2 text-nord-0 rounded-xl ml-auto font-medium shadow-lg shadow-black/10'
-                      : 'bg-nord-2 text-nord-6 rounded-xl mr-auto border border-nord-3'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    {msg.role === 'assistant' && (
-                      <Bot
-                        size={22}
-                        className={`shrink-0 mt-1 text-nord-frost-1 ${isThisWaiting ? 'animate-pulse' : ''}`}
-                      />
-                    )}
-                    {msg.role === 'assistant' ? (
-                      isThisWaiting ? (
-                        // 最初のチャンク待ちドットアニメーション
-                        <LoadingDots label="応答を生成中" />
-                      ) : (
-                        <MarkdownContent
-                          content={msg.content}
-                          isStreaming={msg.id === streamingId}
-                        />
-                      )
-                    ) : (
-                      <div className="min-w-0 space-y-3">
-                        {msg.images && msg.images.length > 0 && (
-                          <MessageImages images={msg.images} />
-                        )}
-                        <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                          {msg.content}
-                        </div>
-                      </div>
-                    )}
-                    {msg.role === 'user' && (
-                      <User size={22} className="shrink-0 mt-1 text-nord-0" />
-                    )}
+                {timeline && thinking}
+                {timeline && timeline.steps.length > 0 && (
+                  <div className="mt-2 mb-3">
+                    <AgentSteps
+                      steps={timeline.steps}
+                      isStreaming={msg.id === streamingId}
+                    />
                   </div>
-                </div>
-
-                {msg.role === 'assistant' && msg.metadata?.thinkingText && (
-                  <AgentThinking content={msg.metadata.thinkingText} />
                 )}
 
-                {msg.role === 'assistant' &&
+                {showBubble && (
+                  <div
+                    className={`p-5 md:p-6 ${
+                      msg.role === 'user'
+                        ? 'bg-nord-frost-2 text-nord-0 rounded-xl ml-auto font-medium shadow-lg shadow-black/10'
+                        : 'bg-nord-2 text-nord-6 rounded-xl mr-auto border border-nord-3'
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      {msg.role === 'assistant' && (
+                        <Bot
+                          size={22}
+                          className={`shrink-0 mt-1 text-nord-frost-1 ${isThisWaiting ? 'animate-pulse' : ''}`}
+                        />
+                      )}
+                      {msg.role === 'assistant' ? (
+                        isThisWaiting ? (
+                          // 最初のチャンク待ちドットアニメーション
+                          <LoadingDots label="応答を生成中" />
+                        ) : (
+                          <MarkdownContent
+                            content={bubbleText}
+                            isStreaming={msg.id === streamingId}
+                          />
+                        )
+                      ) : (
+                        <div className="min-w-0 space-y-3">
+                          {msg.images && msg.images.length > 0 && (
+                            <MessageImages images={msg.images} />
+                          )}
+                          <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                            {msg.content}
+                          </div>
+                        </div>
+                      )}
+                      {msg.role === 'user' && (
+                        <User size={22} className="shrink-0 mt-1 text-nord-0" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!timeline && thinking}
+
+                {!timeline &&
+                  msg.role === 'assistant' &&
                   msg.metadata?.toolCalls &&
                   msg.metadata.toolCalls.length > 0 && (
                     <div className="mt-2 space-y-1">

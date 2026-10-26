@@ -320,8 +320,9 @@ Content-Type: text/plain
 Content-Type: application/x-ndjson
 
 {"type":"text_delta","content":"調べてみますね。"}
-{"type":"tool_call_start","name":"web_search","arguments":{"query":"Rust async"}}
+{"type":"tool_call_start","name":"web_search","arguments":{"query":"Rust async"},"contentOffset":8}
 {"type":"tool_call_result","name":"web_search","result":"...検索結果...","isError":false,"summary":"5 件"}
+{"type":"text_delta","content":"\n\n"}
 {"type":"text_delta","content":"Rustの非同期処理は..."}
 {"type":"done","metadata":{"toolCalls":[...]}}
 ```
@@ -331,11 +332,19 @@ Content-Type: application/x-ndjson
 | type | フィールド | 説明 | Phase |
 |------|-----------|------|-------|
 | `text_delta` | `content: string` | テキスト差分（1チャンク分） | A |
-| `tool_call_start` | `name: string`, `arguments: object` | ツール呼び出し開始 | A |
+| `tool_call_start` | `name: string`, `arguments: object`, `contentOffset: number` | ツール呼び出し開始。`contentOffset` はその時点で送った本文の文字数（#186） | A |
 | `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150） | A |
 | `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
 | `error` | `message: string` | エラー発生 | A |
 | `thinking` | `content: string` | エージェントの思考過程 | C |
+
+### 本文の位置とラウンドの区切り（#186）
+
+ツールを何度も呼ぶ応答で、回答がツールの結果の一覧より上に出て画面の外へ押し出されないよう、本文とツールの結果を呼んだ順に並べて表示する。
+
+- **位置はサーバーが数える**: エージェントループは送った本文（`text_delta`）の文字数を数え、ツールを呼んだ時点の値を `tool_call_start` と `ToolCallInfo` の `contentOffset` に付ける（`done` の metadata を通して保存される）。画面は `text_delta` をそのままつなぐため、位置は生成中も保存後も一致する。
+- **ラウンドの区切り**: ツールを呼んだ後のラウンドで本文が届き始めたら、先に空行を `text_delta` として送る（`roundSeparator`。それまでに本文が無ければ送らない。区切りも文字数に数える）。ツールの前の一言と次の文がくっつかない。
+- **表示**: `buildAgentTimeline`（`lib/chat/agent-timeline.ts`）が本文を `contentOffset` で区切り、`ChatWindow` が「思考過程 → 説明（小さく薄い文字）とツールの結果を呼んだ順に（`AgentSteps`）→ 回答の吹き出し」の順に並べる。`contentOffset` を持たない #186 より前の応答は、従来の「吹き出し → 思考過程 → ツールの一覧」のまま。
 
 ### 後方互換性
 
@@ -720,7 +729,7 @@ export type ToolExecution = ToolOutput & { unavailable?: boolean };
 // クライアント向けストリーミングイベント
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
-  | { type: 'tool_call_start'; name: string; arguments: Record<string, unknown> }
+  | { type: 'tool_call_start'; name: string; arguments: Record<string, unknown>; contentOffset: number }
   | ({ type: 'tool_call_result'; name: string } & ToolOutput)
   | { type: 'done'; metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number } }
   | { type: 'error'; message: string }

@@ -110,6 +110,14 @@ describe('parseMessageMetadata', () => {
       expect(parseMessageMetadata({ toolCalls })).toEqual({ toolCalls });
     });
 
+    it('ツール呼び出しの本文の位置（contentOffset）を復元する（#186）', () => {
+      const toolCalls = [
+        { ...TOOL_CALL, contentOffset: 0 },
+        { ...TOOL_CALL, contentOffset: 12 },
+      ];
+      expect(parseMessageMetadata({ toolCalls })).toEqual({ toolCalls });
+    });
+
     it('中断マークを復元する（#8）', () => {
       expect(
         parseMessageMetadata({ thinkingText: '考えた', interrupted: true })
@@ -118,6 +126,15 @@ describe('parseMessageMetadata', () => {
   });
 
   describe('準正常系', () => {
+    it('負の数・小数・数でない本文の位置は捨てる（古いデータと同じ扱いになる）', () => {
+      for (const contentOffset of [-1, 1.5, '3', null]) {
+        expect(
+          parseMessageMetadata({ toolCalls: [{ ...TOOL_CALL, contentOffset }] })
+            ?.toolCalls?.[0]
+        ).not.toHaveProperty('contentOffset');
+      }
+    });
+
     it('ツール呼び出しの欠けた項目は既定値で補う（古いデータ）', () => {
       expect(
         parseMessageMetadata({

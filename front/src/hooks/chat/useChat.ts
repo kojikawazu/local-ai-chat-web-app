@@ -366,9 +366,12 @@ export function useChat({
       let agentRounds: number | undefined;
       let agentDurationMs: number | undefined;
       const toolCallRecords: ToolCallInfo[] = [];
-      // tool_call_start で受け取った arguments を tool_call_result まで保持する
+      // tool_call_start で受け取った arguments と本文の位置（contentOffset。#186）を tool_call_result まで保持する
       // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
-      const pendingToolArgs = new Map<string, Array<Record<string, unknown>>>();
+      const pendingToolArgs = new Map<
+        string,
+        Array<Pick<ToolCallInfo, 'arguments' | 'contentOffset'>>
+      >();
 
       /**
        * 届いた応答を保存し、最初のやり取りならタイトルを生成する。
@@ -485,9 +488,12 @@ export function useChat({
                       arguments: event.arguments,
                     },
                   });
-                  // arguments を pending キューに積む
+                  // arguments と本文の位置を pending キューに積む
                   const queue = pendingToolArgs.get(event.name) ?? [];
-                  queue.push(event.arguments);
+                  queue.push({
+                    arguments: event.arguments,
+                    contentOffset: event.contentOffset,
+                  });
                   pendingToolArgs.set(event.name, queue);
                   // ツール実行中を UI に反映
                   setMessagesOf(convId, (prev) =>
@@ -505,6 +511,7 @@ export function useChat({
                                   result: '',
                                   isError: false,
                                   durationMs: 0,
+                                  contentOffset: event.contentOffset,
                                 },
                               ],
                             },
@@ -514,9 +521,9 @@ export function useChat({
                   );
                 } else if (event.type === 'tool_call_result') {
                   patchChat(convId, { activeToolCall: null });
-                  // pending キューから先頭の arguments を取り出す（FIFO）
+                  // pending キューから先頭の arguments と本文の位置を取り出す（FIFO）
                   const argsQueue = pendingToolArgs.get(event.name) ?? [];
-                  const resolvedArgs = argsQueue.shift() ?? {};
+                  const started = argsQueue.shift();
                   if (argsQueue.length === 0) {
                     pendingToolArgs.delete(event.name);
                   } else {
@@ -524,12 +531,13 @@ export function useChat({
                   }
                   const record: ToolCallInfo = {
                     name: event.name,
-                    arguments: resolvedArgs,
+                    arguments: started?.arguments ?? {},
                     result: event.result,
                     isError: event.isError,
                     summary: event.summary,
                     isEmpty: event.isEmpty,
                     durationMs: 0,
+                    contentOffset: started?.contentOffset,
                   };
                   toolCallRecords.push(record);
                   // 最後のツール呼び出しレコードを結果で更新
