@@ -91,6 +91,21 @@ export function shouldBlockTool(
   return hasReadLocalFiles && access === 'network';
 }
 
+/**
+ * ツールを呼んだ後のラウンドで新しい本文を送る前に、前の本文との間に入れる区切りを決める（#186）。
+ *
+ * 区切らずにつなぐと、ツールの前の一言（「確認します。」）と次の文がくっつく。本文を空行で区切り、
+ * Markdown の段落として分ける。すでに空行・改行で終わっていれば、足りない分だけを足す。
+ *
+ * @param sentLength - それまでに送った本文の文字数
+ * @param sentTail - それまでに送った本文の末尾（2 文字あれば足りる）
+ * @returns 先に送る区切り（`\n\n`・`\n`）。本文がまだ無い・空行で終わっていれば空文字
+ */
+export function roundSeparator(sentLength: number, sentTail: string): string {
+  if (sentLength === 0 || sentTail.endsWith('\n\n')) return '';
+  return sentTail.endsWith('\n') ? '\n' : '\n\n';
+}
+
 // NDJSON イベントを ReadableStream に書き込むヘルパー
 function encodeEvent(event: AgentStreamEvent): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(event) + '\n');
@@ -344,6 +359,31 @@ export function runAgentLoop(
         if (!loopSignal.aborted) controller.close();
       };
 
+      // 送った本文の文字数と末尾。ツールを呼んだ位置（contentOffset）と、ラウンドの区切りに使う（#186）。
+      // 画面は text_delta をそのままつなぐため、ここで数えた文字数と画面の本文の位置は一致する
+      let sentLength = 0;
+      let sentTail = '';
+      // ツールを呼んだ後で、次に届く本文の前に区切りを入れるか
+      let pendingSeparator = false;
+      const emitText = (text: string) => {
+        send({ type: 'text_delta', content: text });
+        sentLength += text.length;
+        sentTail = (sentTail + text).slice(-2);
+      };
+      // 本文の中継・上限の注記は、区切りと文字数の勘定を通して送る
+      const sendEvent = (event: AgentStreamEvent) => {
+        if (event.type !== 'text_delta') {
+          send(event);
+          return;
+        }
+        if (pendingSeparator) {
+          pendingSeparator = false;
+          const separator = roundSeparator(sentLength, sentTail);
+          if (separator) emitText(separator);
+        }
+        emitText(event.content);
+      };
+
       // システムプロンプトがあれば先頭に追加
       const history = withSystemPrompt(messages, systemPrompt);
       const loopStartTime = Date.now();
@@ -381,7 +421,10 @@ export function runAgentLoop(
             return;
           }
 
-          const { toolCalls } = await relayOllamaResponse(send, ollamaResponse);
+          const { toolCalls } = await relayOllamaResponse(
+            sendEvent,
+            ollamaResponse
+          );
 
           // ツール呼び出しなし → テキスト応答のストリーミングは中継時に完了済み
           if (toolCalls.length === 0) {
@@ -402,8 +445,14 @@ export function runAgentLoop(
               const name = tc.function.name;
               const args = tc.function.arguments;
 
-              // 実行開始イベント
-              send({ type: 'tool_call_start', name, arguments: args });
+              // 実行開始イベント。同じラウンドのツールは同じ位置（その時点の本文の文字数）に並ぶ
+              const contentOffset = sentLength;
+              send({
+                type: 'tool_call_start',
+                name,
+                arguments: args,
+                contentOffset,
+              });
 
               const skipReason = unavailableTools.get(name);
               const access = getTool(name)?.access;
@@ -429,6 +478,7 @@ export function runAgentLoop(
                 arguments: args,
                 ...output,
                 durationMs,
+                contentOffset,
               });
 
               return { name, result: output.result };
@@ -437,6 +487,7 @@ export function runAgentLoop(
 
           // ツール実行中に停止・切断された。次のラウンドへ進まない
           if (loopSignal.aborted) return;
+          pendingSeparator = true;
 
           // tool ロールのメッセージを呼び出し順で履歴に追加
           for (let i = 0; i < toolCalls.length; i++) {
@@ -455,13 +506,16 @@ export function runAgentLoop(
         // 最大ラウンド数に到達してもツール呼び出しが続いた（#96）。
         // 取得済みの結果を捨てないよう、ツールを渡さずにもう 1 回問い合わせて最終回答を作らせる。
         // ツール定義が無ければモデルはツールを呼べず、テキストで答えるしかない
-        send({ type: 'text_delta', content: MAX_ROUNDS_NOTICE });
+        sendEvent({ type: 'text_delta', content: MAX_ROUNDS_NOTICE });
         history.push({ role: 'user', content: FINAL_ANSWER_INSTRUCTION });
         try {
           const finalResponse = await streamChat(history, model, undefined, {
             signal: loopSignal,
           });
-          const { hasText } = await relayOllamaResponse(send, finalResponse);
+          const { hasText } = await relayOllamaResponse(
+            sendEvent,
+            finalResponse
+          );
           if (!hasText) throw new Error('応答が空でした');
         } catch (e) {
           if (loopSignal.aborted) return;

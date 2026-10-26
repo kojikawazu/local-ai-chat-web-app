@@ -1011,3 +1011,16 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] ローカルのファイルを読んだ応答の中では `web_search`・`url_fetch` を止める（ツールの `access` の印と `shouldBlockTool`）
 - [x] UT（`local-files.test.ts`。31 件）・IT（`local-files.test.ts`・`chat-agent-local-files.test.ts`・`tools.test.ts`。22 件）・E2E（`local-files.spec.ts`。5 件。実際に読ませる 1 件は大モデルのみ）
 - [x] ドキュメント（`docs/02`・`docs/03`・`docs/04`・`docs/05`・`docs/06`・`docs/09`・環境変数の一覧（`CLAUDE.md`・README・`.env.example`・マニュアル）・`.claude/rules/{security,testing,documentation}.md`）
+
+## フェーズ39: エージェントの応答を時系列で並べる
+
+ツールを何度も呼んだ応答で、回答がツールの結果の一覧より上に出て画面の外へ押し出される問題を直す。本文とツールの結果をラウンドの順に並べ、回答を一番下に出す。設計は #186 のコメント。 — #186（2026-10-26 着手）
+
+- [x] 設計（#186 のコメント。`contentOffset` はサーバーが付ける・ラウンドの区切りの空行・古いデータは今の表示）
+- [x] 設計のレビュー
+- [x] `agent.ts`: 送った本文の文字数を数え、`tool_call_start`・`ToolCallInfo` に `contentOffset` を付ける。ラウンドの区切りに空行を送る
+- [x] `useChat`・`message-metadata.ts`: `contentOffset` を受け取り・保存・検証する
+- [x] `buildAgentTimeline`（`lib/chat/agent-timeline.ts`）と `ChatWindow` の時系列の表示（`AgentSteps`。説明は `MarkdownContent` の `size="compact"` で小さく薄く）
+- [x] UT（`agent-timeline.test.ts` 10 件・`message-metadata.test.ts` に 2 件）・IT（`chat-agent.test.ts` に 2 件）・E2E（`agent-timeline.spec.ts` 3 件。`agent.spec.ts` の「結果」のラベルの探し方を完全一致に直した。思考過程の本文の「結果」に当たっていたため）
+- [x] ドキュメント（`docs/09`・`docs/02`・`docs/04`・`docs/06`・`docs/12`・`CLAUDE.md`）
+

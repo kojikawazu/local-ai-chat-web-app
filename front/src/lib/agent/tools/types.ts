@@ -83,7 +83,7 @@ export type ToolExecution = ToolOutput & {
  *
  * 各バリアントの意味:
  * - `text_delta`: LLM 応答テキストの増分。逐次的に画面へ追記する。
- * - `tool_call_start`: ツール実行の開始通知。どのツールをどの引数で呼ぶかを含む。
+ * - `tool_call_start`: ツール実行の開始通知。どのツールをどの引数で呼ぶかと、その時点の本文の文字数（`contentOffset`。#186）を含む。
  * - `tool_call_result`: ツール実行の完了通知。結果文字列・エラー有無・要約を含む。
  * - `done`: エージェントループ完了。ツール呼び出し履歴・ラウンド数・総所要時間を含みうる。
  * - `error`: 処理中に発生したエラー内容。
@@ -95,6 +95,7 @@ export type AgentStreamEvent =
       type: 'tool_call_start';
       name: string;
       arguments: Record<string, unknown>;
+      contentOffset: number;
     }
   | ({ type: 'tool_call_result'; name: string } & ToolOutput)
   | {

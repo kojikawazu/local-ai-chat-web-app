@@ -139,6 +139,7 @@ front/src/
 │       │       ├── ExportDialog.tsx # 会話全体の書き出しの形式（Markdown・JSON）を選ぶダイアログ（#12）
 │       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き。mermaid は図）
 │       │       ├── AgentThinking.tsx   # エージェント思考過程の表示（<think> タグ / message.thinking 対応）
+│       │       ├── AgentSteps.tsx      # エージェントの応答の回答より前の流れ（説明 → ツールの結果）を呼んだ順に並べる（#186）
 │       │       └── ToolCallResult.tsx  # ツール実行結果の折りたたみ表示
 │       ├── sidebar/
 │       │   ├── molecules/
@@ -206,6 +207,7 @@ front/src/
 │   │   ├── conversation-history.ts # 表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
+│   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
 │   │   ├── diagram.ts         #     Mermaid の判定・要素 ID・SVG の data: URI と大きさ・テーマの色の組み立て（#169）
@@ -233,6 +235,7 @@ front/src/
     ├── chat/
     │   ├── message.ts         #     Message・MessageImage・MessageSaveState・HistoryEntry
     │   ├── attachment.ts      #     PreparedImage（送信前の添付画像。#6）
+    │   ├── agent-timeline.ts  #     AgentTimeline・AgentTimelineStep（エージェントの応答の時系列。#186）
     │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
@@ -283,6 +286,7 @@ front/tests/
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
+    ├── agent-timeline.spec.ts     # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
     ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）

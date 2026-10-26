@@ -154,6 +154,11 @@ describe('機能名', () => {
 - 準正常系: ツール呼び出しが無く思考過程だけの応答も復元される
 - 異常系: metadata の不正な項目は表示せず、残りの項目と本文は表示する
 
+**エージェントの応答の時系列（`agent-timeline.spec.ts`、#186）**（保存済みの metadata の `contentOffset` から並べるため、モデルに依存せず CI でも動く）
+- 正常系: 説明 → ツールの結果 → 回答の順に縦に並び、回答の吹き出しに説明を重ねて出さない
+- 準正常系: `contentOffset` を持たない古い応答は、従来どおり吹き出し → ツールの一覧の順
+- 異常系: ツールの後で停止して回答が無い応答は、空の吹き出しを出さず中断の表示を出す
+
 **生成中の会話の切り替え（`conversation-switch.spec.ts`、#147）**（生成中の時間は `/api/chat` の応答をテストが手放すまで止めて作る。時間で遅らせると、否定の検証が待つ間に生成が終わって素通りするため）
 - 正常系: 生成中に別の会話へ切り替えても、切り替え先には応答が混ざらず、入力でき、停止ボタンも出ない。生成中のうちに戻ると質問と生成中の表示が残っていて、応答が届くと表示・保存される。生成の途中で戻ると、途中までの本文と続きが表示される（実際の Ollama で長い応答を生成させる。戻る前に終わったら送り直す）
 - 準正常系: 新規会話の最初の送信中に別の会話へ移っても、作られた会話に応答が保存され、表示中の会話には混ざらない。生成中の会話にだけサイドバーの印が付き、生成が終わると消える
@@ -391,7 +396,8 @@ front/tests/
 │   ├── url-fetch.test.ts         # 取得した本文の整形（文字数の要約・5,000 文字での省略・本文なし）
 │   ├── agent-prompts.test.ts     # getPresetById・プリセット不変条件
 │   ├── agent-config.test.ts      # エージェント設定の環境変数の検証（NaN・0・負数・小数・範囲外は既定値へ）
-│   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果を含む）
+│   ├── message-metadata.test.ts  # metadata の組み立て・取得時の実行時検証（ツールの要約・空の結果・本文の位置を含む）
+│   ├── agent-timeline.test.ts    # エージェントの応答の時系列（本文の位置での区切り・同じ位置のツールのまとまり・古いデータ・範囲外の位置）とラウンドの区切りの空行（#186）
 │   ├── clipboard.test.ts         # コピー手段の選択（Clipboard API → 代わりのコピー）と失敗の判定
 │   ├── code-block.test.ts        # コードブロックの言語名の取り出し（hljs 付き・未登録の言語・指定なし）と本文の連結
 │   ├── diagram.test.ts           # 図の種類の判定（mermaid / plantuml / puml）・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て・PlantUML の API の応答の解釈・拡大の倍率の段階・保存の背景・PNG の大きさ（#176）
@@ -417,7 +423,7 @@ front/tests/
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
 │   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
-│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない）
+│   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない・ツールの本文の位置 contentOffset とラウンドの区切りの空行）
 │   ├── chat-agent-local-files.test.ts # /api/chat エージェント経路のローカルのファイルのツール（読んだ後の url_fetch・web_search を実行しない・読む前・失敗後は止めない）と GET /api/tools への登録（#148）
 │   ├── local-files.test.ts       # 一時フォルダでの list_directory・search_files・read_file（秘匿ファイル・シンボリックリンクと .. で外へ出られない・上限・バイナリ・行の範囲。#148）
 │   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS が無ければローカルのファイルのツールを出さない）
@@ -459,6 +465,7 @@ front/tests/
     ├── agent-phase-b.spec.ts     # 調査系ツールテスト（Phase B: web_search / url_fetch）
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
     ├── agent-metadata.spec.ts    # エージェント応答の付随情報（思考過程・ツール結果・ラウンド数・所要時間）の復元
+    ├── agent-timeline.spec.ts    # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件の ⚠️・失敗の ❌ と理由・要約なしの古いデータ）
     ├── local-files.spec.ts       # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）

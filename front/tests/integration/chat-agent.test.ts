@@ -809,3 +809,56 @@ describe('POST /api/chat（エージェント・現在の日時）', () => {
     });
   });
 });
+
+describe('POST /api/chat（エージェント・本文の位置とラウンドの区切り。#186）', () => {
+  /** 時刻のツール（外部に出ない）を呼ぶラウンドの応答 */
+  const datetimeCall = {
+    tool_calls: [{ function: { name: 'get_current_datetime', arguments: {} } }],
+  };
+
+  describe('正常系', () => {
+    it('ツールを呼んだ時点の本文の文字数を contentOffset に付け、次のラウンドの本文の前に空行を送る', async () => {
+      const narration = '時刻を確認します。';
+      stubOllamaSequence([
+        () => ollamaChunksResponse([{ content: narration }, datetimeCall]),
+        () => ollamaChunksResponse([{ content: '今です' }]),
+      ]);
+
+      const events = await runAgent();
+
+      // 本文の断片の分かれ方は <think> の読み取りの都合で変わるため、つないだ本文で比べる
+      expect(
+        events.map((e) => (e.type === 'text_delta' ? e.content : '')).join('')
+      ).toBe(`${narration}\n\n今です`);
+      const start = events.find((e) => e.type === 'tool_call_start');
+      expect(start).toMatchObject({ contentOffset: narration.length });
+      const done = events.at(-1);
+      expect(
+        done?.type === 'done' && done.metadata?.toolCalls[0]
+      ).toMatchObject({
+        name: 'get_current_datetime',
+        contentOffset: narration.length,
+      });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('本文より先にツールを呼んだら contentOffset は 0 で、区切りの空行は送らない', async () => {
+      stubOllamaSequence([
+        () => ollamaChunksResponse([datetimeCall]),
+        () => ollamaChunksResponse([{ content: '今です' }]),
+      ]);
+
+      const events = await runAgent();
+
+      expect(events.find((e) => e.type === 'tool_call_start')).toMatchObject({
+        contentOffset: 0,
+      });
+      expect(
+        events.map((e) => (e.type === 'text_delta' ? e.content : '')).join('')
+      ).toBe('今です');
+    });
+  });
+
+  // 異常系: 位置と区切りはループが数えるだけで、入力起因の失敗経路が無い（Ollama の失敗はこのファイルの他の describe が担う）
+});
