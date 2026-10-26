@@ -323,6 +323,8 @@ async function fetchWithRetry(
  * 同じ応答の中では再び実行させない（#157）。
  */
 export const webSearchTool: Tool = {
+  // 引数（検索語・URL）が外へ出る。ローカルのファイルを読んだ後は止める（#148）
+  access: 'network',
   definition: {
     name: 'web_search',
     description:

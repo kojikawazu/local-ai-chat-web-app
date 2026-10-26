@@ -190,7 +190,14 @@ front/src/
 │   │       ├── calculate.ts   #       数式計算ツール
 │   │       ├── web-search.ts  #       Web検索ツール（SearXNG）
 │   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
-│   │       └── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       ├── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       └── local-files/   #       ローカルのファイルのツール（#148。LOCAL_FILE_ROOTS があるときだけ登録）
+│   │           ├── config.ts  #         LOCAL_FILE_ROOTS の解釈（~・realpath・不正値の警告）
+│   │           ├── path-guard.ts #      パスの判定（実体のパスでの包含・秘匿ファイル・たどらないフォルダ）
+│   │           ├── text.ts    #         バイナリの判定・行の切り出し・ワイルドカード
+│   │           ├── list-directory.ts #  フォルダの直下の一覧
+│   │           ├── search-files.ts #    ファイル名・中身の検索
+│   │           └── read-file.ts #       行番号付きの読み取り
 │   ├── llm/                   #   LLM（Ollama）との通信
 │   │   ├── ollama.ts          #     Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
 │   │   └── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
@@ -250,6 +257,7 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
@@ -276,6 +284,7 @@ front/tests/
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
+    ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -420,6 +429,7 @@ model Attachment {
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
+| `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
 
 ## 状態管理
 

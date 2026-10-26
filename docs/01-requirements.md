@@ -112,6 +112,7 @@ Nordic Frostデザインシステムをベースとした画面設計を採用�
 10. **エージェント機能（ツール呼び出し）**
    - エージェントモード ON/OFF トグル（設定モーダル）、localStorage 永続化
    - 利用可能ツール: get_current_datetime, calculate, web_search, url_fetch
+   - ローカルのファイルのツール（#148）: list_directory（フォルダの一覧）・search_files（ファイル名・中身の検索）・read_file（行番号付きの読み取り）。環境変数 `LOCAL_FILE_ROOTS` で指定したフォルダの中だけを読み、未設定なら使えない。`.env`・鍵などの秘匿ファイルは読ませない。ファイルを読んだ応答の中では Web 検索・URL 取得を止める（設計は `docs/14-local-file-tools.md`）
    - ツール実行中インジケーター表示（ToolCallIndicator）
    - ツール実行結果の折りたたみ表示（ToolCallResult）
    - Web 検索結果のリッチ表示（リンク付き）

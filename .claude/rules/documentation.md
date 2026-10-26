@@ -34,7 +34,7 @@ globs:
 | 技術スタック・コマンド・環境変数の変更 | `CLAUDE.md`（技術スタック / コマンド / 環境変数節）、`README.md` |
 | DB スキーマ・Prisma 構成の変更 | `.claude/rules/database.md`、`CLAUDE.md`（必要に応じて） |
 | セットアップ手順の変更 | `manuals/setup-guide-macos.md`、`README.md` |
-| 新規ドキュメントの追加 | `docs/`（次の連番 `14-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
+| 新規ドキュメントの追加 | `docs/`（次の連番 `15-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
 
 該当する変更がない場合はスキップする。
 
@@ -54,7 +54,7 @@ globs:
 | セットアップ手順 | `manuals/setup-guide-macos.md`（詳細の正準） | `README.md`/`README.en.md` は QuickStart（要約）に留め、詳細は重複させない |
 | `front/src/` ディレクトリ構成 | 実体 | `CLAUDE.md`、`docs/02` |
 | CI のトリガー定義（`on:` / `paths-ignore`） | `.github/workflows/quality.yml` | `unit-test.yml`・`integration-test.yml`・`e2e-test.yml`（**`workflow-lint.yml` が一致を機械検査**） |
-| Secret scan の検出対象・除外パターン | `.github/workflows/secret-scan.yml`（`SECRET_PATTERN` / `ALLOW_PATTERN`） | `docs/05-security.md`（秘匿ファイルの混入検出の表） |
+| Secret scan の検出対象・除外パターン | `.github/workflows/secret-scan.yml`（`SECRET_PATTERN` / `ALLOW_PATTERN`） | `docs/05-security.md`（秘匿ファイルの混入検出の表）、`front/src/lib/agent/tools/local-files/path-guard.ts`（`SECRET_FILE_PATTERN` / `SECRET_ALLOW_PATTERN`。ファイル名 1 つに当てる形。#148） |
 | ブランチ命名規約の種別一覧 | `docs/04-development-rules.md`（Git運用） | `CLAUDE.md`（開発手法） |
 
 各 `docs/` ファイル冒頭には `> 最終更新: YYYY-MM-DD` を記載し、変更時に更新する。

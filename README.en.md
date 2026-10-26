@@ -31,7 +31,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Model selection**: switch between installed Ollama models on the fly
 - **Markdown rendering**: code blocks, tables, lists, etc. in AI responses
 - **Image attachments**: attach images with the paperclip button, drag & drop or paste, and ask a vision-capable model (e.g. the default `qwen3.8:27b`); images are downscaled to 1,280px on the long edge in the browser before sending
-- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch) with visible reasoning and system-prompt presets
+- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders) with visible reasoning and system-prompt presets
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text
 - **Responsive design**: desktop and mobile
@@ -85,6 +85,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `AGENT_TOOL_TIMEOUT_MS` | Tool execution timeout (ms) | `30000` |
 | `SEARXNG_URL` | SearXNG endpoint for web search (`web_search`) | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML server endpoint for PlantUML diagrams | `http://localhost:8889` |
+| `LOCAL_FILE_ROOTS` | Folders (absolute paths, comma-separated, `~` allowed) the agent's file tools (list / search / read) may read | unset (tools disabled) |
 
 ## Commands
 
@@ -106,7 +107,7 @@ pnpm prisma studio   # open DB browser
 
 ```
 Browser -> Next.js Route Handlers -> Ollama API (localhost:11434)
-                                   -> Agent Loop -> Tool Executor (datetime/calc/web-search/url-fetch)
+                                   -> Agent Loop -> Tool Executor (datetime/calc/web-search/url-fetch/local-files)
                                    -> Prisma ORM -> PostgreSQL (Docker)
 ```
 

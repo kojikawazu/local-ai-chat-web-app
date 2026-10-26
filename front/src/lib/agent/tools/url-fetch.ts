@@ -144,6 +144,8 @@ export function formatFetchedText(text: string): ToolOutput {
  * `isError: true`（文章は `"エラー: ..."` 形式）で返し、例外は投げない。
  */
 export const urlFetchTool: Tool = {
+  // 引数（検索語・URL）が外へ出る。ローカルのファイルを読んだ後は止める（#148）
+  access: 'network',
   definition: {
     name: 'url_fetch',
     description:

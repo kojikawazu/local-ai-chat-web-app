@@ -181,6 +181,11 @@ describe('機能名', () => {
 - 準正常系: 5 枚目は添付せず上限を伝える。画像に対応していないモデルでは案内を出して送信させず、画像を外すと送れる（**非対応のモデルのときだけ**）。本文が空なら画像だけでは送れない
 - 異常系: 画像でないファイル・SVG は理由を出して添付しない。中身の壊れた画像は読み込めないことを伝えて添付しない
 
+**ローカルのファイルのツール（`local-files.spec.ts`、#148）**（dev サーバーには `playwright.config.ts` が `LOCAL_FILE_ROOTS` として `tests/e2e/fixtures/local-files/` を渡す。表示は保存済みの metadata から確かめる）
+- 正常系: `GET /api/tools` に 3 つのツールが出る。保存済みの `read_file` の結果が「ファイルを読む」と読んだ範囲で出る。エージェントモードで実際にファイルを読ませると、ツールの結果と答えが出る（**ツール呼び出しが要るため軽量モデルではスキップ**）
+- 準正常系: 見つからなかった検索が ⚠️ と 0 件で出る
+- 異常系: ファイルを読んだ後に止めた `url_fetch` が ❌ と止めた理由で出る
+
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
 - 準正常系: 0 件は ✅ ではなく ⚠️ で出る。要約を持たない古いデータは、これまでどおり成否と所要時間だけを出す
@@ -360,7 +365,7 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 |------|------|
 | 定義 | `tests/e2e/helpers/model.ts`（`E2E_OLLAMA_MODEL` / `E2E_LIGHT_MODEL` / `IS_LIGHT_MODEL`） |
 | 上書き | `E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e`（大モデルで全件） |
-| 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される |
+| 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される。同じく `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`）を渡す（#148） |
 | 事前準備 | `ollama pull qwen2.5:0.5b` |
 | 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略）。あわせて `/api/diagrams/plantuml` で PlantUML サーバーに繋がるかを確かめ、繋がらなければ `docker compose up -d` の案内とともに止める（#171） |
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
@@ -398,6 +403,7 @@ front/tests/
 │   ├── chat-state.test.ts        # 会話ごとのチャット状態（移す・残す・読み込みの反映・生成中の会話の一覧・捨てる）
 │   ├── search.test.ts            # 会話検索のクエリの検証・キーワードの分解・抜粋の切り出し・強調の分割・LIKE のエスケープ
 │   ├── sidebar-visibility.test.ts # サイドバーの表示状態の保存値の解釈（open / closed / 不正な値 / 未保存）（#24）
+│   ├── local-files.test.ts       # ローカルのファイルのツールの純関数（LOCAL_FILE_ROOTS の解釈・包含の判定・秘匿ファイルの名前・行の切り出し・ワイルドカード・結果の文章・持ち出しの判定。#148）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
 │   ├── helpers/
@@ -412,6 +418,9 @@ front/tests/
 │   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない）
+│   ├── chat-agent-local-files.test.ts # /api/chat エージェント経路のローカルのファイルのツール（読んだ後の url_fetch・web_search を実行しない・読む前・失敗後は止めない）と GET /api/tools への登録（#148）
+│   ├── local-files.test.ts       # 一時フォルダでの list_directory・search_files・read_file（秘匿ファイル・シンボリックリンクと .. で外へ出られない・上限・バイナリ・行の範囲。#148）
+│   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS が無ければローカルのファイルのツールを出さない）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
@@ -424,6 +433,7 @@ front/tests/
     │   ├── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts        # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   ├── local-files.ts        # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
     │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
@@ -450,6 +460,7 @@ front/tests/
     ├── agent-phase-c.spec.ts     # 自律エージェントテスト（Phase C: 思考過程・プリセット）
     ├── agent-metadata.spec.ts    # エージェント応答の付随情報（思考過程・ツール結果・ラウンド数・所要時間）の復元
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件の ⚠️・失敗の ❌ と理由・要約なしの古いデータ）
+    ├── local-files.spec.ts       # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
