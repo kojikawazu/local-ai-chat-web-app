@@ -17,6 +17,7 @@ import { downloadTextFile } from '@/lib/shared/download';
 import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
+import MessageImages from '@/components/features/chat/molecules/MessageImages';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 import Button from '@/components/common/atoms/Button';
@@ -41,6 +42,7 @@ type ChatWindowProps = {
 
 /**
  * チャットのメッセージ一覧を描画するスクロール領域。
+ * user のメッセージに添付画像があれば、本文の上にサムネイルを並べる（#6）。
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
  * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピー・Markdown で保存のボタンを付随表示する。停止した応答には
@@ -132,8 +134,13 @@ export default function ChatWindow({
                         />
                       )
                     ) : (
-                      <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                        {msg.content}
+                      <div className="min-w-0 space-y-3">
+                        {msg.images && msg.images.length > 0 && (
+                          <MessageImages images={msg.images} />
+                        )}
+                        <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                          {msg.content}
+                        </div>
                       </div>
                     )}
                     {msg.role === 'user' && (

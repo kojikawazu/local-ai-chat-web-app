@@ -14,6 +14,7 @@ import {
  * 同じ上限で検証済みだが、保存上限を超えて保存に失敗した assistant 応答は画面に残るため、
  * ここで上限に収める。上限を超えたまま送ると 400 になり、その会話を続けられなくなる。
  * 件数は新しい方から {@link MAX_HISTORY_MESSAGES} 件を残し、本文は role 別の上限で切り詰める。
+ * 添付画像のある user メッセージには、その ID（`imageIds`）を付ける。サーバーが DB から読んで LLM へ渡す（#6）。
  *
  * @param messages - 表示中のメッセージ一覧（古い順）
  * @returns LLM へ渡す会話履歴（古い順）
@@ -25,5 +26,9 @@ export function toConversationHistory(messages: Message[]): HistoryEntry[] {
     .map((msg) => ({
       role: msg.role,
       content: msg.content.slice(0, getMaxMessageLength(msg.role)),
+      ...(msg.images &&
+        msg.images.length > 0 && {
+          imageIds: msg.images.map((image) => image.id),
+        }),
     }));
 }

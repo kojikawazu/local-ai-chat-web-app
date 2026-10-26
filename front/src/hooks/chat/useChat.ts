@@ -5,8 +5,10 @@ import type { ToolCallInfo } from '@/types/agent/tool-call';
 import type {
   HistoryEntry,
   Message,
+  MessageImage,
   MessageSaveState,
 } from '@/types/chat/message';
+import type { PreparedImage } from '@/types/chat/attachment';
 import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
 import { toConversationHistory } from '@/lib/chat/conversation-history';
@@ -65,6 +67,8 @@ type PendingSave = {
   onSaved?: () => void;
   /** 再生成した応答なら true。新規保存（POST）ではなく、同じ ID の旧応答の置き換え（PUT）で保存する */
   replace?: boolean;
+  /** user メッセージに添付した画像（#6）。再試行でも同じ ID・中身を送り直す */
+  attachments?: Pick<PreparedImage, 'id' | 'data' | 'width' | 'height'>[];
 };
 
 /**
@@ -84,7 +88,8 @@ async function saveMessage(
   messageId: string,
   payload: PendingSave
 ): Promise<void> {
-  const { conversationId, role, content, metadata, replace } = payload;
+  const { conversationId, role, content, metadata, replace, attachments } =
+    payload;
   const res = replace
     ? await fetch(
         `/api/conversations/${conversationId}/messages/${messageId}`,
@@ -97,7 +102,13 @@ async function saveMessage(
     : await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: messageId, role, content, metadata }),
+        body: JSON.stringify({
+          id: messageId,
+          role,
+          content,
+          metadata,
+          attachments,
+        }),
       });
   // 409 は同じ ID のメッセージが保存済み。前回の保存はサーバーに届いていて、
   // 応答だけが失われた（再試行で起こりうる）ものとして成功扱いにする
@@ -133,7 +144,8 @@ async function saveMessage(
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
  *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`generatingConversationIds` は
  *   応答を生成中の会話 ID の一覧（表示中でない会話も含む）、`sendMessage` は
- *   本文を送信して応答をストリーム受信する関数、`stopGeneration` は表示中の会話の生成中の応答を
+ *   本文と添付画像（#6。user メッセージと同じトランザクションで保存し、ID で LLM へ渡す）を送信して
+ *   応答をストリーム受信する関数、`stopGeneration` は表示中の会話の生成中の応答を
  *   止める関数、`regenerate` は最後の応答を ID 指定で再生成する関数、`retrySave` は保存に失敗した
  *   メッセージを ID 指定で再送する関数、`clearMessages` は新規会話の画面の状態を初期化する関数、
  *   `loadMessages` は指定会話のメッセージを読み込む関数、`discardConversation` は削除した会話の
@@ -272,11 +284,24 @@ export function useChat({
           // DB の JSON 列は任意の値を持てるため、型を信用せず検証してから使う
           metadata?: unknown;
           createdAt: string;
-        }) => ({
-          ...msg,
-          metadata: parseMessageMetadata(msg.metadata),
-          createdAt: new Date(msg.createdAt),
-        })
+          attachments?: Omit<MessageImage, 'src'>[];
+        }) => {
+          const { attachments = [], ...rest } = msg;
+          return {
+            ...rest,
+            metadata: parseMessageMetadata(msg.metadata),
+            createdAt: new Date(msg.createdAt),
+            // 画像の中身は一覧に含まれないため、取得 API の URL で表示する（#6）
+            ...(attachments.length > 0 && {
+              images: attachments.map(({ id, width, height }) => ({
+                id,
+                src: `/api/attachments/${id}`,
+                width,
+                height,
+              })),
+            }),
+          };
+        }
       );
       // 読んでいる間に生成が始まった・保存に失敗した会話は、手元の一覧を残す
       setChats((prev) => applyLoadedMessages(prev, convId, loaded));
@@ -290,6 +315,7 @@ export function useChat({
    *
    * @param activeConversationId - 応答を保存する会話 ID
    * @param content - 応答対象の user メッセージ本文
+   * @param imageIds - 応答対象の user メッセージの添付画像の ID（#6。無ければ空配列）
    * @param conversationHistory - この user メッセージより前の会話履歴
    * @param isFirstExchange - 会話の最初のやり取りか（true なら保存後にタイトルを生成する）
    * @param replacing - 再生成で置き換える旧応答。省略時は新しい応答として末尾に追加する。
@@ -299,6 +325,7 @@ export function useChat({
     async (
       activeConversationId: string,
       content: string,
+      imageIds: string[],
       conversationHistory: HistoryEntry[],
       isFirstExchange: boolean,
       replacing?: Message
@@ -385,6 +412,7 @@ export function useChat({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: content,
+            imageIds,
             conversationHistory,
             model,
             enableTools,
@@ -630,7 +658,7 @@ export function useChat({
   );
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, images: PreparedImage[] = []) => {
       patchChat(currentKey, {
         error: null,
         isLoading: true,
@@ -687,7 +715,17 @@ export function useChat({
         role: 'user',
         content,
         createdAt: new Date(),
+        // 送ったばかりの画像は手元の data: URI で表示する（読み直すまで取得 API を呼ばない）
+        ...(images.length > 0 && {
+          images: images.map(({ id, src, width, height }) => ({
+            id,
+            src,
+            width,
+            height,
+          })),
+        }),
       };
+      const imageIds = images.map((image) => image.id);
       setMessagesOf(activeConversationId, (prev) => [
         ...prev.filter((msg) => !unsentIds.has(msg.id)),
         userMessage,
@@ -700,10 +738,19 @@ export function useChat({
         role: 'user',
         content,
         metadata: null,
+        ...(images.length > 0 && {
+          attachments: images.map(({ id, data, width, height }) => ({
+            id,
+            data,
+            width,
+            height,
+          })),
+        }),
         onSaved: () =>
           generateResponse(
             activeConversationId,
             content,
+            imageIds,
             conversationHistory,
             isFirstExchange
           ),
@@ -716,6 +763,7 @@ export function useChat({
       await generateResponse(
         activeConversationId,
         content,
+        imageIds,
         conversationHistory,
         isFirstExchange
       );
@@ -742,6 +790,7 @@ export function useChat({
       await generateResponse(
         conversationId,
         found.prompt,
+        found.imageIds,
         found.history,
         false,
         found.target

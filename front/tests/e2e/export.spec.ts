@@ -156,7 +156,7 @@ test.describe('書き出し', () => {
         new RegExp(`^${TITLE}${DATE_PART}\\.json$`)
       );
       const data = JSON.parse(await readDownload(download));
-      expect(data.version).toBe(1);
+      expect(data.version).toBe(2);
       expect(data.conversation.title).toBe(TITLE);
       expect(
         data.messages.map((m: { role: string; content: string }) => [

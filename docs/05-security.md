@@ -56,7 +56,7 @@
 | 大きさ | 1 枚 5MB まで（Base64 を復号する前に長さから判定する）。幅・高さは 1〜1,280px |
 | 添付できる role | user のみ（assistant の添付は 400） |
 | 配信 | `GET /api/attachments/[id]` は保存した形式の `Content-Type` と `X-Content-Type-Options: nosniff` で返し、ブラウザに形式を推測させない |
-| 位置情報（EXIF） | ブラウザで再エンコードして落としてから送る（13-B） |
+| 位置情報（EXIF） | ブラウザで再エンコード（`<canvas>` に描き直す）して落としてから送る（`lib/chat/image-attachment.ts`） |
 | 会話の境界 | 添付の取得 API と `/api/chat` の `imageIds` は、添付がどの会話のものかを確かめない。認証なしの localhost 個人利用で会話の境界に意味が無く、ID は推測しにくい UUID のため |
 
 ### APIリクエスト共通

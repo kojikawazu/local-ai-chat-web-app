@@ -25,8 +25,11 @@ export type ExportFile = {
 const MARKDOWN_MIME = 'text/markdown;charset=utf-8';
 const JSON_MIME = 'application/json;charset=utf-8';
 
-/** JSON の形の版。形を変えたら上げる（読み込む側が版で判別できるように） */
-const JSON_EXPORT_VERSION = 1;
+/**
+ * JSON の形の版。形を変えたら上げる（読み込む側が版で判別できるように）。
+ * 2: メッセージに添付画像の情報（`images`）を足した（#6）
+ */
+const JSON_EXPORT_VERSION = 2;
 
 /** ファイル名に使うタイトルの最大文字数（コードポイント単位）。長すぎる名前は OS・ブラウザで切られるため */
 const MAX_FILE_TITLE_LENGTH = 50;
@@ -139,6 +142,7 @@ export function buildMessageExport(
  * 会話全体を Markdown にする。先頭にタイトル・書き出した日時・会話の役割を置き、
  * メッセージを「## ユーザー（日時）」「## アシスタント（日時）」の見出しで `---` 区切りに並べる。
  * 思考過程・ツールの結果は入れない（読み物として扱うため。全部が要るときは JSON を使う）。
+ * 添付画像は埋め込まず、本文の前に `[画像 n 枚]` と書く（#6）。
  *
  * @param conversation - 書き出す会話
  * @param messages - 表示中のメッセージ（古い順）
@@ -168,9 +172,12 @@ function formatConversationMarkdown(
       '---',
       '',
       `## ${ROLE_HEADINGS[message.role]}（${formatDateTime(message.createdAt)}）`,
-      '',
-      message.content
+      ''
     );
+    if (message.images && message.images.length > 0) {
+      lines.push(`[画像 ${message.images.length} 枚]`, '');
+    }
+    lines.push(message.content);
     if (message.metadata?.interrupted) {
       lines.push('', '_（生成を中断した応答）_');
     }
@@ -182,6 +189,7 @@ function formatConversationMarkdown(
  * 会話全体を JSON にする（バックアップ用。データを省かない）。
  *
  * 画面の側だけで持つ保存失敗の状態（`saveState`）は入れない（API・DB には無い値のため）。
+ * 添付画像は中身を入れず、ID と大きさだけを `images` に入れる（#6。中身は `GET /api/attachments/[id]` で取れる）。
  *
  * @param conversation - 書き出す会話
  * @param messages - 表示中のメッセージ（古い順）
@@ -209,6 +217,11 @@ function formatConversationJson(
       content: message.content,
       createdAt: message.createdAt.toISOString(),
       metadata: message.metadata ?? null,
+      images: (message.images ?? []).map(({ id, width, height }) => ({
+        id,
+        width,
+        height,
+      })),
     })),
   };
   return `${JSON.stringify(data, null, 2)}\n`;

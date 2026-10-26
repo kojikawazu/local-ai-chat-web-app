@@ -336,7 +336,7 @@ describe('buildConversationExport（JSON）', () => {
       expect(file.fileName).toBe('旅行の計画_2026-10-24_1905.json');
       expect(file.mimeType).toBe('application/json;charset=utf-8');
       expect(JSON.parse(file.content)).toEqual({
-        version: 1,
+        version: 2,
         exportedAt: EXPORTED_AT.toISOString(),
         conversation: conv,
         messages: [
@@ -346,6 +346,7 @@ describe('buildConversationExport（JSON）', () => {
             content: '京都の見どころは？',
             createdAt: new Date(2026, 9, 24, 18, 58).toISOString(),
             metadata: null,
+            images: [],
           },
           {
             id: 'm2',
@@ -353,6 +354,7 @@ describe('buildConversationExport（JSON）', () => {
             content: '答え',
             createdAt: createdAt.toISOString(),
             metadata,
+            images: [],
           },
         ],
       });
@@ -365,7 +367,7 @@ describe('buildConversationExport（JSON）', () => {
         'json',
         EXPORTED_AT
       );
-      expect(content.startsWith('{\n  "version": 1,')).toBe(true);
+      expect(content.startsWith('{\n  "version": 2,')).toBe(true);
       expect(content.endsWith('}\n')).toBe(true);
     });
   });
@@ -379,6 +381,41 @@ describe('buildConversationExport（JSON）', () => {
         EXPORTED_AT
       );
       expect(JSON.parse(content).messages[0]).not.toHaveProperty('saveState');
+    });
+
+    it('添付画像は中身を入れず、Markdown は本文の前に枚数を、JSON は ID と大きさを出す（#6）', () => {
+      const withImages = message({
+        images: [
+          {
+            id: 'a1',
+            src: 'data:image/png;base64,AAAA',
+            width: 640,
+            height: 480,
+          },
+          { id: 'a2', src: '/api/attachments/a2', width: 100, height: 50 },
+        ],
+      });
+
+      const markdown = buildConversationExport(
+        conversation(),
+        [withImages],
+        'markdown',
+        EXPORTED_AT
+      ).content;
+      expect(markdown).toContain('[画像 2 枚]\n\n京都の見どころは？');
+      expect(markdown).not.toContain('base64');
+
+      const json = buildConversationExport(
+        conversation(),
+        [withImages],
+        'json',
+        EXPORTED_AT
+      ).content;
+      expect(JSON.parse(json).messages[0].images).toEqual([
+        { id: 'a1', width: 640, height: 480 },
+        { id: 'a2', width: 100, height: 50 },
+      ]);
+      expect(json).not.toContain('base64');
     });
   });
 

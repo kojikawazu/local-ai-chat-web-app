@@ -48,6 +48,21 @@ describe('toConversationHistory', () => {
   });
 
   describe('準正常系', () => {
+    it('添付画像のある user には imageIds を付け、無いメッセージには付けない（#6）', () => {
+      const question: Message = {
+        ...msg('user', 'これは？'),
+        images: [
+          { id: 'img-1', src: 'data:image/png;base64,AA', width: 1, height: 1 },
+        ],
+      };
+      expect(
+        toConversationHistory([question, msg('assistant', '猫です')])
+      ).toEqual([
+        { role: 'user', content: 'これは？', imageIds: ['img-1'] },
+        { role: 'assistant', content: '猫です' },
+      ]);
+    });
+
     it('保存に失敗した user は除き、保存に失敗した assistant は含める', () => {
       expect(
         toConversationHistory([

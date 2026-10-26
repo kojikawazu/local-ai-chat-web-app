@@ -9,6 +9,23 @@ import type { ToolCallInfo } from '@/types/agent/tool-call';
 export type MessageSaveState = 'failed' | 'retrying';
 
 /**
+ * メッセージに添付した画像の表示に要る情報（#6）。画像の中身は持たず、`src` から読む。
+ */
+export type MessageImage = {
+  /** 添付の ID（UUID。ブラウザが採番し、DB の ID になる） */
+  id: string;
+  /**
+   * 表示に使う URL。送ったばかりの画像は手元の data: URI、DB から読み直した画像は
+   * `/api/attachments/[id]`
+   */
+  src: string;
+  /** 幅（px。縮小後） */
+  width: number;
+  /** 高さ（px。縮小後） */
+  height: number;
+};
+
+/**
  * チャット上の 1 メッセージ。ユーザー発話とアシスタント応答の両方を表す。
  */
 export type Message = {
@@ -40,7 +57,12 @@ export type Message = {
    * user メッセージで付いている場合は LLM にも送られていない。
    */
   saveState?: MessageSaveState;
+  /** 添付した画像（並び順。#6）。user のメッセージだけが持ち、無ければ省略 */
+  images?: MessageImage[];
 };
 
 /** LLM へ渡す会話履歴の 1 件（`/api/chat` の `conversationHistory` の要素）。 */
-export type HistoryEntry = Pick<Message, 'role' | 'content'>;
+export type HistoryEntry = Pick<Message, 'role' | 'content'> & {
+  /** そのメッセージの添付画像の ID（#6）。サーバーが DB から読んで LLM へ渡す。無ければ省略 */
+  imageIds?: string[];
+};

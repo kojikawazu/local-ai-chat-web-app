@@ -174,22 +174,22 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking）
+  - `features/chat/` — チャット（atoms: AttachButton / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
-- **`constants/`** — 定数（`chat/toolLabels.ts`）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useMermaidDiagram,usePlantUmlDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, diagram.ts, export.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
   - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 

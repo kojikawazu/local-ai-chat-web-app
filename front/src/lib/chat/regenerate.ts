@@ -7,6 +7,8 @@ export type RegenerateTarget = {
   target: Message;
   /** 応答の元になった user メッセージの本文（これを送り直す） */
   prompt: string;
+  /** その user メッセージの添付画像の ID（#6。画像付きの質問も画像ごと送り直す）。無ければ空配列 */
+  imageIds: string[];
   /** その user メッセージより前の会話履歴（最初の送信時と同じ範囲） */
   history: HistoryEntry[];
 };
@@ -44,6 +46,7 @@ export function findRegenerateTarget(
   return {
     target,
     prompt: promptMessage.content,
+    imageIds: promptMessage.images?.map((image) => image.id) ?? [],
     history: toConversationHistory(messages.slice(0, targetIndex - 1)),
   };
 }
