@@ -1,6 +1,6 @@
 # UI コンポーネント 設計書（Atomic Design）
 
-> 最終更新: 2026-10-25
+> 最終更新: 2026-10-26
 
 フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
@@ -174,7 +174,8 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal` | `components/settings/` |
@@ -188,6 +189,10 @@ src/
 | `SearchResultItem` | `result`・`terms`（強調するキーワード）・`isCurrent`・`onSelect` |
 | `DiagramView`（#169・#171・#176） | `diagram`（描画の状態 `DiagramState`。フックの戻り値）・`kind`（図の種類。`alt`・見出し・ファイル名に使う）・`language`・`code`（見出し行の言語名とコピーする原文）・`fallback`（描けるまで・描けないとき・ソースへ切り替えたときに出すソースの `pre`）。`CodeBlockFrame` で枠ごと描き、描けたときだけ切り替え・拡大のボタンを出す。切り替えとダイアログの開閉は UI の状態として持つ。フックは呼ばず、`MarkdownContent` 内の organisms（`MermaidCodeBlock`・`PlantUmlCodeBlock`）が描画のフックを呼んで渡す |
 | `DiagramZoomDialog`（#176） | `kind`・`title`・`src`（SVG の data: URI）・`svg`（保存する SVG）・`onClose`。共通の `Modal`（`wide`）の中で倍率を変え（`ResizeObserver` で表示の倍率を測る）、SVG / PNG で保存する。PNG にできなかった理由はダイアログの中に出す |
+| `AttachButton`（#6） | `onSelectFiles`（選んだファイルを受け取る）。共通の `IconButton` と隠した `<input type="file" accept multiple>`。受け付ける形式は `constants/chat/imageAttachment.ts`。形式の検証はしない（`useImageAttachments` に任せる） |
+| `AttachmentPreview`（#6） | `images`・`preparingCount`・`errors`・`unsupportedModel`（非対応ならモデル名、対応・不明なら `null`）・`onRemove`。サムネイルと削除ボタン・準備中の枠・添付できなかった理由・非対応モデルの案内（画像を添付しているときだけ）を出す。どれも無ければ何も描かない |
+| `MessageImages`（#6） | `images`（`MessageImage[]`）。高さ 120px のサムネイルを並べ、押すと `ImageZoomDialog` を開く（開閉は UI の状態として持つ）。`width` / `height` を渡して、読み込み前から枠を確保する |
+| `ImageZoomDialog`（#6） | `image`・`alt`（見出しにも使う）・`onClose`。共通の `Modal`（`wide`・背景のクリックで閉じる）に、収まる大きさで画像を出す。添付画像は縮小済みのため倍率の切り替えは置かない |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
 - 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。

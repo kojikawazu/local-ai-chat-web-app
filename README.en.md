@@ -30,6 +30,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Auto title generation**: an LLM generates a title from the first message
 - **Model selection**: switch between installed Ollama models on the fly
 - **Markdown rendering**: code blocks, tables, lists, etc. in AI responses
+- **Image attachments**: attach images with the paperclip button, drag & drop or paste, and ask a vision-capable model (e.g. the default `qwen3.8:27b`); images are downscaled to 1,280px on the long edge in the browser before sending
 - **Agent mode**: tool calling (datetime / calculator / web search / URL fetch) with visible reasoning and system-prompt presets
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text

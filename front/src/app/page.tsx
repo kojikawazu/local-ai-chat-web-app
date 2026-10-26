@@ -16,6 +16,7 @@ import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
 import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
+import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
@@ -32,10 +33,19 @@ import { getRoleLabel } from '@/lib/chat/system-prompt';
  * 最初の送信で会話と同時に保存する。
  * モデル一覧は {@link useModels}、ツール使用の有効状態とプロンプトプリセットの永続化は {@link useAgentSettings}、
  * デスクトップのサイドバーの表示・非表示（#24）は {@link useSidebarVisibility} が持つ。
+ * 送信前に添付している画像（#6）は {@link useImageAttachments} が持ち、送信したら空にする。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
-  const { models, selectedModel, setSelectedModel } = useModels();
+  const { models, visionModels, selectedModel, setSelectedModel } = useModels();
+  const attachments = useImageAttachments();
+  // 画像に対応しているかが分からない間（一覧の取得前・失敗）は案内を出さず、サーバーの判定に任せる
+  const unsupportedImageModel =
+    visionModels !== null &&
+    selectedModel !== '' &&
+    !visionModels.includes(selectedModel)
+      ? selectedModel
+      : null;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
@@ -131,6 +141,14 @@ export default function Home() {
     }
   }, [currentConversationId, loadMessages, clearMessages]);
 
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      sendMessage(content, attachments.images);
+      attachments.clear();
+    },
+    [sendMessage, attachments]
+  );
+
   const isNewConversationMode = !currentConversationId && messages.length === 0;
   // 生成中は本文が途中のため書き出させない。作成直後で一覧に無い間も、会話の情報が無いため書き出せない
   const canExport =
@@ -215,10 +233,16 @@ export default function Home() {
       composer={
         <ChatBar
           ref={chatBarRef}
-          onSendMessage={sendMessage}
+          onSendMessage={handleSendMessage}
           disabled={isLoading}
           isGenerating={isLoading}
           onStop={stopGeneration}
+          onAddImages={attachments.addFiles}
+          images={attachments.images}
+          preparingImageCount={attachments.preparingCount}
+          attachmentErrors={attachments.errors}
+          unsupportedImageModel={unsupportedImageModel}
+          onRemoveImage={attachments.removeImage}
         />
       }
       footer={<Footer />}

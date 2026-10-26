@@ -120,13 +120,18 @@ front/src/
 │   │       └── ChatLayout.tsx #     画面の枠（サイドバー・ドロワー・ヘッダー・本文・お知らせ・入力欄・フッター）。中身は props で受け取る
 │   └── features/              #   機能の部品
 │       ├── chat/
+│       │   ├── atoms/
+│       │   │   └── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
 │       │   ├── molecules/
+│       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
+│       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
+│       │   │   ├── ImageZoomDialog.tsx   # 添付画像の拡大のダイアログ（#6）
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
 │       │   │   ├── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示。ソースとの切り替え・拡大のボタン（#169・#171・#176）
 │       │   │   └── DiagramZoomDialog.tsx # 図の拡大（倍率の変更）と SVG / PNG での保存のダイアログ（#176）
 │       │   └── organisms/
-│       │       ├── ChatBar.tsx    # メッセージ入力（IME対応）
+│       │       ├── ChatBar.tsx    # メッセージ入力（IME対応・画像の添付ボタン / ドラッグ＆ドロップ / 貼り付け）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
@@ -149,13 +154,15 @@ front/src/
 │               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
 │   └── chat/
-│       └── toolLabels.ts      #     ツール名→表示ラベルのマッピング
+│       ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
+│       └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
 ├── hooks/                     # カスタムフック（機能ごとのディレクトリ）
 │   ├── chat/
 │   │   ├── useChat.ts         #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
-│   │   ├── useModels.ts       #     利用可能なモデル一覧の取得と選択中のモデル
+│   │   ├── useModels.ts       #     利用可能なモデル一覧（画像に対応したモデルを含む）の取得と選択中のモデル
+│   │   ├── useImageAttachments.ts # 送信前の添付画像（追加・前処理・削除・添付できなかった理由。#6）
 │   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
 │   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
 │   ├── clipboard/
@@ -195,6 +202,7 @@ front/src/
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
 │   │   ├── diagram.ts         #     Mermaid の判定・要素 ID・SVG の data: URI と大きさ・テーマの色の組み立て（#169）
+│   │   ├── image-attachment.ts #    添付画像の選別（形式・大きさ・枚数）とブラウザでの縮小・再エンコード（#6）
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
@@ -216,7 +224,8 @@ front/src/
     ├── agent/
     │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
     ├── chat/
-    │   ├── message.ts         #     Message・MessageSaveState・HistoryEntry
+    │   ├── message.ts         #     Message・MessageImage・MessageSaveState・HistoryEntry
+    │   ├── attachment.ts      #     PreparedImage（送信前の添付画像。#6）
     │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
@@ -248,6 +257,7 @@ front/tests/
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）、拡大・保存・ソースとの切り替え
     ├── export.spec.ts             # 応答・会話の書き出し（Markdown で保存・会話全体の Markdown / JSON・押せない条件・ファイル名）
+    ├── image-attachment.spec.ts   # 画像添付（ファイル選択・D&D・貼り付け・縮小・プレビューと削除・枚数と形式・非対応モデルの案内・保存済みの画像の表示と拡大・送信と復元）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
     ├── streaming-stop.spec.ts     # 生成の停止（Stop ボタン・Escape・中断した応答の保存）テスト
@@ -367,12 +377,13 @@ model Attachment {
 
 ### 添付画像のフロー（#6）
 
-詳細は [13-image-attachment.md](./13-image-attachment.md)。画面（添付・プレビュー・表示）は 13-B（#181）で実装する。
+詳細は [13-image-attachment.md](./13-image-attachment.md)。
 
-1. ブラウザで画像を検証・縮小（長辺 1,280px）・再エンコードし、添付の ID を採番する
+1. 入力欄の添付ボタン・ドラッグ＆ドロップ・貼り付けで受けた画像を、`useImageAttachments` がブラウザで検証・縮小（長辺 1,280px）・再エンコードし（`lib/chat/image-attachment.ts`）、添付の ID を採番する。入力欄の上にプレビューを出す
 2. `POST /api/conversations/[id]/messages` の `attachments` で、user メッセージと画像（Base64）を 1 トランザクションで保存する。形式はサーバーが中身で判定する（PNG / JPEG）
 3. `/api/chat` に送信する質問・履歴の添付 ID（`imageIds`）を送る。Route Handler はモデルが画像に対応しているかを Ollama の `/api/show` で確かめ、渡す画像を選んで（新しい順に 8 枚まで）DB から読み、Base64 にして Ollama の `images` へ渡す
-4. 会話を開き直したときは、メッセージ一覧の `attachments`（中身なし）を元に `GET /api/attachments/[id]` で画像を表示する
+4. 送ったメッセージには手元の data: URI で画像を出す。会話を開き直したときは、メッセージ一覧の `attachments`（中身なし）を元に `GET /api/attachments/[id]` で画像を表示する（`MessageImages`。押すと拡大）
+5. 選択中のモデルが `/api/models` の `visionModels` に無ければ、画像を添付している間は案内を出して送信させない
 
 ### 会話の役割（システムプロンプト）フロー
 

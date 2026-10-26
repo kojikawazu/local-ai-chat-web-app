@@ -44,11 +44,28 @@ describe('findRegenerateTarget', () => {
       expect(findRegenerateTarget(messages, messages[3].id)).toEqual({
         target: messages[3],
         prompt: '2つ目の質問',
+        imageIds: [],
         history: [
           { role: 'user', content: '1つ目の質問' },
           { role: 'assistant', content: '1つ目の回答' },
         ],
       });
+    });
+
+    it('画像付きの質問なら、その画像の ID も返す（#6。画像ごと送り直す）', () => {
+      const question: Message = {
+        ...msg('user', 'これは？'),
+        images: [
+          { id: 'img-1', src: '/api/attachments/img-1', width: 10, height: 10 },
+          { id: 'img-2', src: '/api/attachments/img-2', width: 10, height: 10 },
+        ],
+      };
+      const messages = [question, msg('assistant', '回答')];
+
+      expect(findRegenerateTarget(messages, messages[1].id)?.imageIds).toEqual([
+        'img-1',
+        'img-2',
+      ]);
     });
 
     it('最初のやり取りなら履歴は空', () => {
