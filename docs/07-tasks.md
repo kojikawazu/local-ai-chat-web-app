@@ -999,3 +999,15 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 状態を localStorage に保存する（`useSidebarVisibility`。不正な値・例外では表示）。モバイルは今のまま
 - [x] UT（`sidebar-visibility.test.ts`。10 件）・E2E（`sidebar.spec.ts` に 6 件）・スクリーンショットの基準画像の撮り直し（デスクトップ 4 枚と、#176 の `IconButton` の押せないときの見た目で変わったモバイル 1 枚）
 - [x] `docs/01`・`docs/02`・`docs/04`・`docs/06`・`docs/12`・`CLAUDE.md`・`.claude/rules/frontend.md` を同期（`docs/06` の `diagram.test.ts` の説明に、#176 で書き漏らした分も足した）
+
+## フェーズ38: ローカルファイルの検索・読み取りツール（#148 Phase A）
+
+エージェントに、許可したフォルダの中のファイルを一覧・検索・読み取りするツールを足す。設計は [14-local-file-tools.md](./14-local-file-tools.md)。 — #148・サブ issue #184（2026-10-26 着手）
+
+- [x] 前提の調査（コンテキストの長さ・入力を読む速さ・履歴への残り方）と設計（`docs/14-local-file-tools.md`）
+- [x] 設計のレビュー（推奨どおり: 既定は使わない・3 つのツール・持ち出しの抑止・サブ issue は Phase A だけ）
+- [x] `LOCAL_FILE_ROOTS` の解釈とパスの判定（実体のパスでの包含・秘匿ファイル・たどらないフォルダ）
+- [x] `list_directory`・`search_files`・`read_file`（上限・バイナリの判定・行の範囲）
+- [x] ローカルのファイルを読んだ応答の中では `web_search`・`url_fetch` を止める（ツールの `access` の印と `shouldBlockTool`）
+- [x] UT（`local-files.test.ts`。31 件）・IT（`local-files.test.ts`・`chat-agent-local-files.test.ts`・`tools.test.ts`。22 件）・E2E（`local-files.spec.ts`。5 件。実際に読ませる 1 件は大モデルのみ）
+- [x] ドキュメント（`docs/02`・`docs/03`・`docs/04`・`docs/05`・`docs/06`・`docs/09`・環境変数の一覧（`CLAUDE.md`・README・`.env.example`・マニュアル）・`.claude/rules/{security,testing,documentation}.md`）

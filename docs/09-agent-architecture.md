@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-24
+> 最終更新: 2026-10-26
 
 ## 目次
 
@@ -36,6 +36,7 @@
   - [Phase B: 調査系ツール](#phase-b-調査系ツール)
     - [3. web_search（Web検索）](#3-web_searchweb検索)
     - [4. url_fetch（URL取得）](#4-url_fetchurl取得)
+  - [ローカルのファイルのツール（#148）](#ローカルのファイルのツール148)
 - [API 設計変更](#api-設計変更)
   - [POST /api/chat（変更）](#post-apichat変更)
   - [GET /api/tools（新規 — Phase A）](#get-apitools新規--phase-a)
@@ -540,6 +541,22 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 3. リダイレクト先（リンクローカル）が SSRF チェックなしで実行される
 
 対策として `redirect: 'manual'` でリダイレクトを手動処理し、リダイレクト先 URL も同じ SSRF チェックを通す。または `redirect: 'error'` でリダイレクト自体を禁止する（よりシンプルで安全）。**初期実装では `redirect: 'error'` を採用する**。
+
+### ローカルのファイルのツール（#148）
+
+ローカル PC のファイルを読むツール。設計の詳細（脅威・上限・判定の順序）は [14-local-file-tools.md](./14-local-file-tools.md)。実装は `lib/agent/tools/local-files/`。
+
+| ツール | 引数 | 返すもの |
+|---|---|---|
+| `list_directory` | `path` | フォルダの直下の一覧（フォルダ → ファイル → リンク。ファイルはバイト数付き。最大 200 件） |
+| `search_files` | `query`・`path`・`target`（`name` / `content`） | ファイル名（`*`・`?` のワイルドカードか部分一致）か中身（文字列の部分一致・行番号付き）で見つかったもの。最大 30 件 |
+| `read_file` | `path`・`start_line`・`end_line` | 行番号付きの本文。1 回 300 行・12,000 文字まで（続きは `start_line` で読む） |
+
+- **既定では使えない**: 環境変数 `LOCAL_FILE_ROOTS`（読んでよいフォルダ）を設定したときだけ登録する（`registry.ts`）。
+- **パスの判定**: `realpath` で実体のパスにしてから、許可したフォルダの中にあるかを `path.relative` で判定する。検索ではシンボリックリンクをたどらない。
+- **秘匿ファイル**: `.env`・鍵・認証情報のファイルと `.ssh`・`.aws` などのフォルダは、一覧・検索に出さず読み取りも断る（範囲は CI の Secret scan と同じ）。
+- **外部への持ち出しの抑止**: ツールに `access`（`local` / `network`）の印を付け、同じ応答の中で `local` のツールが成功した後は、`network` のツール（`web_search`・`url_fetch`）を実行せずに理由を返す（`agent.ts` の `shouldBlockTool`）。
+- 書き込み・コマンド実行・承認の UI は、#148 の後の段階（Phase A2・B）で設計する。
 
 ---
 

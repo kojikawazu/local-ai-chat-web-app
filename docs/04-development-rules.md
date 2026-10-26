@@ -74,6 +74,7 @@ front/tests/
     │   ├── test-data.ts           # テストデータ管理ヘルパー
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
     ├── chat-streaming.spec.ts     # ストリーミング表示テスト
@@ -100,6 +101,7 @@ front/tests/
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
+    ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     └── screenshot.spec.ts         # スクリーンショットテスト
 ```
 

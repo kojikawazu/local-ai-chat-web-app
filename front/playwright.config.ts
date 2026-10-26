@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_OLLAMA_MODEL } from './tests/e2e/helpers/model';
+import { E2E_LOCAL_FILES_DIR } from './tests/e2e/helpers/local-files';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -27,6 +28,10 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     // .env.local の OLLAMA_MODEL（大モデル）より優先される（Next.js は既存の環境変数を上書きしない）。
     // 起動済みのサーバーを再利用した場合は効かないため、global-setup.ts で検証する
-    env: { OLLAMA_MODEL: E2E_OLLAMA_MODEL },
+    // LOCAL_FILE_ROOTS も同じく、.env.local の値（開発者のフォルダ）ではなく E2E 用のフォルダだけを読ませる（#148）
+    env: {
+      OLLAMA_MODEL: E2E_OLLAMA_MODEL,
+      LOCAL_FILE_ROOTS: E2E_LOCAL_FILES_DIR,
+    },
   },
 });

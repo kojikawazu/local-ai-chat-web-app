@@ -392,7 +392,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file も。#148）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
   }[];

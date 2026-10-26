@@ -1,11 +1,12 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
 import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
 import { parsePositiveIntEnv } from './agent-config';
-import { getAllToolDefinitions, executeTool } from './tools/index';
+import { getAllToolDefinitions, executeTool, getTool } from './tools/index';
 import type { ToolCallInfo } from '@/types/agent/tool-call';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
+  ToolAccess,
   ToolExecution,
   ToolOutput,
 } from './tools/types';
@@ -55,6 +56,39 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
     isError: true,
     summary: '実行しませんでした（先の呼び出しで使えないとわかったため）',
   };
+}
+
+/**
+ * ローカルのファイルを読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
+ *
+ * 読んだ内容を検索語・URL に埋めて外へ送らせないため。Web の結果などに仕込まれた指示で
+ * ファイルを読まされた場合でも、そこから外へ出す手段を無くす。
+ *
+ * @param name - 実行しなかったツール名
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+function blockedNetworkToolOutput(name: string): ToolOutput {
+  return {
+    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイルを読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
+    isError: true,
+    summary: '実行しませんでした（ローカルのファイルを読んだ後のため）',
+  };
+}
+
+/**
+ * ツールを実行せずに止めるかを判定する（#148）。
+ *
+ * 同じ応答の中でローカルのファイルを読むツールが成功した後は、外部と通信するツールを止める。
+ *
+ * @param access - 実行しようとしているツールが触れるもの（{@link ToolAccess}）
+ * @param hasReadLocalFiles - この応答でローカルのファイルを読むツールが成功したか
+ * @returns 止めるなら true
+ */
+export function shouldBlockTool(
+  access: ToolAccess | undefined,
+  hasReadLocalFiles: boolean
+): boolean {
+  return hasReadLocalFiles && access === 'network';
 }
 
 // NDJSON イベントを ReadableStream に書き込むヘルパー
@@ -266,6 +300,7 @@ async function relayOllamaResponse(
  * 取得済みのツール結果で最終回答を作らせる（上限到達の注記を先頭に付ける）。
  * ツールが接続先ごと使えない失敗（`unavailable`）を返したら、同じ応答の中ではそのツールを
  * 再び実行せず、実行しなかったことを結果として返す（#157）。
+ * ローカルのファイルを読むツールが成功した後は、外部と通信するツールを実行しない（#148。{@link shouldBlockTool}）。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * `signal` の abort、または返したストリームの cancel（ブラウザの停止・切断）でループを止める。
@@ -287,6 +322,8 @@ export function runAgentLoop(
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
+  // この応答でローカルのファイルを読むツールが成功したか。以降は外部と通信するツールを止める
+  let hasReadLocalFiles = false;
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();
   const loopSignal = signal
@@ -369,13 +406,19 @@ export function runAgentLoop(
               send({ type: 'tool_call_start', name, arguments: args });
 
               const skipReason = unavailableTools.get(name);
+              const access = getTool(name)?.access;
               // unavailable はループだけが読む印。画面・DB へは送らない
               const { durationMs, unavailable, ...output } =
-                skipReason === undefined
-                  ? await runTool(name, args, loopSignal)
-                  : { ...skippedToolOutput(name, skipReason), durationMs: 0 };
+                skipReason !== undefined
+                  ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
+                  : shouldBlockTool(access, hasReadLocalFiles)
+                    ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
+                    : await runTool(name, args, loopSignal);
               if (unavailable) {
                 unavailableTools.set(name, output.summary ?? output.result);
+              }
+              if (access === 'local' && !output.isError) {
+                hasReadLocalFiles = true;
               }
 
               // 実行結果イベント

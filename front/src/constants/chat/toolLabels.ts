@@ -9,4 +9,7 @@ export const TOOL_LABELS: Record<string, string> = {
   calculate: '計算',
   web_search: 'Web 検索',
   url_fetch: 'URL を取得',
+  list_directory: 'フォルダを見る',
+  search_files: 'ファイルを探す',
+  read_file: 'ファイルを読む',
 };

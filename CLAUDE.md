@@ -100,6 +100,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
+| `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
 
 ## 開発手法
 
@@ -183,6 +184,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
+      - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
@@ -229,10 +231,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/11-syntax-highlight-diagrams.md` | シンタックスハイライト・図表レンダリング 設計書 |
 | `docs/12-ui-components.md` | UI コンポーネント 設計書（Atomic Design） |
 | `docs/13-image-attachment.md` | 画像添付（マルチモーダル） 設計書 |
+| `docs/14-local-file-tools.md` | ローカルファイルの検索・読み取りツール 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`14-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`15-`〜）を付与する。
 
 ## Instruction Shortcuts
 

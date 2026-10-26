@@ -141,11 +141,24 @@ export interface ToolDefinition {
 }
 
 /**
+ * ツールが何に触れるか（#148）。エージェントループだけが読み、モデルには渡さない。
+ *
+ * - `local`: ローカル PC のファイルを読む
+ * - `network`: 外部と通信する（引数に書いた内容が外へ出る）
+ *
+ * ループは、同じ応答の中で `local` のツールが成功した後は `network` のツールを実行しない
+ * （読んだ内容を外へ送らせないため。`docs/14-local-file-tools.md`「外部への持ち出しを止める」）。
+ */
+export type ToolAccess = 'local' | 'network';
+
+/**
  * 実行可能なツールの実装。定義とその処理本体をひとまとめにする。
  */
 export type Tool = {
   /** ツールのメタ情報（名前・説明・引数スキーマ） */
   definition: ToolDefinition;
+  /** 何に触れるか（{@link ToolAccess}）。どちらでもない（計算・日時）なら省略 */
+  access?: ToolAccess;
   /**
    * ツール本体を実行する。
    *
