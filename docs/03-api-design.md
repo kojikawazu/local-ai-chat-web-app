@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-10-25
+> 最終更新: 2026-10-26
 
 ## 目次
 
@@ -18,9 +18,11 @@
   - [GET /api/tools](#get-apitools)
   - [POST /api/conversations/[id]/generate-title](#post-apiconversationsidgenerate-title)
   - [POST /api/diagrams/plantuml](#post-apidiagramsplantuml)
+  - [GET /api/attachments/[id]](#get-apiattachmentsid)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
+  - [POST /api/show（Ollama側）](#post-apishowollama側)
 - [外部API（PlantUML サーバー）](#外部apiplantuml-サーバー)
   - [POST /svg（PlantUML サーバー側）](#post-svgplantuml-サーバー側)
 
@@ -33,7 +35,7 @@
 - ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
 - 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
 - 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
-- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`）
+- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、添付画像の `MAX_IMAGES_PER_MESSAGE` / `MAX_IMAGES_PER_REQUEST` / `MAX_IMAGE_LONG_EDGE` / `MAX_IMAGE_BYTES`）
 
 ### POST /api/chat
 
@@ -45,9 +47,11 @@
 ```typescript
 {
   message: string;
+  imageIds?: string[];     // 送信する質問の添付画像の ID（保存済み。UUID・重複なし・最大 4 枚。#6）
   conversationHistory?: {   // 最大 1,000 件
     role: 'user' | 'assistant';  // system は systemPrompt、tool はサーバー内のエージェントループだけが作る
     content: string;             // user は最大 10,000 文字、assistant は最大 100,000 文字（保存上限と同じ）
+    imageIds?: string[];         // そのメッセージの添付画像の ID（user だけ。最大 4 枚）
   }[];
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
@@ -55,7 +59,13 @@
 }
 ```
 
-履歴の要素は `role` と `content` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。
+履歴の要素は `role`・`content`・`imageIds` だけに詰め直して Ollama へ渡す（`tool_calls` などの余分な項目は送らない）。
+
+**添付画像（#6）**: 画像の中身ではなく ID を受け取り、サーバーが DB（`Attachment`）から読んで Base64 にし、Ollama のメッセージの `images` に入れる（通常・エージェントとも）。設計は `docs/13-image-attachment.md`。
+
+- 画像が 1 枚も無ければ、Ollama の `/api/show` も DB も呼ばない（従来どおり）。
+- 画像がある場合はモデルの `capabilities`（Ollama の `/api/show`）を確かめる。送信する質問に画像があり、モデルが `vision` に対応していなければ 400。履歴にだけ画像がある場合は画像を渡さず、本文の末尾に `（画像 n 枚を添付。このモデルは画像に対応していないため省略）` を足して続ける。
+- 渡す画像は新しいメッセージから合計 `MAX_IMAGES_PER_REQUEST`（8）枚まで。メッセージ単位で選び、収まらないメッセージとそれより古い画像は渡さず、本文の末尾に `（画像 n 枚を添付。古いため省略）` を足す（`lib/server/chat-images.ts`）。
 
 `systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/chat/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、その後ろに「現在の日時」の節（日付・曜日・時刻・サーバーのタイムゾーンと、モードごとの「最新」の扱いの指示）を空行で区切って足し、会話履歴の先頭に `role: 'system'` として付ける（`lib/llm/current-date.ts` の `withCurrentDate` と `lib/llm/ollama.ts` の `withSystemPrompt`。#154）。`systemPrompt` が空でも、日時の節だけの system メッセージを付ける。日時はリクエストごとに作る。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/chat/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
@@ -75,8 +85,8 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 成功（ストリーミング開始） |
-| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・メッセージ空・10,000文字超・各フィールドの型不正・履歴の件数／role／content 長さ不正・systemPrompt 上限超過） |
-| 502 | Ollama接続エラー |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・メッセージ空・10,000文字超・各フィールドの型不正・履歴の件数／role／content 長さ不正・systemPrompt 上限超過・`imageIds` の形式／枚数／重複の不正・assistant の `imageIds`・画像に対応していないモデルへの画像の送信・見つからない添付） |
+| 502 | Ollama接続エラー（画像があるときのモデルの対応機能の問い合わせを含む） |
 | 499 | Ollama の応答前（モデルの読み込み待ちなど）にブラウザが停止・切断した（本文なし。受け取る相手はいない） |
 | 500 | サーバー内部エラー |
 
@@ -251,6 +261,12 @@
     role: 'user' | 'assistant';
     content: string;
     createdAt: string;
+    attachments: {            // 添付画像（#6）。並び順。中身は含めない（GET /api/attachments/[id] で取得）
+      id: string;
+      mimeType: 'image/png' | 'image/jpeg';
+      width: number;
+      height: number;
+    }[];
   }[];
 }
 ```
@@ -276,8 +292,16 @@
   role: 'user' | 'assistant';
   content: string;                          // user は最大10,000文字、assistant は最大100,000文字
   metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意。JSONオブジェクトのみ）
+  attachments?: {                           // 添付画像（任意。user のときだけ。最大 4 枚。#6）
+    id: string;                             // クライアントが採番した添付 ID（UUID。/api/chat の imageIds で参照する）
+    data: string;                           // data: の接頭辞なしの Base64。復号後 5MB まで。中身が PNG / JPEG であること
+    width: number;                          // 1〜1,280 の整数（表示の枠の確保にだけ使う）
+    height: number;
+  }[] | null;
 }
 ```
+
+添付の形式はクライアントの申告を受け取らず、復号したバイト列の先頭（マジックナンバー）で PNG / JPEG を判定して保存する（`lib/server/attachment.ts`）。メッセージ・添付・会話の `updatedAt` の更新は同一トランザクションで行う。
 
 **レスポンス**
 
@@ -293,9 +317,9 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・id が UUID 形式でない） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・id が UUID 形式でない・attachments の不正（assistant の添付・枚数・ID・寸法・Base64・5MB 超・PNG / JPEG でない）） |
 | 404 | 会話が見つからない |
-| 409 | 同じ `id` のメッセージが既に存在する |
+| 409 | 同じ `id` のメッセージ（または添付）が既に存在する |
 | 500 | サーバー内部エラー |
 
 上限値は `front/src/lib/shared/validation.ts` が正準。user は `MAX_MESSAGE_LENGTH`（`POST /api/chat` と同一の上限をフロント・API 双方で検証する）、assistant は `MAX_ASSISTANT_MESSAGE_LENGTH`（LLM 出力は長さを制御できないため入力上限と分ける）。
@@ -345,9 +369,12 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   models: string[];       // モデル名の配列
+  visionModels: string[]; // 画像入力（vision）に対応したモデル名の配列（#6）
   defaultModel: string;   // デフォルトモデル名（環境変数OLLAMA_MODEL）
 }
 ```
+
+`visionModels` は、モデルごとに Ollama の `/api/show` を並列に呼び、`capabilities` に `vision` があるものを並べる。問い合わせに失敗したモデルは `visionModels` から外すだけにし、一覧の取得自体は失敗させない。
 
 | ステータス | 説明 |
 |-----------|------|
@@ -440,6 +467,27 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ---
 
+### GET /api/attachments/[id]
+
+添付画像の中身を返す（#6）。
+
+**レスポンス**: 画像のバイト列
+
+| ヘッダー | 値 |
+|---|---|
+| `Content-Type` | 保存時に中身から判定した形式（`image/png` / `image/jpeg`） |
+| `Cache-Control` | `private, max-age=31536000, immutable`（添付は作った後に変わらない） |
+| `X-Content-Type-Options` | `nosniff`（ブラウザに形式を推測させない） |
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 成功 |
+| 400 | 無効なUUID |
+| 404 | 添付が見つからない（会話の削除でカスケード削除された場合を含む） |
+| 500 | サーバー内部エラー |
+
+---
+
 ## 外部API（Ollama）
 
 ### POST /api/chat（Ollama側）
@@ -452,11 +500,13 @@ Ollamaで利用可能なモデル一覧を取得する。
 {
   "model": "qwen3.8:27b",
   "messages": [
-    { "role": "user", "content": "..." }
+    { "role": "user", "content": "...", "images": ["iVBORw0KGgo..."] }
   ],
   "stream": true
 }
 ```
+
+`images`（`data:` の接頭辞なしの Base64）は添付画像があるメッセージにだけ付ける（#6）。画像に対応していないモデルに送ると、Ollama は 400（`Multimodal data provided, but model does not support multimodal requests.`）を返す。
 
 **ストリーミングレスポンス（NDJSON）**
 
@@ -485,6 +535,18 @@ Ollamaで利用可能なモデル一覧を取得する。
   ]
 }
 ```
+
+---
+
+### POST /api/show（Ollama側）
+
+**接続先**: `${OLLAMA_BASE_URL}/api/show`
+
+モデルの詳細を取得する。`capabilities`（`completion` / `vision` / `tools` / `thinking` 等）で、画像入力に対応しているかを判定する（`lib/llm/ollama.ts` の `getModelCapabilities` / `supportsVision`。#6）。`/api/models` と、画像を含む `/api/chat` から呼び出される。
+
+**リクエスト**: `{ "model": "qwen3.8:27b" }`
+
+**レスポンス（抜粋）**: `{ "capabilities": ["completion", "vision", "tools", "thinking"] }`
 
 ---
 

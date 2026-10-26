@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-25
+> 最終更新: 2026-10-26
 
 ## 目次
 
@@ -370,7 +370,9 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 front/tests/
 ├── unit/                         # ユニットテスト（Vitest）
 │   ├── validation.test.ts        # isValidUUID・入力上限定数
-│   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限・図のソースの上限）
+│   ├── request-body.test.ts      # JSON ボディの実行時検証（非オブジェクト・型不正・履歴の上限・図のソースの上限・添付画像と imageIds の検証）
+│   ├── attachment.test.ts        # 添付画像の形式の判定（PNG / JPEG・SVG 等は null）・Base64 の厳密な復号・復号後のバイト数（#6）
+│   ├── chat-images.test.ts       # LLM へ渡す画像の選び方（新しい順・合計の上限・メッセージ単位・非対応モデル）と省略の注記（#6）
 │   ├── conversation-history.test.ts # 会話履歴の組み立て（失敗した user の除外・件数／長さの上限）
 │   ├── regenerate.test.ts        # 再生成できる応答の判定（最後・保存済み）と送り直す質問・履歴
 │   ├── calculate.test.ts         # calculateTool 式評価パーサー・要約・失敗の isError
@@ -406,7 +408,9 @@ front/tests/
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
-│   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約）
+│   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
+│   ├── attachments.test.ts       # 添付画像の保存（形式の判定・トランザクション・409）・メッセージ一覧の attachments・GET /api/attachments/[id]（ヘッダー・cascade・400/404）
+│   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約・visionModels）
 │   ├── plantuml.test.ts          # /api/diagrams/plantuml（PlantUML fetchスタブ・SVG の中継・PlantUML の 400→400 と理由・入力の 400・接続失敗/時間切れ/500→502・切断→499）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
 └── e2e/

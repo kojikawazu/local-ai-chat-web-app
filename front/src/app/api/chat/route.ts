@@ -1,11 +1,22 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
-import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
+import {
+  getDefaultModel,
+  streamChat,
+  supportsVision,
+  withSystemPrompt,
+} from '@/lib/llm/ollama';
 import { runAgentLoop } from '@/lib/agent/agent';
 import { getLocalTimeZone, withCurrentDate } from '@/lib/llm/current-date';
 import { initializeTools } from '@/lib/agent/tools/registry';
+import type { ChatBody } from '@/lib/server/request-body';
 import { parseChatBody, readJsonBody } from '@/lib/server/request-body';
+import {
+  selectChatImages,
+  withOmittedImagesNote,
+} from '@/lib/server/chat-images';
+import { prisma } from '@/lib/server/prisma';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();
@@ -13,6 +24,96 @@ initializeTools();
 // 応答を受け取る前にブラウザが停止・切断したときのステータス。受け取る相手はいないため
 // 値はログ・計測上の区別のためだけに使う（nginx の「Client Closed Request」と同じ番号）
 const CLIENT_CLOSED_REQUEST = 499;
+
+/** {@link buildMessages} の結果。失敗時はクライアントへ返すステータスとエラーメッセージを持つ。 */
+type BuildResult =
+  | { ok: true; messages: OllamaChatMessage[] }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 検証済みのボディから、Ollama へ送る会話（履歴 + 送信する質問）を組み立てる。
+ *
+ * 添付画像（#6）は ID で届くため、LLM へ渡す画像を選んで（{@link selectChatImages}）DB から読み、
+ * Base64 にして `images` に入れる。渡さない画像は本文に注記する。画像が 1 枚も無ければ
+ * Ollama・DB に問い合わせない（画像を使わない会話の処理を変えない）。
+ *
+ * @param body - 検証済みのボディ
+ * @returns 組み立てた会話。送信する質問に画像があるのにモデルが画像に対応していなければ 400、
+ *   見つからない添付があれば 400、モデルの対応機能を問い合わせられなければ 502、DB の読み込みに失敗すれば 500
+ */
+async function buildMessages(body: ChatBody): Promise<BuildResult> {
+  const entries = [
+    ...body.conversationHistory,
+    { role: 'user' as const, content: body.message, imageIds: body.imageIds },
+  ];
+  if (entries.every((entry) => entry.imageIds.length === 0)) {
+    return {
+      ok: true,
+      messages: entries.map(({ role, content }) => ({ role, content })),
+    };
+  }
+
+  let vision: boolean;
+  try {
+    vision = await supportsVision(body.model);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    console.error('Ollama connection error:', errorMessage);
+    return {
+      ok: false,
+      status: 502,
+      error: `Ollamaへの接続に失敗しました: ${errorMessage}`,
+    };
+  }
+  // Ollama の 400（Multimodal data provided...）を 502 として返さず、入力の問題として先に弾く。
+  // 履歴にだけ画像がある場合は画像を外して続ける（会話の途中でモデルを切り替えても続けられるように）
+  if (!vision && body.imageIds.length > 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: `選択中のモデル（${body.model || getDefaultModel()}）は画像に対応していません`,
+    };
+  }
+
+  const selections = selectChatImages(
+    entries.map((entry) => entry.imageIds),
+    { supportsVision: vision }
+  );
+  const ids = selections.flatMap((selection) => selection.includedIds);
+
+  let images: Map<string, string>;
+  try {
+    const rows = await prisma.attachment.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, data: true },
+    });
+    images = new Map(
+      rows.map((row) => [row.id, Buffer.from(row.data).toString('base64')])
+    );
+  } catch (error) {
+    console.error('Failed to load attachments:', error);
+    return { ok: false, status: 500, error: '画像の読み込みに失敗しました' };
+  }
+  if (images.size !== ids.length) {
+    return { ok: false, status: 400, error: '画像が見つかりません' };
+  }
+
+  return {
+    ok: true,
+    messages: entries.map((entry, index) => {
+      const selection = selections[index];
+      return {
+        role: entry.role,
+        content: withOmittedImagesNote(entry.content, selection),
+        ...(selection.includedIds.length > 0 && {
+          // images.size === ids.length を確かめたため、選んだ ID はすべて Map にある
+          images: selection.includedIds.map((id) => images.get(id) ?? ''),
+        }),
+      };
+    }),
+  };
+}
 
 /**
  * Ollama にチャットメッセージを送信し、応答をストリーミングで中継する。
@@ -25,11 +126,13 @@ const CLIENT_CLOSED_REQUEST = 499;
  * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
  *
  * ボディは {@link parseChatBody} で検証し、不正なら Ollama を呼ばずに 400 を返す。
+ * 添付画像の ID（`imageIds`・履歴の各要素の `imageIds`。#6）は DB から読んで Ollama の `images` へ渡す
+ * （{@link buildMessages}）。
  * ブラウザが停止・切断した場合（`request.signal` の abort・応答ストリームの cancel）は、
  * Ollama への接続を切って生成を止める。
  *
- * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
- * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。JSON 構文・形・型・上限の検証失敗時は 400、Ollama 接続・空応答時は 502 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
+ * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
+ * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時は 502、添付の読み込み失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
  */
 export async function POST(request: NextRequest) {
   const raw = await readJsonBody(request);
@@ -38,13 +141,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { message, conversationHistory, model, enableTools, systemPrompt } =
-    parsed.value;
+  const { model, enableTools, systemPrompt } = parsed.value;
 
-  const messages: OllamaChatMessage[] = [
-    ...conversationHistory,
-    { role: 'user', content: message },
-  ];
+  const built = await buildMessages(parsed.value);
+  if (!built.ok) {
+    return NextResponse.json({ error: built.error }, { status: built.status });
+  }
+  const { messages } = built;
   // 今日の日付を必ず知らせる。知らせないと「最新」を学習時点の年で検索・回答する（#154）
   const prompt = withCurrentDate(systemPrompt, {
     now: new Date(),

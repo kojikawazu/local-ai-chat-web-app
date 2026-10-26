@@ -1,16 +1,25 @@
 import { NextResponse } from 'next/server';
-import { listModels, getDefaultModel } from '@/lib/llm/ollama';
+import { listModels, getDefaultModel, supportsVision } from '@/lib/llm/ollama';
 
 /**
  * Ollama で利用可能なモデル一覧と既定モデル名を取得する。
  *
- * @returns 成功時はモデル名配列と既定モデルを含む JSON（`{ models, defaultModel }`）。Ollama への接続失敗は 502 の JSON エラーレスポンス
+ * 画像を添付できるかを画面で案内するため、画像に対応したモデルの一覧（`visionModels`）も返す（#6）。
+ * 対応機能はモデルごとに並列に問い合わせ、問い合わせに失敗したモデルは `visionModels` から外すだけにする
+ * （一覧の取得自体は失敗させない）。
+ *
+ * @returns 成功時はモデル名配列・画像に対応したモデル名配列・既定モデルを含む JSON（`{ models, visionModels, defaultModel }`）。Ollama への接続失敗は 502 の JSON エラーレスポンス
  */
 export async function GET() {
   try {
-    const models = await listModels();
+    const names = (await listModels()).map((m) => m.name);
+    const vision = await Promise.allSettled(names.map(supportsVision));
     return NextResponse.json({
-      models: models.map((m) => m.name),
+      models: names,
+      visionModels: names.filter((_, index) => {
+        const result = vision[index];
+        return result.status === 'fulfilled' && result.value;
+      }),
       defaultModel: getDefaultModel(),
     });
   } catch (error) {

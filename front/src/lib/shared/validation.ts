@@ -75,3 +75,31 @@ export const MAX_SEARCH_TERMS = 5;
  * 際限なく大きいソースで PlantUML サーバーを占有させない。
  */
 export const MAX_DIAGRAM_SOURCE_LENGTH = 50_000;
+/**
+ * 1 メッセージに添付できる画像の最大枚数（#6）。
+ *
+ * 長辺 {@link MAX_IMAGE_LONG_EDGE}px の画像は `qwen3.8:27b` で 1 枚 約 900 トークン・約 8 秒かかる。
+ * 4 枚で応答まで 30 秒程度に収める（`docs/13-image-attachment.md`「解像度と処理時間」）。
+ */
+export const MAX_IMAGES_PER_MESSAGE = 4;
+/**
+ * `/api/chat` の 1 回の送信で LLM へ渡す画像の最大枚数（送信する質問と履歴の合計。#6）。
+ *
+ * システムプロンプトの先頭に分単位の日時が入り、送信のたびに Ollama のプロンプトのキャッシュが外れるため、
+ * 履歴の画像も毎回評価し直しになる。超えた分は古い順に渡さない。
+ */
+export const MAX_IMAGES_PER_REQUEST = 8;
+/**
+ * 添付する画像の長辺の最大ピクセル数（#6）。ブラウザはこれを超える画像を縮小してから送る。
+ *
+ * 画像のトークン数は解像度にほぼ比例する（1920×1080 で 約 2,000 トークン・約 19 秒）。
+ * 1,280px なら 約 900 トークン・約 8 秒に収まり、スクリーンショットの文字も読める。
+ */
+export const MAX_IMAGE_LONG_EDGE = 1280;
+/**
+ * 添付する画像 1 枚の最大バイト数（ブラウザでの再エンコード後。保存 API の検証にも使う。#6）。
+ *
+ * 長辺 {@link MAX_IMAGE_LONG_EDGE}px の PNG が超えるのは稀。保存 API のボディが
+ * 際限なく大きくならないための上限（4 枚の Base64 で 約 27MB）。
+ */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

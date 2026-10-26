@@ -119,7 +119,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message のリレーション（カスケード削除）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（添付画像）のリレーション（カスケード削除）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -127,19 +127,20 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt指定可。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く） |
-| GET | `/api/models` | Ollamaの利用可能モデル一覧取得 |
+| POST | `/api/chat` | Ollamaにメッセージ送信（ストリーミング応答、model/enableTools/systemPrompt/imageIds指定可。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得 |
 | GET | `/api/conversations` | 会話一覧取得 |
 | GET | `/api/conversations/search` | 会話のキーワード検索（タイトル・本文。空白区切りの AND、20 件ずつ） |
 | POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt` を指定可） |
 | PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）の変更 |
 | DELETE | `/api/conversations/[id]` | 会話削除（メッセージもカスケード削除） |
-| GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得 |
-| POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可） |
+| GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得（添付画像の情報付き。中身は含めない） |
+| POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可。user は添付画像 `attachments` を指定可） |
 | PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成） |
 | POST | `/api/conversations/[id]/generate-title` | LLMで会話タイトル自動生成 |
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
+| GET | `/api/attachments/[id]` | 添付画像の中身を返す |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -166,6 +167,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/conversations/search/` — 会話のキーワード検索
   - `api/conversations/[id]/generate-title/` — LLMでタイトル自動生成
   - `api/diagrams/plantuml/` — PlantUML の図の描画（PlantUML サーバーへ中継）
+  - `api/attachments/[id]/` — 添付画像の取得
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
@@ -185,7 +187,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, system-prompt.ts, code-block.ts, diagram.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
-  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, image.ts）
 - **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/HistoryEntry、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
 
@@ -226,10 +228,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/10-roadmap.md` | 開発ロードマップ |
 | `docs/11-syntax-highlight-diagrams.md` | シンタックスハイライト・図表レンダリング 設計書 |
 | `docs/12-ui-components.md` | UI コンポーネント 設計書（Atomic Design） |
+| `docs/13-image-attachment.md` | 画像添付（マルチモーダル） 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`13-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`14-`〜）を付与する。
 
 ## Instruction Shortcuts
 
