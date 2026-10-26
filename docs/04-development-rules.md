@@ -103,6 +103,7 @@ front/tests/
     ├── agent-timeline.spec.ts     # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）
     ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
+    ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     └── screenshot.spec.ts         # スクリーンショットテスト
 ```
 

@@ -1,4 +1,4 @@
-import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type { ApprovalPreview, ToolCallInfo } from '@/types/agent/tool-call';
 
 /**
  * Ollama API の function calling へ渡すツール定義。
@@ -88,6 +88,8 @@ export type ToolExecution = ToolOutput & {
  * - `done`: エージェントループ完了。ツール呼び出し履歴・ラウンド数・総所要時間を含みうる。
  * - `error`: 処理中に発生したエラー内容。
  * - `thinking`: LLM の思考過程テキスト（Phase C で追加）。
+ * - `tool_approval_request`: 承認が要るツールの実行前に、承認 ID と見せる内容を送る（#148 Phase A2）。
+ *   画面は承認の API で許可か拒否かを返す。決着は続く `tool_call_result`（`approval` 付き）で分かる。
  */
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
@@ -97,7 +99,8 @@ export type AgentStreamEvent =
       arguments: Record<string, unknown>;
       contentOffset: number;
     }
-  | ({ type: 'tool_call_result'; name: string } & ToolOutput)
+  | ({ type: 'tool_call_result'; name: string } & ToolOutput &
+      Pick<ToolCallInfo, 'approval'>)
   | {
       type: 'done';
       metadata?: {
@@ -107,7 +110,13 @@ export type AgentStreamEvent =
       };
     }
   | { type: 'error'; message: string }
-  | { type: 'thinking'; content: string }; // Phase C
+  | { type: 'thinking'; content: string } // Phase C
+  | {
+      type: 'tool_approval_request';
+      approvalId: string;
+      name: string;
+      preview: ApprovalPreview;
+    };
 
 /**
  * ツールのメタ情報（名前・説明・引数スキーマ）を表す内部向け定義。
@@ -153,6 +162,31 @@ export interface ToolDefinition {
 export type ToolAccess = 'local' | 'network';
 
 /**
+ * 承認が要るツールの、承認の前に済ませた準備の結果（#148 Phase A2）。
+ *
+ * 準備で引数・パス・上限を確かめ、見せる内容（差分）と、許可されたら行う処理を作る。
+ * 準備で失敗したら承認は求めず、その結果をそのままモデルへ返す。
+ */
+export type PreparedAction =
+  | {
+      ok: true;
+      /** 利用者へ見せる内容 */
+      preview: ApprovalPreview;
+      /**
+       * 許可されたら行う処理。準備で作った内容をそのまま実行する（見せた内容と違うことはしない）
+       *
+       * @param signal - ツールのタイムアウト・停止で中断される signal
+       * @returns 実行結果
+       */
+      run: (signal: AbortSignal) => Promise<ToolExecution>;
+    }
+  | {
+      ok: false;
+      /** 準備で失敗した結果 */
+      output: ToolExecution;
+    };
+
+/**
  * 実行可能なツールの実装。定義とその処理本体をひとまとめにする。
  */
 export type Tool = {
@@ -160,6 +194,18 @@ export type Tool = {
   definition: ToolDefinition;
   /** 何に触れるか（{@link ToolAccess}）。どちらでもない（計算・日時）なら省略 */
   access?: ToolAccess;
+  /**
+   * 実行前に承認が要るツールの準備（#148 Phase A2）。持つツールは、エージェントループが準備 → 承認 → `run` の順に進め、
+   * `execute` は呼ばない。承認の要らないツールは省略する
+   *
+   * @param args - LLM から渡された引数
+   * @param signal - ツールのタイムアウト・停止で中断される signal
+   * @returns 準備の結果（{@link PreparedAction}）
+   */
+  prepare?: (
+    args: Record<string, unknown>,
+    signal: AbortSignal
+  ) => Promise<PreparedAction>;
   /**
    * ツール本体を実行する。
    *

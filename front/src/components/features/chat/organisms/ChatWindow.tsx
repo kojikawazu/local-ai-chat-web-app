@@ -11,6 +11,7 @@ import {
   Download,
 } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
+import type { ToolApprovalRequest } from '@/types/agent/tool-call';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildAgentTimeline } from '@/lib/chat/agent-timeline';
 import { buildMessageExport } from '@/lib/chat/export';
@@ -19,6 +20,7 @@ import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
 import MessageImages from '@/components/features/chat/molecules/MessageImages';
+import ApprovalCard from '@/components/features/chat/molecules/ApprovalCard';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 import AgentSteps from './AgentSteps';
@@ -40,6 +42,10 @@ type ChatWindowProps = {
   onRegenerate?: (messageId: string) => void;
   /** 応答を Markdown で保存するときのファイル名に使う会話のタイトル（#12）。会話が一覧に無い間は空でよい。 */
   conversationTitle?: string;
+  /** 承認を待っているツールの実行（届いた順。#148 Phase A2）。先頭の 1 件の承認カードを出す。省略時は無し。 */
+  pendingApprovals?: ToolApprovalRequest[];
+  /** 承認カードの許可・拒否で呼ぶ。承認 ID と、許可なら true を受け取る。 */
+  onRespondApproval?: (approvalId: string, approved: boolean) => void;
 };
 
 /**
@@ -53,6 +59,7 @@ type ChatWindowProps = {
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
  * 再生成できる応答（最後の保存済みの応答）には再生成ボタンを付け、生成中は押させない。
+ * ツールの実行の承認を待っている間は、実行中の表示の代わりに承認カード（差分と許可・拒否）を一番下に出す（#148 Phase A2）。
  *
  * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行／再生成コールバックを持つ props
  */
@@ -63,6 +70,8 @@ export default function ChatWindow({
   onRetrySave,
   onRegenerate,
   conversationTitle = '',
+  pendingApprovals = [],
+  onRespondApproval,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -70,7 +79,7 @@ export default function ChatWindow({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, pendingApprovals]);
 
   const lastMsg = messages[messages.length - 1];
   // 生成中の応答 = 生成中の最後の assistant。Mermaid の図は生成が終わってから描く（#169）
@@ -114,7 +123,8 @@ export default function ChatWindow({
               msg.id === lastMsg.id &&
               msg.role === 'assistant' &&
               bubbleText === '' &&
-              !activeToolCall;
+              !activeToolCall &&
+              pendingApprovals.length === 0;
             // 時系列のとき、回答がまだ無く待ってもいなければ（停止・回答の無い応答）吹き出しを出さない
             const showBubble = !timeline || bubbleText !== '' || isThisWaiting;
             const thinking = msg.role === 'assistant' &&
@@ -291,13 +301,26 @@ export default function ChatWindow({
               </div>
             );
           })}
-          {activeToolCall && (
-            <div className="mr-auto max-w-[85%] md:max-w-[70%]">
-              <ToolCallIndicator
-                name={activeToolCall.name}
-                arguments={activeToolCall.arguments}
+          {pendingApprovals.length > 0 ? (
+            <div className="mr-auto w-full max-w-[85%] md:max-w-[70%]">
+              <ApprovalCard
+                key={pendingApprovals[0].approvalId}
+                request={pendingApprovals[0]}
+                remaining={pendingApprovals.length - 1}
+                onRespond={(approved) =>
+                  onRespondApproval?.(pendingApprovals[0].approvalId, approved)
+                }
               />
             </div>
+          ) : (
+            activeToolCall && (
+              <div className="mr-auto max-w-[85%] md:max-w-[70%]">
+                <ToolCallIndicator
+                  name={activeToolCall.name}
+                  arguments={activeToolCall.arguments}
+                />
+              </div>
+            )
           )}
         </>
       )}

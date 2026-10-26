@@ -31,7 +31,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Model selection**: switch between installed Ollama models on the fly
 - **Markdown rendering**: code blocks, tables, lists, etc. in AI responses
 - **Image attachments**: attach images with the paperclip button, drag & drop or paste, and ask a vision-capable model (e.g. the default `qwen3.8:27b`); images are downscaled to 1,280px on the long edge in the browser before sending
-- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders) with visible reasoning and system-prompt presets
+- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders, create / edit files after you approve the diff) with visible reasoning and system-prompt presets
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text
 - **Responsive design**: desktop and mobile
@@ -44,6 +44,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | React | React 19 (React Compiler enabled) |
 | Styling | TailwindCSS 4 |
 | Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
+| Diff | diff (jsdiff, for the write-approval diff) |
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |
 | Web search | SearXNG (Docker Compose) |
@@ -86,6 +87,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `SEARXNG_URL` | SearXNG endpoint for web search (`web_search`) | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML server endpoint for PlantUML diagrams | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | Folders (absolute paths, comma-separated, `~` allowed) the agent's file tools (list / search / read) may read | unset (tools disabled) |
+| `LOCAL_FILE_WRITE_ROOTS` | Folders (inside `LOCAL_FILE_ROOTS`) where the agent may create / edit files, each write approved by you first | unset (write tools disabled) |
 
 ## Commands
 

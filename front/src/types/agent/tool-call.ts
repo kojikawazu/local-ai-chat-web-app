@@ -1,4 +1,37 @@
 /**
+ * 実行前に承認を求めたツールの、承認の結果（#148 Phase A2）。`expired` は待ち時間の上限に達した。
+ */
+export type ToolApproval = 'approved' | 'rejected' | 'expired';
+
+/**
+ * 実行前に承認を求めるときに、利用者へ見せる内容（#148 Phase A2）。
+ */
+export type ApprovalPreview = {
+  /** 何をするか。`create` は新規作成、`overwrite` は上書き、`edit` は部分の置き換え */
+  action: 'create' | 'overwrite' | 'edit';
+  /** 対象のファイルの実体のパス */
+  path: string;
+  /** 変更の差分（unified diff） */
+  diff: string;
+  /** 追加する行数 */
+  added: number;
+  /** 削除する行数 */
+  removed: number;
+};
+
+/**
+ * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。
+ */
+export type ToolApprovalRequest = {
+  /** 承認 ID（承認の API に渡す） */
+  approvalId: string;
+  /** ツール名 */
+  name: string;
+  /** 利用者へ見せる内容 */
+  preview: ApprovalPreview;
+};
+
+/**
  * エージェントが実行した 1 回のツール呼び出しの記録。
  *
  * サーバーのエージェントループが組み立て、`done` イベントで画面へ届き、
@@ -28,4 +61,6 @@ export type ToolCallInfo = {
    * サーバーのエージェントループが数える。#186 より前の古いデータは持たない
    */
   contentOffset?: number;
+  /** 実行前に承認を求めたツールなら、その結果（{@link ToolApproval}）。承認の要らないツールは持たない */
+  approval?: ToolApproval;
 };

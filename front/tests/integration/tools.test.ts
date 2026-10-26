@@ -11,6 +11,7 @@ let GET: () => Promise<Response>;
 beforeAll(async () => {
   // 開発者のシェルに LOCAL_FILE_ROOTS があっても結果が変わらないよう、空にしてから読み込む
   vi.stubEnv('LOCAL_FILE_ROOTS', '');
+  vi.stubEnv('LOCAL_FILE_WRITE_ROOTS', '');
   ({ GET } = await import('@/app/api/tools/route'));
 });
 
@@ -43,9 +44,15 @@ describe('GET /api/tools', () => {
   });
 
   describe('準正常系', () => {
-    it('LOCAL_FILE_ROOTS が無ければ、ローカルのファイルのツールは出ない', async () => {
+    it('LOCAL_FILE_ROOTS・LOCAL_FILE_WRITE_ROOTS が無ければ、ローカルのファイルのツールは出ない', async () => {
       const names = await toolNames();
-      for (const name of ['list_directory', 'search_files', 'read_file']) {
+      for (const name of [
+        'list_directory',
+        'search_files',
+        'read_file',
+        'write_file',
+        'edit_file',
+      ]) {
         expect(names).not.toContain(name);
       }
     });

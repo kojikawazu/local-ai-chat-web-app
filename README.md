@@ -4,7 +4,7 @@
 [![Integration Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/integration-test.yml)
 [![E2E Tests](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/kojikawazu/local-ai-chat-web-app/actions/workflows/e2e-test.yml)
 
-[English](README.en.md) ・ 最終更新: 2026-10-22
+[English](README.en.md) ・ 最終更新: 2026-10-26
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション。
 Nordic Frostデザインシステムをベースとした、プライベートなAIワークスペース。
@@ -32,7 +32,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 - **モデル選択**: Ollamaにインストール済みのモデルを動的に切り替え
 - **マークダウン表示**: AIレスポンスのコードブロック・テーブル・リスト等を整形表示
 - **画像添付**: 画像をクリップのボタン・ドラッグ＆ドロップ・貼り付けで添付し、画像に対応したモデル（既定の `qwen3.8:27b` 等）に質問できる（ブラウザで長辺 1,280px に縮小してから送る）
-- **エージェント機能**: ツール呼び出し（日時取得・計算・Web検索・URL取得、許可したフォルダのファイルの一覧・検索・読み取り）と思考過程の可視化、システムプロンプトプリセット
+- **エージェント機能**: ツール呼び出し（日時取得・計算・Web検索・URL取得、許可したフォルダのファイルの一覧・検索・読み取り、差分を見て許可したときだけのファイルの作成・編集）と思考過程の可視化、システムプロンプトプリセット
 - **テーマ切替**: Nordic Frost / Aurora Borealis / Midnight Ocean の3テーマ
 - **IME対応**: 日本語入力中のEnter確定で誤送信されない
 - **レスポンシブデザイン**: デスクトップ・モバイル対応
@@ -45,6 +45,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
 | Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
+| 差分 | diff（jsdiff。書き込みの承認の差分） |
 | LLM | Ollama（ローカル実行） |
 | DB | PostgreSQL 16（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose） |
@@ -87,6 +88,7 @@ pnpm dev                          # → http://localhost:3000
 | `SEARXNG_URL` | Web検索（`web_search`）の SearXNG 接続先 | `http://localhost:8888` |
 | `PLANTUML_URL` | PlantUML の図を描く PlantUML サーバーの接続先 | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | エージェントのファイルのツール（一覧・検索・読み取り）が読んでよいフォルダの絶対パス（カンマ区切り・`~` 可） | 未設定（ツールを使わない） |
+| `LOCAL_FILE_WRITE_ROOTS` | エージェントのファイルの書き込み（作成・編集。実行前に承認が要る）をしてよいフォルダの絶対パス（`LOCAL_FILE_ROOTS` の中だけ・カンマ区切り・`~` 可） | 未設定（書き込みのツールを使わない） |
 
 ## コマンド一覧
 

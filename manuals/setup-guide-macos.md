@@ -286,6 +286,8 @@ EOF
 > なお `front/.env.example` をコピーして作成することもできます: `cp .env.example .env.local`
 >
 > **任意**: エージェントにローカルのファイルを探して読ませる場合は、読んでよいフォルダを `LOCAL_FILE_ROOTS` に絶対パス（カンマ区切り・`~` 可）で足します（例: `LOCAL_FILE_ROOTS=~/developer/my-project`）。未設定ならファイルのツールは使われません。プロジェクトのフォルダなど必要な範囲だけを指定してください（`docs/14-local-file-tools.md`）。
+>
+> **任意**: ファイルの作成・編集もさせる場合は、書いてよいフォルダを `LOCAL_FILE_WRITE_ROOTS` に足します（`LOCAL_FILE_ROOTS` の中だけ。例: `LOCAL_FILE_WRITE_ROOTS=~/developer/my-project`）。書き込みのたびに画面に差分が出て、許可するまで書かれません（`docs/15-tool-approval.md`）。
 
 ### データベースのマイグレーション
 

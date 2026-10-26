@@ -191,6 +191,11 @@ describe('機能名', () => {
 - 準正常系: 見つからなかった検索が ⚠️ と 0 件で出る
 - 異常系: ファイルを読んだ後に止めた `url_fetch` が ❌ と止めた理由で出る
 
+**ファイルの書き込みの承認（`file-write-approval.spec.ts`、#148 Phase A2）**（dev サーバーには `playwright.config.ts` が `LOCAL_FILE_WRITE_ROOTS` として OS の一時フォルダの E2E 用のフォルダを渡す。リポジトリの中は書き換えない）
+- 正常系: `GET /api/tools` に書き込みのツールが出る。モデルに書き換えを頼むと承認カードに差分が出て、許可するまで書き換わらず、許可すると書き換わる（**ツール呼び出しが要るため軽量モデルではスキップ**）
+- 準正常系: 拒否するとファイルは書き換わらず、❌ と「拒否されました」が出る（同上）
+- 異常系: 承認の API は、待っている承認の無い ID で 404・不正な ID で 400
+
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
 - 準正常系: 0 件は ✅ ではなく ⚠️ で出る。要約を持たない古いデータは、これまでどおり成否と所要時間だけを出す
@@ -409,6 +414,7 @@ front/tests/
 │   ├── chat-state.test.ts        # 会話ごとのチャット状態（移す・残す・読み込みの反映・生成中の会話の一覧・捨てる）
 │   ├── search.test.ts            # 会話検索のクエリの検証・キーワードの分解・抜粋の切り出し・強調の分割・LIKE のエスケープ
 │   ├── sidebar-visibility.test.ts # サイドバーの表示状態の保存値の解釈（open / closed / 不正な値 / 未保存）（#24）
+│   ├── tool-approval.test.ts     # 承認待ちの決着（許可・拒否・時間切れ・停止。偽のタイマー）・edit_file の一致と CRLF・差分の行数・.git の判定・拒否の文章・承認の API のボディ（#148 Phase A2）
 │   ├── local-files.test.ts       # ローカルのファイルのツールの純関数（LOCAL_FILE_ROOTS の解釈・包含の判定・秘匿ファイルの名前・行の切り出し・ワイルドカード・結果の文章・持ち出しの判定。#148）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
 ├── integration/                  # インテグレーションテスト（Vitest + Testcontainers）
@@ -426,7 +432,9 @@ front/tests/
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない・ツールの本文の位置 contentOffset とラウンドの区切りの空行）
 │   ├── chat-agent-local-files.test.ts # /api/chat エージェント経路のローカルのファイルのツール（読んだ後の url_fetch・web_search を実行しない・読む前・失敗後は止めない）と GET /api/tools への登録（#148）
 │   ├── local-files.test.ts       # 一時フォルダでの list_directory・search_files・read_file（秘匿ファイル・シンボリックリンクと .. で外へ出られない・上限・バイナリ・行の範囲。#148）
-│   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS が無ければローカルのファイルのツールを出さない）
+│   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS・LOCAL_FILE_WRITE_ROOTS が無ければローカルのファイルのツールを出さない）
+│   ├── local-file-write.test.ts  # 一時フォルダでの write_file・edit_file の準備と実行（作成・上書き・置き換え・CRLF・承認の間の変更・同名の新規・.git と秘匿と外・先の無いリンク・承認なしの execute。#148 Phase A2）
+│   ├── chat-agent-approval.test.ts # /api/chat の承認の流れ（差分付きの承認の依頼・許可で書く・拒否で書かない・準備の失敗は承認を求めない・停止で取り消し）と承認の API（400 / 404）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
@@ -468,6 +476,7 @@ front/tests/
     ├── agent-timeline.spec.ts    # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件の ⚠️・失敗の ❌ と理由・要約なしの古いデータ）
     ├── local-files.spec.ts       # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
+    ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```

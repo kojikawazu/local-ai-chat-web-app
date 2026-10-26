@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_OLLAMA_MODEL } from './tests/e2e/helpers/model';
-import { E2E_LOCAL_FILES_DIR } from './tests/e2e/helpers/local-files';
+import {
+  E2E_LOCAL_FILES_DIR,
+  E2E_WRITE_DIR,
+} from './tests/e2e/helpers/local-files';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -31,7 +34,9 @@ export default defineConfig({
     // LOCAL_FILE_ROOTS も同じく、.env.local の値（開発者のフォルダ）ではなく E2E 用のフォルダだけを読ませる（#148）
     env: {
       OLLAMA_MODEL: E2E_OLLAMA_MODEL,
-      LOCAL_FILE_ROOTS: E2E_LOCAL_FILES_DIR,
+      LOCAL_FILE_ROOTS: `${E2E_LOCAL_FILES_DIR},${E2E_WRITE_DIR}`,
+      // 書き込みは OS の一時フォルダの E2E 用のフォルダだけ（#148 Phase A2）
+      LOCAL_FILE_WRITE_ROOTS: E2E_WRITE_DIR,
     },
   },
 });
