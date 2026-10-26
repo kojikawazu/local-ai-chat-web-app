@@ -38,8 +38,27 @@ model Message {
   content        String
   metadata       Json?        // ツール呼び出し情報・思考過程等（nullable）
   createdAt      DateTime     @default(now())
+  attachments    Attachment[]
+}
+
+// メッセージに添付した画像（#6）。user メッセージだけが持つ
+model Attachment {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  position  Int      // メッセージ内の並び順（0 始まり）
+  mimeType  String   // 中身（マジックナンバー）から判定した形式（image/png・image/jpeg）
+  width     Int
+  height    Int
+  size      Int      // バイト数
+  data      Bytes    // 画像の中身（bytea）
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
 }
 ```
+
+- 添付画像は DB（`bytea`）に置く（ファイルに置かない）。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
 
 ## Prisma クライアント
 
@@ -56,4 +75,4 @@ model Message {
 ## クエリ
 
 - Prisma Client のパラメータバインディングを使用する。`$queryRaw` での文字列結合は禁止。
-- Conversation 削除時はメッセージも `onDelete: Cascade` でカスケード削除される。
+- Conversation 削除時はメッセージ・添付画像も `onDelete: Cascade` でカスケード削除される。

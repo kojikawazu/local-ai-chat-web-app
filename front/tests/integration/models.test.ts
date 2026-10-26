@@ -33,6 +33,37 @@ describe('GET /api/models', () => {
   });
 
   describe('準正常系', () => {
+    it('/api/show の capabilities に vision があるモデルを visionModels で返す（#6）', async () => {
+      stubFetch((url, init) => {
+        if (url.endsWith('/api/show')) {
+          const { model } = JSON.parse(init!.body as string);
+          if (model === 'broken') return new Response('boom', { status: 500 });
+          const capabilities =
+            model === 'qwen3.8:27b' ? ['completion', 'vision'] : ['completion'];
+          return new Response(JSON.stringify({ capabilities }), {
+            status: 200,
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            models: [
+              { name: 'qwen3.8:27b' },
+              { name: 'qwen2.5:0.5b' },
+              { name: 'broken' },
+            ],
+          }),
+          { status: 200 }
+        );
+      });
+
+      const res = await GET();
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // 問い合わせに失敗したモデル（broken）は一覧に残し、visionModels から外すだけにする
+      expect(body.models).toEqual(['qwen3.8:27b', 'qwen2.5:0.5b', 'broken']);
+      expect(body.visionModels).toEqual(['qwen3.8:27b']);
+    });
+
     it('モデルが 0 件でも 200 と空配列を返す', async () => {
       stubFetch(
         () => new Response(JSON.stringify({ models: [] }), { status: 200 })

@@ -14,6 +14,9 @@ import {
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_DIAGRAM_SOURCE_LENGTH,
   MAX_HISTORY_MESSAGES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_LONG_EDGE,
+  MAX_IMAGES_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
@@ -43,6 +46,36 @@ const NON_OBJECT_BODIES: [string, unknown][] = [
  */
 function postRequest(body: string): Request {
   return new Request('http://localhost/api/test', { method: 'POST', body });
+}
+
+/**
+ * 先頭だけが PNG のシグネチャのバイト列を Base64 にする。
+ * サーバーは先頭のバイトで形式を判定するだけ（画像として描けるかは確かめない）ため、これで足りる。
+ */
+const PNG_BASE64 = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+]).toString('base64');
+/** 先頭だけが JPEG の SOI マーカーのバイト列の Base64。 */
+const JPEG_BASE64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString(
+  'base64'
+);
+/** GIF（受け付けない形式）の先頭のバイト列の Base64。 */
+const GIF_BASE64 = Buffer.from('GIF89a').toString('base64');
+
+/**
+ * 保存 API の添付 1 枚を組み立てる。
+ *
+ * @param fields - 上書きする項目
+ * @returns `{ id, data, width, height }` の添付
+ */
+function attachment(fields: Record<string, unknown> = {}) {
+  return {
+    id: crypto.randomUUID(),
+    data: PNG_BASE64,
+    width: 640,
+    height: 480,
+    ...fields,
+  };
 }
 
 /** 失敗した結果からエラーメッセージを取り出す（成功していたらテストを落とす）。 */
@@ -113,9 +146,10 @@ describe('parseChatBody', () => {
         ok: true,
         value: {
           message: 'やあ',
+          imageIds: [],
           conversationHistory: [
-            { role: 'user', content: '前の質問' },
-            { role: 'assistant', content: '前の回答' },
+            { role: 'user', content: '前の質問', imageIds: [] },
+            { role: 'assistant', content: '前の回答', imageIds: [] },
           ],
           model: 'qwen2.5:0.5b',
           enableTools: true,
@@ -129,6 +163,7 @@ describe('parseChatBody', () => {
         ok: true,
         value: {
           message: 'やあ',
+          imageIds: [],
           conversationHistory: [],
           model: undefined,
           enableTools: false,
@@ -151,6 +186,7 @@ describe('parseChatBody', () => {
         ok: true,
         value: {
           message: 'やあ',
+          imageIds: [],
           conversationHistory: [],
           model: undefined,
           enableTools: false,
@@ -159,7 +195,7 @@ describe('parseChatBody', () => {
       });
     });
 
-    it('履歴の要素は role と content だけに詰め直す（tool_calls などは Ollama へ渡さない）', () => {
+    it('履歴の要素は role・content・imageIds だけに詰め直す（tool_calls などは Ollama へ渡さない）', () => {
       const result = parseChatBody({
         message: 'やあ',
         conversationHistory: [
@@ -171,8 +207,31 @@ describe('parseChatBody', () => {
         ],
       });
       expect(result.ok && result.value.conversationHistory).toEqual([
-        { role: 'assistant', content: '' },
+        { role: 'assistant', content: '', imageIds: [] },
       ]);
+    });
+
+    it('imageIds（送信する質問・履歴の user）を返す（#6）', () => {
+      const current = crypto.randomUUID();
+      const past = crypto.randomUUID();
+      const result = parseChatBody({
+        message: 'これは？',
+        imageIds: [current],
+        conversationHistory: [
+          { role: 'user', content: '前の質問', imageIds: [past] },
+        ],
+      });
+      expect(result.ok && result.value.imageIds).toEqual([current]);
+      expect(result.ok && result.value.conversationHistory[0].imageIds).toEqual(
+        [past]
+      );
+    });
+
+    it('imageIds がちょうど上限の枚数なら通る（境界値）', () => {
+      const imageIds = Array.from({ length: MAX_IMAGES_PER_MESSAGE }, () =>
+        crypto.randomUUID()
+      );
+      expect(parseChatBody({ message: 'やあ', imageIds }).ok).toBe(true);
     });
 
     it('message・履歴件数・各 content・systemPrompt がちょうど上限なら通る（境界値）', () => {
@@ -237,8 +296,37 @@ describe('parseChatBody', () => {
         { conversationHistory: {} },
         'conversationHistoryは配列で指定してください',
       ],
+      ['imageIds', { imageIds: 'id' }, 'imageIdsは配列で指定してください'],
     ])('%s の型が不正なら失敗', (_label, fields, expected) => {
       expect(errorOf(parseChatBody({ message: 'やあ', ...fields }))).toBe(
+        expected
+      );
+    });
+
+    it.each([
+      [
+        '上限の枚数を超える',
+        Array.from({ length: MAX_IMAGES_PER_MESSAGE + 1 }, () =>
+          crypto.randomUUID()
+        ),
+        '画像は1メッセージにつき4枚までです',
+      ],
+      [
+        'UUID 形式でない',
+        ['not-a-uuid'],
+        'imageIdsの要素はUUID形式で指定してください',
+      ],
+      ['数値を含む', [1], 'imageIdsの要素はUUID形式で指定してください'],
+      [
+        '同じ ID を含む',
+        [
+          '00000000-0000-4000-8000-000000000000',
+          '00000000-0000-4000-8000-000000000000',
+        ],
+        'imageIdsに同じIDが含まれています',
+      ],
+    ])('imageIds が%sなら失敗', (_label, imageIds, expected) => {
+      expect(errorOf(parseChatBody({ message: 'やあ', imageIds }))).toBe(
         expected
       );
     });
@@ -299,6 +387,20 @@ describe('parseChatBody', () => {
           content: 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH + 1),
         },
         'conversationHistory[1].contentは100,000文字以内で指定してください',
+      ],
+      [
+        'imageIds が UUID 形式でない',
+        { role: 'user', content: 'ok', imageIds: ['x'] },
+        'conversationHistory[1].imageIdsの要素はUUID形式で指定してください',
+      ],
+      [
+        'assistant に imageIds がある',
+        {
+          role: 'assistant',
+          content: 'ok',
+          imageIds: ['00000000-0000-4000-8000-000000000000'],
+        },
+        'conversationHistory[1].imageIdsはuserのメッセージにだけ指定できます',
       ],
     ])(
       '履歴の%sなら、何番目の要素かを示して失敗',
@@ -480,11 +582,34 @@ describe('parseSaveMessageBody', () => {
       ).toEqual({
         ok: true,
         value: {
+          id: undefined,
           role: 'assistant',
           content: '回答',
           metadata: { agentRounds: 1 },
+          attachments: [],
         },
       });
+    });
+
+    it('attachments の Base64 を復号し、形式を中身から判定して返す（#6）', () => {
+      const png = attachment();
+      const jpeg = attachment({ data: JPEG_BASE64, width: 1, height: 1 });
+      const result = parseSaveMessageBody({
+        role: 'user',
+        content: 'これは？',
+        attachments: [png, jpeg],
+      });
+      expect(result.ok).toBe(true);
+      const attachments = result.ok ? result.value.attachments : [];
+      expect(
+        attachments.map((a) => [a.id, a.mimeType, a.width, a.height])
+      ).toEqual([
+        [png.id, 'image/png', 640, 480],
+        [jpeg.id, 'image/jpeg', 1, 1],
+      ]);
+      expect(Buffer.from(attachments[0].data).toString('base64')).toBe(
+        PNG_BASE64
+      );
     });
 
     it('クライアントが採番した id（UUID）を返す（#9）', () => {
@@ -513,8 +638,43 @@ describe('parseSaveMessageBody', () => {
         parseSaveMessageBody({ role: 'user', content: 'やあ', metadata: null })
       ).toEqual({
         ok: true,
-        value: { role: 'user', content: 'やあ', metadata: undefined },
+        value: {
+          id: undefined,
+          role: 'user',
+          content: 'やあ',
+          metadata: undefined,
+          attachments: [],
+        },
       });
+    });
+
+    it('attachments の null は添付なしとして扱う', () => {
+      const result = parseSaveMessageBody({
+        role: 'user',
+        content: 'やあ',
+        attachments: null,
+      });
+      expect(result.ok && result.value.attachments).toEqual([]);
+    });
+
+    it('attachments の枚数・寸法・バイト数がちょうど上限なら通る（境界値）', () => {
+      // 先頭を PNG のシグネチャにした、ちょうど上限のバイト数の画像
+      const bytes = new Uint8Array(MAX_IMAGE_BYTES);
+      bytes.set(Buffer.from(PNG_BASE64, 'base64'));
+      const largest = attachment({
+        data: Buffer.from(bytes).toString('base64'),
+        width: MAX_IMAGE_LONG_EDGE,
+        height: MAX_IMAGE_LONG_EDGE,
+      });
+      const attachments = [
+        largest,
+        ...Array.from({ length: MAX_IMAGES_PER_MESSAGE - 1 }, () =>
+          attachment()
+        ),
+      ];
+      expect(
+        parseSaveMessageBody({ role: 'user', content: 'やあ', attachments }).ok
+      ).toBe(true);
     });
   });
 
@@ -562,6 +722,119 @@ describe('parseSaveMessageBody', () => {
       ],
     ])('%sなら失敗', (_label, body, expected) => {
       expect(errorOf(parseSaveMessageBody(body))).toBe(expected);
+    });
+
+    it('assistant に attachments があれば失敗（添付は user だけが持つ）', () => {
+      expect(
+        errorOf(
+          parseSaveMessageBody({
+            role: 'assistant',
+            content: '回答',
+            attachments: [attachment()],
+          })
+        )
+      ).toBe('attachmentsはuserのメッセージにだけ指定できます');
+    });
+
+    it('attachments が上限の枚数を超えると失敗', () => {
+      const attachments = Array.from(
+        { length: MAX_IMAGES_PER_MESSAGE + 1 },
+        () => attachment()
+      );
+      expect(
+        errorOf(
+          parseSaveMessageBody({ role: 'user', content: 'やあ', attachments })
+        )
+      ).toBe('画像は1メッセージにつき4枚までです');
+    });
+
+    it('同じ ID の添付を含むと失敗', () => {
+      const first = attachment();
+      expect(
+        errorOf(
+          parseSaveMessageBody({
+            role: 'user',
+            content: 'やあ',
+            attachments: [first, attachment({ id: first.id })],
+          })
+        )
+      ).toBe('attachmentsに同じIDが含まれています');
+    });
+
+    it('1 枚のバイト数が上限を超えると、復号せずに失敗', () => {
+      const bytes = new Uint8Array(MAX_IMAGE_BYTES + 1);
+      bytes.set(Buffer.from(PNG_BASE64, 'base64'));
+      expect(
+        errorOf(
+          parseSaveMessageBody({
+            role: 'user',
+            content: 'やあ',
+            attachments: [
+              attachment({ data: Buffer.from(bytes).toString('base64') }),
+            ],
+          })
+        )
+      ).toBe('画像は1枚5MB以内にしてください');
+    });
+
+    it.each([
+      ['配列でない', {}, 'attachmentsは配列で指定してください'],
+      [
+        '要素がオブジェクトでない',
+        ['x'],
+        'attachments[0]はオブジェクトで指定してください',
+      ],
+      [
+        'id が UUID 形式でない',
+        [attachment({ id: 'x' })],
+        'attachments[0].idはUUID形式で指定してください',
+      ],
+      [
+        'width が 0',
+        [attachment({ width: 0 })],
+        `attachments[0]のwidth・heightは1〜${MAX_IMAGE_LONG_EDGE}の整数で指定してください`,
+      ],
+      [
+        'height が上限を超える',
+        [attachment({ height: MAX_IMAGE_LONG_EDGE + 1 })],
+        `attachments[0]のwidth・heightは1〜${MAX_IMAGE_LONG_EDGE}の整数で指定してください`,
+      ],
+      [
+        'width が小数',
+        [attachment({ width: 1.5 })],
+        `attachments[0]のwidth・heightは1〜${MAX_IMAGE_LONG_EDGE}の整数で指定してください`,
+      ],
+      [
+        'data が数値',
+        [attachment({ data: 1 })],
+        'attachments[0].dataは文字列で指定してください',
+      ],
+      [
+        'data が Base64 でない',
+        [attachment({ data: 'not base64!' })],
+        'attachments[0].dataはBase64で指定してください',
+      ],
+      [
+        'data が data: URI',
+        [attachment({ data: `data:image/png;base64,${PNG_BASE64}` })],
+        'attachments[0].dataはBase64で指定してください',
+      ],
+      [
+        'data が GIF',
+        [attachment({ data: GIF_BASE64 })],
+        '画像はPNGかJPEGで指定してください',
+      ],
+      [
+        'data が SVG（スクリプトを含みうる）',
+        [attachment({ data: Buffer.from('<svg></svg>').toString('base64') })],
+        '画像はPNGかJPEGで指定してください',
+      ],
+    ])('attachments の%sなら失敗', (_label, attachments, expected) => {
+      expect(
+        errorOf(
+          parseSaveMessageBody({ role: 'user', content: 'やあ', attachments })
+        )
+      ).toBe(expected);
     });
   });
 });

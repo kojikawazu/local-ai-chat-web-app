@@ -1,5 +1,10 @@
 import type { Prisma } from '@/generated/prisma/client';
-import type { OllamaChatMessage } from '@/lib/llm/ollama';
+import type { AttachmentMimeType } from '@/lib/server/attachment';
+import {
+  base64DecodedLength,
+  decodeBase64,
+  detectImageMimeType,
+} from '@/lib/server/attachment';
 import {
   getMaxMessageLength,
   isValidUUID,
@@ -7,6 +12,9 @@ import {
   MAX_DIAGRAM_SOURCE_LENGTH,
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_HISTORY_MESSAGES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_LONG_EDGE,
+  MAX_IMAGES_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
@@ -26,12 +34,24 @@ import {
 export type ParseResult<T> =
   { ok: true; value: T } | { ok: false; error: string };
 
+/** `POST /api/chat` の会話履歴の 1 件（検証済み）。 */
+export type ChatHistoryEntry = {
+  /** メッセージの発話主体 */
+  role: 'user' | 'assistant';
+  /** メッセージ本文 */
+  content: string;
+  /** そのメッセージの添付画像の ID（#6）。添付が無ければ空配列。assistant は常に空 */
+  imageIds: string[];
+};
+
 /** `POST /api/chat` の検証済みボディ。 */
 export type ChatBody = {
   /** 前後の空白を除いたユーザーメッセージ */
   message: string;
-  /** 会話履歴。`role` と `content` だけに詰め直してある */
-  conversationHistory: OllamaChatMessage[];
+  /** 送信する質問の添付画像の ID（保存済みの添付。#6）。添付が無ければ空配列 */
+  imageIds: string[];
+  /** 会話履歴。`role`・`content`・`imageIds` だけに詰め直してある */
+  conversationHistory: ChatHistoryEntry[];
   /** 使用モデル。未指定なら `lib/llm/ollama.ts` の既定に任せる */
   model?: string;
   /** エージェントモードで実行するか（未指定は false） */
@@ -67,6 +87,22 @@ export type SaveMessageBody = {
   content: string;
   /** ツール呼び出し情報・思考過程等。未指定なら保存しない */
   metadata?: Prisma.InputJsonObject;
+  /** 添付画像（#6）。添付が無ければ空配列。user のときだけ持てる */
+  attachments: AttachmentInput[];
+};
+
+/** 保存する添付画像 1 枚（検証・復号済み）。 */
+export type AttachmentInput = {
+  /** クライアントが採番した添付の ID（UUID）。`/api/chat` の `imageIds` で参照する */
+  id: string;
+  /** 復号した画像のバイト列 */
+  data: Uint8Array<ArrayBuffer>;
+  /** バイト列の先頭から判定した形式 */
+  mimeType: AttachmentMimeType;
+  /** 画像の幅（px）。表示の枠の確保にだけ使う */
+  width: number;
+  /** 画像の高さ（px）。表示の枠の確保にだけ使う */
+  height: number;
 };
 
 /** `PUT /api/conversations/[id]/messages/[messageId]` の検証済みボディ（応答の再生成による置き換え）。 */
@@ -180,17 +216,125 @@ export async function readJsonBody(
 }
 
 /**
- * 会話履歴を検証し、`role` と `content` だけに詰め直す。
+ * 添付画像の ID の配列を検証する（#6）。
+ *
+ * @param value - ID の配列の値
+ * @param name - エラーメッセージに出すフィールド名
+ * @returns 検証済みの ID（未指定なら空配列）。配列でない・{@link MAX_IMAGES_PER_MESSAGE} 枚を超える・UUID 形式でない・重複があるなら失敗
+ */
+function parseImageIds(value: unknown, name: string): ParseResult<string[]> {
+  if (value == null) return { ok: true, value: [] };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: `${name}は配列で指定してください` };
+  }
+  if (value.length > MAX_IMAGES_PER_MESSAGE) {
+    return {
+      ok: false,
+      error: `画像は1メッセージにつき${MAX_IMAGES_PER_MESSAGE}枚までです`,
+    };
+  }
+  const ids: string[] = [];
+  for (const id of value) {
+    if (typeof id !== 'string' || !isValidUUID(id)) {
+      return { ok: false, error: `${name}の要素はUUID形式で指定してください` };
+    }
+    if (ids.includes(id)) {
+      return { ok: false, error: `${name}に同じIDが含まれています` };
+    }
+    ids.push(id);
+  }
+  return { ok: true, value: ids };
+}
+
+/**
+ * 画像の幅・高さを検証する。
+ *
+ * @param value - 幅または高さの値
+ * @returns 1 以上 {@link MAX_IMAGE_LONG_EDGE} 以下の整数なら true（ブラウザがこの長辺まで縮小してから送るため）
+ */
+function isImageDimension(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= MAX_IMAGE_LONG_EDGE
+  );
+}
+
+/**
+ * 保存する添付画像を検証し、Base64 を復号する（#6）。
+ *
+ * 形式はクライアントの申告を受け取らず、復号したバイト列の先頭で判定する（PNG / JPEG のみ）。
+ * 上限を超える文字列は復号する前に弾く。
+ *
+ * @param value - `attachments` の値
+ * @returns 検証・復号済みの添付（未指定なら空配列）。配列でない・枚数超過・要素の形や ID・寸法の不正・ID の重複・Base64 の不正・上限超過・PNG / JPEG でないなら失敗
+ */
+function parseAttachments(value: unknown): ParseResult<AttachmentInput[]> {
+  if (value == null) return { ok: true, value: [] };
+  if (!Array.isArray(value)) {
+    return { ok: false, error: 'attachmentsは配列で指定してください' };
+  }
+  if (value.length > MAX_IMAGES_PER_MESSAGE) {
+    return {
+      ok: false,
+      error: `画像は1メッセージにつき${MAX_IMAGES_PER_MESSAGE}枚までです`,
+    };
+  }
+
+  const attachments: AttachmentInput[] = [];
+  for (const [index, entry] of value.entries()) {
+    const label = `attachments[${index}]`;
+    if (!isJsonObject(entry)) {
+      return { ok: false, error: `${label}はオブジェクトで指定してください` };
+    }
+    const { id, data, width, height } = entry;
+    if (typeof id !== 'string' || !isValidUUID(id)) {
+      return { ok: false, error: `${label}.idはUUID形式で指定してください` };
+    }
+    if (attachments.some((attachment) => attachment.id === id)) {
+      return { ok: false, error: 'attachmentsに同じIDが含まれています' };
+    }
+    if (!isImageDimension(width) || !isImageDimension(height)) {
+      return {
+        ok: false,
+        error: `${label}のwidth・heightは1〜${MAX_IMAGE_LONG_EDGE}の整数で指定してください`,
+      };
+    }
+    if (typeof data !== 'string') {
+      return { ok: false, error: `${label}.dataは文字列で指定してください` };
+    }
+    if (base64DecodedLength(data) > MAX_IMAGE_BYTES) {
+      return {
+        ok: false,
+        error: `画像は1枚${formatCount(MAX_IMAGE_BYTES / 1024 / 1024)}MB以内にしてください`,
+      };
+    }
+    const bytes = decodeBase64(data);
+    if (!bytes) {
+      return { ok: false, error: `${label}.dataはBase64で指定してください` };
+    }
+    const mimeType = detectImageMimeType(bytes);
+    if (!mimeType) {
+      return { ok: false, error: '画像はPNGかJPEGで指定してください' };
+    }
+    attachments.push({ id, data: bytes, mimeType, width, height });
+  }
+  return { ok: true, value: attachments };
+}
+
+/**
+ * 会話履歴を検証し、`role`・`content`・`imageIds` だけに詰め直す。
  *
  * クライアントが `tool_calls` などを混ぜても Ollama へは渡さない。
  * 各 `content` の上限は保存 API と同じため、DB から復元した履歴が弾かれることはない。
  *
  * @param value - `conversationHistory` の値
- * @returns 検証済みの履歴（未指定なら空配列）。配列でない・件数超過・要素が不正なら失敗
+ * @returns 検証済みの履歴（未指定なら空配列）。配列でない・件数超過・要素が不正（assistant の `imageIds` を含む）なら失敗
  */
 function parseConversationHistory(
   value: unknown
-): ParseResult<OllamaChatMessage[]> {
+): ParseResult<ChatHistoryEntry[]> {
   if (value == null) return { ok: true, value: [] };
   if (!Array.isArray(value)) {
     return {
@@ -205,7 +349,7 @@ function parseConversationHistory(
     };
   }
 
-  const history: OllamaChatMessage[] = [];
+  const history: ChatHistoryEntry[] = [];
   for (const [index, entry] of value.entries()) {
     const label = `conversationHistory[${index}]`;
     if (!isJsonObject(entry)) {
@@ -228,7 +372,16 @@ function parseConversationHistory(
         error: `${label}.contentは${formatCount(maxLength)}文字以内で指定してください`,
       };
     }
-    history.push({ role, content });
+    const imageIds = parseImageIds(entry.imageIds, `${label}.imageIds`);
+    if (!imageIds.ok) return imageIds;
+    // 添付は user だけが持つ（保存 API が assistant の添付を受け付けない）
+    if (role === 'assistant' && imageIds.value.length > 0) {
+      return {
+        ok: false,
+        error: `${label}.imageIdsはuserのメッセージにだけ指定できます`,
+      };
+    }
+    history.push({ role, content, imageIds: imageIds.value });
   }
   return { ok: true, value: history };
 }
@@ -253,6 +406,9 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
       error: `メッセージは${formatCount(MAX_MESSAGE_LENGTH)}文字以内で入力してください`,
     };
   }
+
+  const imageIds = parseImageIds(body.imageIds, 'imageIds');
+  if (!imageIds.ok) return imageIds;
 
   const history = parseConversationHistory(body.conversationHistory);
   if (!history.ok) return history;
@@ -281,6 +437,7 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
     ok: true,
     value: {
       message: trimmed,
+      imageIds: imageIds.value,
       conversationHistory: history.value,
       model: model.value,
       enableTools: enableTools ?? false,
@@ -372,16 +529,17 @@ export function parseUpdateConversationBody(
  * `POST /api/conversations/[id]/messages` のボディを検証する。
  *
  * `metadata` は指定されたのにオブジェクトでない場合、黙って捨てずに失敗にする。
+ * `attachments`（添付画像。#6）は user のときだけ指定できる。
  *
  * @param body - {@link readJsonBody} で読み取った値
- * @returns 検証済みのボディ。オブジェクトでない・`id` が UUID 形式でない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過なら失敗
+ * @returns 検証済みのボディ。オブジェクトでない・`id` が UUID 形式でない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過・`attachments` の不正（assistant の添付を含む）なら失敗
  */
 export function parseSaveMessageBody(
   body: unknown
 ): ParseResult<SaveMessageBody> {
   if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
 
-  const { id, role, content, metadata } = body;
+  const { id, role, content, metadata, attachments } = body;
   if (id != null && (typeof id !== 'string' || !isValidUUID(id))) {
     return { ok: false, error: 'idはUUID形式で指定してください' };
   }
@@ -412,6 +570,15 @@ export function parseSaveMessageBody(
     };
   }
 
+  if (role === 'assistant' && attachments != null) {
+    return {
+      ok: false,
+      error: 'attachmentsはuserのメッセージにだけ指定できます',
+    };
+  }
+  const parsedAttachments = parseAttachments(attachments);
+  if (!parsedAttachments.ok) return parsedAttachments;
+
   return {
     ok: true,
     value: {
@@ -419,6 +586,7 @@ export function parseSaveMessageBody(
       role,
       content,
       metadata: isJsonObject(metadata) ? metadata : undefined,
+      attachments: parsedAttachments.value,
     },
   };
 }

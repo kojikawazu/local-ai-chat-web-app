@@ -8,6 +8,9 @@ import { isValidUUID } from '@/lib/shared/validation';
 /**
  * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。
  *
+ * 各メッセージには添付画像の情報（ID・形式・寸法。#6）を並び順で付ける。画像の中身は含めず、
+ * `GET /api/attachments/[id]` で取得させる（一覧を画像の中身ごと返すと、1 会話で数十 MB になりうるため）。
+ *
  * @param _request - リクエスト（本エンドポイントでは本文を参照しないため未使用）
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
  * @returns 成功時はメッセージ配列を含む JSON（`{ messages }`）。ID が UUID 形式でなければ 400、会話が存在しなければ 404、取得失敗は 500 の JSON エラーレスポンス
@@ -37,6 +40,12 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
+      include: {
+        attachments: {
+          select: { id: true, mimeType: true, width: true, height: true },
+          orderBy: { position: 'asc' },
+        },
+      },
     });
 
     return NextResponse.json({ messages });
@@ -59,10 +68,11 @@ export async function GET(
  * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
  * 思考過程等）は任意で、JSON オブジェクトの場合のみ保存する（配列・プリミティブを
  * 指定した場合は黙って捨てずに 400 を返す）。
+ * `attachments`（添付画像。#6）は user のときだけ指定でき、メッセージと同じトランザクションで保存する。
  *
- * @param request - 任意の `id`（UUID）・`role`（必須・user|assistant）・`content`（必須・user は最大 `MAX_MESSAGE_LENGTH` 文字、assistant は最大 `MAX_ASSISTANT_MESSAGE_LENGTH` 文字）・任意の `metadata` を含む JSON ボディを持つリクエスト
+ * @param request - 任意の `id`（UUID）・`role`（必須・user|assistant）・`content`（必須・user は最大 `MAX_MESSAGE_LENGTH` 文字、assistant は最大 `MAX_ASSISTANT_MESSAGE_LENGTH` 文字）・任意の `metadata`・任意の `attachments`（`{ id, data, width, height }` の配列。`data` は PNG / JPEG の Base64）を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・JSON 構文不正・ボディが非オブジェクト・role/content 欠落・role 不正・content 非文字列・metadata 非オブジェクト・content 長さ超過・id が UUID 形式でないは 400、会話が存在しなければ 404、同じ id のメッセージが既にあれば 409、保存失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は作成されたメッセージの JSON（ステータス 201）。ID が UUID 形式でない・JSON 構文不正・ボディが非オブジェクト・role/content 欠落・role 不正・content 非文字列・metadata 非オブジェクト・content 長さ超過・id が UUID 形式でない・attachments の不正は 400、会話が存在しなければ 404、同じ id のメッセージが既にあれば 409、保存失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(
   request: NextRequest,
@@ -80,7 +90,7 @@ export async function POST(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { id: messageId, role, content, metadata } = parsed.value;
+  const { id: messageId, role, content, metadata, attachments } = parsed.value;
 
   try {
     const conversation = await prisma.conversation.findUnique({
@@ -104,6 +114,20 @@ export async function POST(
           role,
           content,
           ...(metadata && { metadata }),
+          // 添付も同じトランザクションで作り、メッセージと片方だけ残らないようにする
+          ...(attachments.length > 0 && {
+            attachments: {
+              create: attachments.map((attachment, position) => ({
+                id: attachment.id,
+                position,
+                mimeType: attachment.mimeType,
+                width: attachment.width,
+                height: attachment.height,
+                size: attachment.data.length,
+                data: attachment.data,
+              })),
+            },
+          }),
         },
       }),
       prisma.conversation.update({
@@ -114,7 +138,7 @@ export async function POST(
 
     return NextResponse.json(message, { status: 201 });
   } catch (error) {
-    // P2002 は一意制約違反。主キーの重複は、指定された id のメッセージが既にあることを表す
+    // P2002 は一意制約違反。主キーの重複は、指定された id のメッセージ（または添付）が既にあることを表す
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'

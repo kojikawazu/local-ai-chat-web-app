@@ -16,6 +16,11 @@ export interface OllamaChatMessage {
   content: string;
   /** assistant がツール呼び出しを要求するときに設定される（それ以外は未設定） */
   tool_calls?: OllamaToolCall[];
+  /**
+   * 添付画像（`data:` の接頭辞なしの Base64。#6）。画像に対応したモデルだけが受け付け、
+   * 対応していないモデルに送ると Ollama は 400 を返す
+   */
+  images?: string[];
 }
 
 /**
@@ -104,6 +109,51 @@ export async function listModels(): Promise<OllamaModel[]> {
 
   const data = await response.json();
   return data.models ?? [];
+}
+
+/** モデルが画像入力に対応していることを表す、`/api/show` の `capabilities` の値。 */
+const VISION_CAPABILITY = 'vision';
+
+/**
+ * モデルの対応機能（`/api/show` の `capabilities`）を取得する（#6）。
+ *
+ * `/api/tags` の一覧には対応機能が含まれないため、モデルごとに問い合わせる。
+ *
+ * @param model - 対象のモデル名。未指定時はデフォルトモデル
+ * @returns 対応機能の名前（`completion`・`vision`・`tools`・`thinking` 等）。Ollama が返さなければ空配列
+ * @throws {Error} Ollama API が非 2xx を返した場合（存在しないモデルを含む）
+ */
+export async function getModelCapabilities(model?: string): Promise<string[]> {
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/show`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: model || OLLAMA_DEFAULT_MODEL }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Ollama API error (${response.status}): ${errorText}`);
+  }
+
+  const data: unknown = await response.json();
+  const capabilities =
+    typeof data === 'object' && data !== null && 'capabilities' in data
+      ? data.capabilities
+      : undefined;
+  return Array.isArray(capabilities)
+    ? capabilities.filter((c): c is string => typeof c === 'string')
+    : [];
+}
+
+/**
+ * モデルが画像入力に対応しているかを返す（#6）。
+ *
+ * @param model - 対象のモデル名。未指定時はデフォルトモデル
+ * @returns `capabilities` に `vision` があれば true
+ * @throws {Error} Ollama API が非 2xx を返した場合
+ */
+export async function supportsVision(model?: string): Promise<boolean> {
+  return (await getModelCapabilities(model)).includes(VISION_CAPABILITY);
 }
 
 /**

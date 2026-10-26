@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-25
+> 最終更新: 2026-10-26
 
 ## 目次
 
@@ -37,7 +37,7 @@ Next.js Route Handlers (API層)
 ```
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
-- 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。
+- 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
 - 図は、Mermaid はブラウザの中で描き、PlantUML は Route Handler 経由でローカルの PlantUML サーバーに描かせる（#169・#171）。どちらも SVG を data: URI の `<img>` で表示する。PlantUML サーバーは外部の URL・ファイルの読み込みを止めた設定（`PLANTUML_SECURITY_PROFILE=SANDBOX`）で動かす。
@@ -90,8 +90,10 @@ front/src/
 │   ├── layout.tsx             #   ルートレイアウト
 │   ├── page.tsx               #   トップページ（チャット画面・状態管理の中心）
 │   └── api/                   #   Route Handlers
+│       ├── attachments/[id]/
+│       │   └── route.ts       #     添付画像の取得（#6）
 │       ├── chat/
-│       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可）
+│       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可。添付画像は ID で受ける）
 │       ├── diagrams/plantuml/
 │       │   └── route.ts       #     PlantUML の図の描画（PlantUML サーバーへ中継。#171）
 │       ├── models/
@@ -201,7 +203,9 @@ front/src/
 │   ├── server/                #   サーバー専用（app/api/** から使う）
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
 │   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
-│   │   └── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
+│   │   ├── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
+│   │   ├── attachment.ts      #     添付画像の形式の判定（マジックナンバー）・Base64 の復号（#6）
+│   │   └── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
@@ -282,16 +286,20 @@ front/tests/
 ### ERD
 
 ```
-Conversation           Message
-┌──────────────┐       ┌──────────────────┐
-│ id (UUID PK) │──┐    │ id (UUID PK)     │
-│ title        │  │    │ conversationId   │──→ Conversation.id (FK)
-│ systemPrompt │  │    │ role             │    ('user' | 'assistant')
-│ createdAt    │  └───<│ content          │
-│ updatedAt    │       │ createdAt        │
-└──────────────┘       └──────────────────┘
-                       └──────────────────┘
+Conversation           Message                     Attachment
+┌──────────────┐       ┌──────────────────┐        ┌──────────────────┐
+│ id (UUID PK) │──┐    │ id (UUID PK)     │──┐     │ id (UUID PK)     │
+│ title        │  │    │ conversationId   │  │     │ messageId        │──→ Message.id (FK)
+│ systemPrompt │  │    │ role             │  │     │ position         │
+│ createdAt    │  └───<│ content          │  └────<│ mimeType         │    ('image/png' | 'image/jpeg')
+│ updatedAt    │       │ metadata         │        │ width / height   │
+└──────────────┘       │ createdAt        │        │ size             │
+                       └──────────────────┘        │ data (bytea)     │
+                                                   │ createdAt        │
+                                                   └──────────────────┘
 ```
+
+削除は Conversation → Message → Attachment とカスケードする。
 
 ### Prismaスキーマ
 
@@ -313,6 +321,23 @@ model Message {
   content        String
   metadata       Json?        // ツール呼び出し情報・思考過程等（nullable）
   createdAt      DateTime     @default(now())
+  attachments    Attachment[]
+}
+
+// メッセージに添付した画像（#6）。user メッセージだけが持つ
+model Attachment {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  position  Int      // メッセージ内の並び順（0 始まり）
+  mimeType  String   // 中身（マジックナンバー）から判定した形式
+  width     Int
+  height    Int
+  size      Int      // バイト数
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
 }
 ```
 
@@ -339,6 +364,15 @@ model Message {
 4. 生成に失敗した場合・本文が出る前に停止した場合は旧応答に戻す（DB は書き換えない）
 
 メッセージは画面上の ID をそのまま DB の ID として保存する（`POST` の `id`）。画面と DB の ID が一致するため、置き換える応答を ID で特定できる。
+
+### 添付画像のフロー（#6）
+
+詳細は [13-image-attachment.md](./13-image-attachment.md)。画面（添付・プレビュー・表示）は 13-B（#181）で実装する。
+
+1. ブラウザで画像を検証・縮小（長辺 1,280px）・再エンコードし、添付の ID を採番する
+2. `POST /api/conversations/[id]/messages` の `attachments` で、user メッセージと画像（Base64）を 1 トランザクションで保存する。形式はサーバーが中身で判定する（PNG / JPEG）
+3. `/api/chat` に送信する質問・履歴の添付 ID（`imageIds`）を送る。Route Handler はモデルが画像に対応しているかを Ollama の `/api/show` で確かめ、渡す画像を選んで（新しい順に 8 枚まで）DB から読み、Base64 にして Ollama の `images` へ渡す
+4. 会話を開き直したときは、メッセージ一覧の `attachments`（中身なし）を元に `GET /api/attachments/[id]` で画像を表示する
 
 ### 会話の役割（システムプロンプト）フロー
 
