@@ -80,8 +80,11 @@ test.describe('ファイルの書き込みの承認', () => {
       await expect(card).toBeVisible({ timeout: 200000 });
       await expect(card).toContainText('ファイルを編集します');
       await expect(card.getByLabel('変更の差分')).toContainText('+こんにちは');
-      // 承認するまでは書き換わらない
+      // 承認するまでは書き換わらない。結果の欄は ✅ ではなく承認待ち（#192）
       expect(await readFile(FILE, 'utf8')).toBe(ORIGINAL);
+      const pending = page.locator('button', { hasText: '承認待ち' });
+      await expect(pending.first()).toBeVisible();
+      await expect(pending.first()).not.toContainText('✅');
 
       await card.getByRole('button', { name: '許可' }).click();
       await expect(card).toBeHidden();

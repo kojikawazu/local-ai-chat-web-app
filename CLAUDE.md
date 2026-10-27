@@ -193,7 +193,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
   - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
