@@ -43,6 +43,8 @@ beforeAll(async () => {
   // registry.ts は環境変数を初めて使うときに読むため、設定してから route を読み込む
   vi.stubEnv('LOCAL_FILE_ROOTS', root);
   vi.stubEnv('LOCAL_FILE_WRITE_ROOTS', root);
+  // 開発者のシェルに LOCAL_COMMANDS があっても結果が変わらないよう、空にする
+  vi.stubEnv('LOCAL_COMMANDS', '');
   ({ POST: POST_CHAT } = await import('@/app/api/chat/route'));
   ({ POST: POST_APPROVAL } =
     await import('@/app/api/agent/approvals/[id]/route'));
@@ -279,6 +281,15 @@ describe('GET /api/tools（LOCAL_FILE_WRITE_ROOTS あり）', () => {
     });
   });
 
-  // 準正常系（書き込みのフォルダが無ければ出ない）は tools.test.ts で確かめる。
+  describe('準正常系', () => {
+    it('LOCAL_COMMANDS が無ければ run_command は出ない（#148 Phase B）', async () => {
+      const { tools } = await (await GET_TOOLS()).json();
+      expect(tools.map((tool: { name: string }) => tool.name)).not.toContain(
+        'run_command'
+      );
+    });
+  });
+
+  // 書き込みのフォルダが無ければ書き込みのツールが出ないことは tools.test.ts で確かめる。
   // 異常系: 引数を取らない GET で、入力起因の失敗経路が無い
 });

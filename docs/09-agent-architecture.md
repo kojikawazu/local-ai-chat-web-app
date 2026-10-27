@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-27
 
 ## 目次
 
@@ -334,7 +334,7 @@ Content-Type: application/x-ndjson
 | `text_delta` | `content: string` | テキスト差分（1チャンク分） | A |
 | `tool_call_start` | `name: string`, `arguments: object`, `contentOffset: number` | ツール呼び出し開始。`contentOffset` はその時点で送った本文の文字数（#186） | A |
 | `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean`, `approval?: 'approved' \| 'rejected' \| 'expired'` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150。`approval` は承認が要るツールの承認の結果。#148 Phase A2） | A |
-| `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview` | 承認が要るツールの実行前に、差分などを送って利用者の許可を待つ（#148 Phase A2。`docs/15-tool-approval.md`） | A2 |
+| `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview` | 承認が要るツールの実行前に、見せる内容を送って利用者の許可を待つ。`preview` は `action` で形が決まる（`create` / `overwrite` / `edit` はファイルの差分、`run` はコマンド・実行ファイル・作業フォルダ・時間の上限）（#148 Phase A2・B。`docs/15-tool-approval.md`・`docs/16-command-execution.md`） | A2 |
 | `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
 | `error` | `message: string` | エラー発生 | A |
 | `thinking` | `content: string` | エージェントの思考過程 | C |
@@ -566,7 +566,8 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 - **パスの判定**: `realpath` で実体のパスにしてから、許可したフォルダの中にあるかを `path.relative` で判定する。検索ではシンボリックリンクをたどらない。
 - **秘匿ファイル**: `.env`・鍵・認証情報のファイルと `.ssh`・`.aws` などのフォルダは、一覧・検索に出さず読み取りも断る（範囲は CI の Secret scan と同じ）。
 - **外部への持ち出しの抑止**: ツールに `access`（`local` / `network`）の印を付け、同じ応答の中で `local` のツールが成功した後は、`network` のツール（`web_search`・`url_fetch`）を実行せずに理由を返す（`agent.ts` の `shouldBlockTool`）。
-- 書き込み（`write_file`・`edit_file`）と実行前の承認は Phase A2（[15-tool-approval.md](./15-tool-approval.md)）。`prepare` を持つツールは、ループが準備 → `tool_approval_request` → 承認の API（`POST /api/agent/approvals/[id]`）の結果を待つ → 実行の順に進める（`runWithApproval`）。コマンドの実行は Phase B で設計する。
+- 書き込み（`write_file`・`edit_file`）と実行前の承認は Phase A2（[15-tool-approval.md](./15-tool-approval.md)）。`prepare` を持つツールは、ループが準備 → `tool_approval_request` → 承認の API（`POST /api/agent/approvals/[id]`）の結果を待つ → 実行の順に進める（`runWithApproval`）。
+- コマンドの実行（`run_command`）は Phase B（[16-command-execution.md](./16-command-execution.md)）。`LOCAL_COMMANDS` のプログラムだけを、`LOCAL_FILE_WRITE_ROOTS` の中を作業フォルダにして、シェルを介さずに実行する（実行前に承認が要る）。実行の時間の上限はツールが持つ `runTimeoutMs`（`LOCAL_COMMAND_TIMEOUT_MS` + 10 秒）で、ツール全般の `AGENT_TOOL_TIMEOUT_MS` より長い。`access` は `local` で、ファイルを読んだ後でも止めず、成功した後はその応答で `network` のツールを止める。
 
 ---
 

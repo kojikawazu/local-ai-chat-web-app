@@ -4,9 +4,9 @@
 export type ToolApproval = 'approved' | 'rejected' | 'expired';
 
 /**
- * 実行前に承認を求めるときに、利用者へ見せる内容（#148 Phase A2）。
+ * ファイルの書き込みの実行前に、利用者へ見せる内容（#148 Phase A2）。
  */
-export type ApprovalPreview = {
+export type FileApprovalPreview = {
   /** 何をするか。`create` は新規作成、`overwrite` は上書き、`edit` は部分の置き換え */
   action: 'create' | 'overwrite' | 'edit';
   /** 対象のファイルの実体のパス */
@@ -18,6 +18,27 @@ export type ApprovalPreview = {
   /** 削除する行数 */
   removed: number;
 };
+
+/**
+ * コマンドの実行前に、利用者へ見せる内容（#148 Phase B。`docs/16-command-execution.md`）。
+ */
+export type CommandApprovalPreview = {
+  /** 何をするか。常に `run`（コマンドの実行） */
+  action: 'run';
+  /** 実行する引数の配列を、区切りが分かるようにクォートし直した 1 行 */
+  command: string;
+  /** 実行ファイルの実体のパス（`PATH` から探した結果） */
+  executable: string;
+  /** 作業フォルダの実体のパス */
+  cwd: string;
+  /** 実行時間の上限（ミリ秒） */
+  timeoutMs: number;
+};
+
+/**
+ * 実行前に承認を求めるときに、利用者へ見せる内容。何をするか（`action`）で形が決まる。
+ */
+export type ApprovalPreview = FileApprovalPreview | CommandApprovalPreview;
 
 /**
  * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。

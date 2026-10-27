@@ -1,16 +1,12 @@
 import { writeFile } from 'fs/promises';
 import type { Tool } from '../types';
-import { toolError } from '../output';
+import { toolError, toolNeedsApproval } from '../output';
 import { buildPreview } from './diff';
 import { readExistingText, resolveWritablePath } from './write-guard';
 import { checkUnchanged, writtenOutput } from './write-file';
 
 /** 置き換える前・後の文字列の最大の文字数（write_file の中身と同じ上限） */
 const MAX_STRING_CHARS = 200_000;
-
-/** 承認を求めずに実行されたときの理由（承認の要るツールは、エージェントループが prepare から進める） */
-const NEEDS_APPROVAL_REASON =
-  'このツールは利用者の承認が必要なため、ここでは実行できません';
 
 /** {@link planEdit} の結果。 */
 type EditPlan =
@@ -131,7 +127,7 @@ export function createEditFileTool(roots: string[]): Tool {
       },
     },
     async execute() {
-      return toolError(NEEDS_APPROVAL_REASON);
+      return toolNeedsApproval();
     },
     async prepare(args) {
       const { old_string: oldString, new_string: newString } = args;

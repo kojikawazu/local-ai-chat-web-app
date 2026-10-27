@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-27
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1037,3 +1037,15 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] UT（`tool-approval.test.ts` 18 件）・IT（`local-file-write.test.ts` 12 件・`chat-agent-approval.test.ts` 7 件・`tools.test.ts`）・E2E（`file-write-approval.spec.ts` 4 件。承認カードの操作の 2 件は大モデルのみ）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`12`・`15`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{api,security,testing}.md`）
 
+## フェーズ41: コマンドの実行（#148 Phase B）
+
+エージェントが、許可したコマンド（テストを回す・`git status` を見る等）を実行する。実行の前に、Phase A2 の承認の仕組みで利用者の許可を挟む。設計は [16-command-execution.md](./16-command-execution.md)。 — #148・サブ issue #190（2026-10-27 着手）
+
+- [x] 設計（`docs/16-command-execution.md`。1 つの文字列を引数の配列に分ける・`LOCAL_COMMANDS` の許可リスト・作業フォルダは書き込みのフォルダの中・毎回の承認・プロセスグループごと止める）
+- [x] 設計のレビュー（推奨どおり: 1 つの文字列・`LOCAL_COMMANDS`・作業フォルダは書き込みのフォルダの中・毎回の承認・読んだ後も止めない・`LOCAL_COMMAND_TIMEOUT_MS`）
+- [x] コマンドの解釈・許可リスト・実行ファイルと作業フォルダの判定
+- [x] プロセスの実行（環境変数の絞り込み・タイムアウト・停止・出力の先頭と末尾）
+- [x] `run_command`（prepare → 承認 → run）と、ツールごとの実行時間の上限（`runTimeoutMs`）
+- [x] 承認の見せる内容の union 化（`ApprovalPreview`）と承認カードの出し分け
+- [x] UT（`local-commands.test.ts` 37 件）・IT（`local-command.test.ts` 19 件・`chat-agent-command.test.ts` 5 件・`tools.test.ts`・`chat-agent-approval.test.ts`）・E2E（`command-approval.spec.ts` 4 件。承認カードの操作の 3 件は大モデルのみ）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`15`・`16`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）

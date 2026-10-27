@@ -12,4 +12,5 @@ export const TOOL_LABELS: Record<string, string> = {
   list_directory: 'フォルダを見る',
   search_files: 'ファイルを探す',
   read_file: 'ファイルを読む',
+  run_command: 'コマンドを実行',
 };

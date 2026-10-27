@@ -88,6 +88,8 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `PLANTUML_URL` | PlantUML server endpoint for PlantUML diagrams | `http://localhost:8889` |
 | `LOCAL_FILE_ROOTS` | Folders (absolute paths, comma-separated, `~` allowed) the agent's file tools (list / search / read) may read | unset (tools disabled) |
 | `LOCAL_FILE_WRITE_ROOTS` | Folders (inside `LOCAL_FILE_ROOTS`) where the agent may create / edit files, each write approved by you first | unset (write tools disabled) |
+| `LOCAL_COMMANDS` | Program names (comma-separated) the agent may run, each run approved by you first; the working folder must be inside `LOCAL_FILE_WRITE_ROOTS` (shells, `env`, `sudo`, etc. are ignored) | unset (command tool disabled) |
+| `LOCAL_COMMAND_TIMEOUT_MS` | Time limit for a command (ms, max 600000) | `120000` |
 
 ## Commands
 
