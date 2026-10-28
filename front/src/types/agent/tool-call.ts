@@ -1,4 +1,12 @@
 /**
+ * 結果が届く前のツール呼び出しの状態（#192）。画面だけが持ち、サーバーは付けず、保存もしない。
+ *
+ * - `running`: 実行中（承認が要るツールは、許可・拒否を返した後）
+ * - `awaiting-approval`: 承認カードを出して、利用者の許可を待っている
+ */
+export type ToolCallStatus = 'running' | 'awaiting-approval';
+
+/**
  * 実行前に承認を求めたツールの、承認の結果（#148 Phase A2）。`expired` は待ち時間の上限に達した。
  */
 export type ToolApproval = 'approved' | 'rejected' | 'expired';
@@ -50,6 +58,8 @@ export type ToolApprovalRequest = {
   name: string;
   /** 利用者へ見せる内容 */
   preview: ApprovalPreview;
+  /** 承認を待っている応答のメッセージ ID。許可・拒否を返したら、その記録を「実行中」に戻す（#192） */
+  messageId: string;
 };
 
 /**
@@ -84,4 +94,9 @@ export type ToolCallInfo = {
   contentOffset?: number;
   /** 実行前に承認を求めたツールなら、その結果（{@link ToolApproval}）。承認の要らないツールは持たない */
   approval?: ToolApproval;
+  /**
+   * 結果が届く前なら、その状態（{@link ToolCallStatus}）。生成中の画面の仮の記録だけが持ち、結果が届いたら消す。
+   * 保存する記録（サーバーから届いた結果）は持たない
+   */
+  status?: ToolCallStatus;
 };

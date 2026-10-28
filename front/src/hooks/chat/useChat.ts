@@ -15,6 +15,12 @@ import { toConversationHistory } from '@/lib/chat/conversation-history';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import {
+  finishToolCall,
+  startToolCall,
+  updateMessageToolCalls,
+  updateToolCallStatus,
+} from '@/lib/chat/tool-call-progress';
+import {
   buildMessageMetadata,
   parseMessageMetadata,
 } from '@/lib/chat/message-metadata';
@@ -211,6 +217,25 @@ export function useChat({
         messages: update(chat.messages),
       })),
     [updateChatOf]
+  );
+
+  /**
+   * 1 つの会話の、1 つのメッセージのツール呼び出しの記録を更新する（#192）。
+   *
+   * @param key - 更新する会話のキー
+   * @param messageId - 対象のメッセージ ID
+   * @param update - 今の記録から新しい記録を作る関数
+   */
+  const updateToolCallsOf = useCallback(
+    (
+      key: string,
+      messageId: string,
+      update: (toolCalls: ToolCallInfo[]) => ToolCallInfo[]
+    ) =>
+      setMessagesOf(key, (prev) =>
+        updateMessageToolCalls(prev, messageId, update)
+      ),
+    [setMessagesOf]
   );
 
   const setSaveState = useCallback(
@@ -494,29 +519,13 @@ export function useChat({
                     contentOffset: event.contentOffset,
                   });
                   pendingToolArgs.set(event.name, queue);
-                  // ツール実行中を UI に反映
-                  setMessagesOf(convId, (prev) =>
-                    prev.map((msg) =>
-                      msg.id === aiMessageId
-                        ? {
-                            ...msg,
-                            metadata: {
-                              ...msg.metadata,
-                              toolCalls: [
-                                ...(msg.metadata?.toolCalls ?? []),
-                                {
-                                  name: event.name,
-                                  arguments: event.arguments,
-                                  result: '',
-                                  isError: false,
-                                  durationMs: 0,
-                                  contentOffset: event.contentOffset,
-                                },
-                              ],
-                            },
-                          }
-                        : msg
-                    )
+                  // ツール実行中を UI に反映（結果が届くまで「実行中」の仮の記録。#192）
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    startToolCall(toolCalls, {
+                      name: event.name,
+                      arguments: event.arguments,
+                      contentOffset: event.contentOffset,
+                    })
                   );
                 } else if (event.type === 'tool_approval_request') {
                   // 承認を待つ。承認カードを出し、利用者の許可・拒否は respondToApproval で返す（#148 Phase A2）
@@ -525,9 +534,18 @@ export function useChat({
                     ...chat,
                     pendingApprovals: [
                       ...chat.pendingApprovals,
-                      { approvalId, name, preview },
+                      { approvalId, name, preview, messageId: aiMessageId },
                     ],
                   }));
+                  // 仮の記録を「承認待ち」にする（許可していないのに ✅ に見えないように。#192）
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    updateToolCallStatus(
+                      toolCalls,
+                      name,
+                      'running',
+                      'awaiting-approval'
+                    )
+                  );
                 } else if (event.type === 'tool_call_result') {
                   patchChat(convId, { activeToolCall: null });
                   if (event.approval) {
@@ -566,28 +584,14 @@ export function useChat({
                     approval: event.approval,
                   };
                   toolCallRecords.push(record);
-                  // 最後のツール呼び出しレコードを結果で更新
-                  setMessagesOf(convId, (prev) =>
-                    prev.map((msg) => {
-                      if (msg.id !== aiMessageId) return msg;
-                      const toolCalls = [...(msg.metadata?.toolCalls ?? [])];
-                      const idx = toolCalls
-                        .map((t) => t.name)
-                        .lastIndexOf(event.name);
-                      if (idx >= 0) {
-                        toolCalls[idx] = {
-                          ...toolCalls[idx],
-                          result: event.result,
-                          isError: event.isError,
-                          summary: event.summary,
-                          isEmpty: event.isEmpty,
-                          approval: event.approval,
-                        };
-                      }
-                      return {
-                        ...msg,
-                        metadata: { ...msg.metadata, toolCalls },
-                      };
+                  // 仮の記録を結果で置き換え、実行中・承認待ちの表示をやめる（#192）
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    finishToolCall(toolCalls, event.name, {
+                      result: event.result,
+                      isError: event.isError,
+                      summary: event.summary,
+                      isEmpty: event.isEmpty,
+                      approval: event.approval,
                     })
                   );
                 } else if (event.type === 'done') {
@@ -695,6 +699,7 @@ export function useChat({
       patchChat,
       updateChatOf,
       setMessagesOf,
+      updateToolCallsOf,
     ]
   );
 
@@ -863,12 +868,31 @@ export function useChat({
   const respondToApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
       const convId = currentKey;
-      updateChatOf(convId, (chat) => ({
-        ...chat,
-        pendingApprovals: chat.pendingApprovals.filter(
-          (request) => request.approvalId !== approvalId
-        ),
-      }));
+      updateChatOf(convId, (chat) => {
+        const request = chat.pendingApprovals.find(
+          (pending) => pending.approvalId === approvalId
+        );
+        return {
+          ...chat,
+          pendingApprovals: chat.pendingApprovals.filter(
+            (pending) => pending.approvalId !== approvalId
+          ),
+          // 答えたら「承認待ち」を「実行中」に戻す（拒否でも、結果が届くまでの間は実行中として出す。#192）
+          messages: request
+            ? updateMessageToolCalls(
+                chat.messages,
+                request.messageId,
+                (toolCalls) =>
+                  updateToolCallStatus(
+                    toolCalls,
+                    request.name,
+                    'awaiting-approval',
+                    'running'
+                  )
+              )
+            : chat.messages,
+        };
+      });
       try {
         const res = await fetch(`/api/agent/approvals/${approvalId}`, {
           method: 'POST',

@@ -95,8 +95,11 @@ test.describe('コマンドの実行の承認', () => {
         '$ node -e'
       );
       await expect(card).toContainText('作業フォルダ');
-      // 許可するまでは実行されない
+      // 許可するまでは実行されない。結果の欄は ✅ ではなく承認待ち（#192）
       expect(await exists(MARKER)).toBe(false);
+      const pending = page.locator('button', { hasText: 'コマンドを実行' });
+      await expect(pending.first()).toContainText('承認待ち');
+      await expect(pending.first()).not.toContainText('✅');
 
       await card.getByRole('button', { name: '許可' }).click();
       await expect(card).toBeHidden();

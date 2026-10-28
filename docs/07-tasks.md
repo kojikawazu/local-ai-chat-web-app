@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-27
+> 最終更新: 2026-10-28
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1049,3 +1049,12 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 承認の見せる内容の union 化（`ApprovalPreview`）と承認カードの出し分け
 - [x] UT（`local-commands.test.ts` 37 件）・IT（`local-command.test.ts` 19 件・`chat-agent-command.test.ts` 5 件・`tools.test.ts`・`chat-agent-approval.test.ts`）・E2E（`command-approval.spec.ts` 4 件。承認カードの操作の 3 件は大モデルのみ）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`15`・`16`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）
+
+## フェーズ42: 結果が届く前のツールの表示
+
+ツールの結果が届く前（実行中・承認待ち）の記録に ✅ が出ていたのを直す。承認が要るツールでは、承認カードを出している間も ✅ に見えていた。 — #192（2026-10-28 着手）
+
+- [x] 設計とレビュー（推奨どおり: 画面だけの `status`・一番下の「実行中...」の表示は残す）
+- [x] 結果が届く前の記録の状態（実行中・承認待ち）と表示（`lib/chat/tool-call-progress.ts`・`ToolCallResult`）
+- [x] UT（`tool-call-progress.test.ts` 12 件）・E2E（`command-approval.spec.ts`・`file-write-approval.spec.ts` に承認待ちの確認を追加。大モデルのみ）
+- [x] ドキュメント（`docs/02`・`06`・`09`・`15`、`CLAUDE.md`）
