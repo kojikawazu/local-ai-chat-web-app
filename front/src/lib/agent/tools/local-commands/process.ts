@@ -37,6 +37,16 @@ const FIXED_ENV: Record<string, string> = {
 const ANSI_PATTERN =
   /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]/g;
 
+/** 出力を受け取る入れ物（{@link createOutputBuffer} と同じ形）。 */
+type OutputSink = {
+  /**
+   * 届いた出力を足す。
+   *
+   * @param chunk - 届いた出力
+   */
+  push(chunk: string): void;
+};
+
 /** {@link runProcess} の指定。 */
 type RunOptions = {
   /** 実行ファイルの実体のパス */
@@ -51,6 +61,11 @@ type RunOptions = {
   signal: AbortSignal;
   /** コマンドに渡す環境変数（{@link buildCommandEnv}） */
   env: Record<string, string>;
+  /**
+   * 標準出力だけを受け取る入れ物（#148 Phase C）。渡すと標準出力はここへ送り、結果の `output` は標準エラー出力だけになる。
+   * 省略時は標準出力と標準エラー出力を届いた順にまとめる。`gh --json` の出力を切り詰めず、警告とも混ぜずに読むため
+   */
+  stdout?: OutputSink;
 };
 
 /**
@@ -73,7 +88,10 @@ export type ProcessEnd =
 export type ProcessResult = {
   /** 終わり方 */
   end: ProcessEnd;
-  /** 標準出力と標準エラー出力を届いた順にまとめたもの（制御文字を除き、長ければ先頭と末尾だけ） */
+  /**
+   * 標準出力と標準エラー出力を届いた順にまとめたもの（制御文字を除き、長ければ先頭と末尾だけ）。
+   * 標準出力を別の入れ物（`stdout`）で受けたときは、標準エラー出力だけ
+   */
   output: string;
 };
 
@@ -177,7 +195,7 @@ function killGroup(pid: number, signal: NodeJS.Signals) {
  * 先頭のプロセスが終わった後に残ったグループの中のプロセスも止める（裏で動かし続けることは扱わない）。
  * 標準入力は閉じる（入力を待つコマンドで止まらないように）。失敗も例外にせず {@link ProcessEnd} で返す。
  *
- * @param options - 実行ファイル・引数・作業フォルダ・上限・中断の signal・環境変数
+ * @param options - 実行ファイル・引数・作業フォルダ・上限・中断の signal・環境変数・標準出力の入れ物（任意）
  * @returns 終わり方・出力
  */
 export function runProcess({
@@ -187,6 +205,7 @@ export function runProcess({
   timeoutMs,
   signal,
   env,
+  stdout,
 }: RunOptions): Promise<ProcessResult> {
   const output = createOutputBuffer();
   return new Promise((resolve) => {
@@ -229,7 +248,8 @@ export function runProcess({
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => output.push(chunk));
+    const stdoutSink = stdout ?? output;
+    child.stdout.on('data', (chunk: string) => stdoutSink.push(chunk));
     child.stderr.on('data', (chunk: string) => output.push(chunk));
 
     child.on('error', (error) => {

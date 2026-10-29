@@ -290,6 +290,8 @@ EOF
 > **任意**: ファイルの作成・編集もさせる場合は、書いてよいフォルダを `LOCAL_FILE_WRITE_ROOTS` に足します（`LOCAL_FILE_ROOTS` の中だけ。例: `LOCAL_FILE_WRITE_ROOTS=~/developer/my-project`）。書き込みのたびに画面に差分が出て、許可するまで書かれません（`docs/15-tool-approval.md`）。
 >
 > **任意**: コマンド（テスト・`git status` 等）も実行させる場合は、実行してよいプログラムの名前を `LOCAL_COMMANDS` に足します（例: `LOCAL_COMMANDS=git,pnpm`）。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけで、実行のたびに画面にコマンドが出て、許可するまで実行されません。書いたプログラムは何でも実行できる前提で選んでください（`node`・`pnpm` は任意のコードを実行できます。`curl` など外へ送るものは書かないでください）。実行時間の上限は `LOCAL_COMMAND_TIMEOUT_MS`（既定 120 秒）です（`docs/16-command-execution.md`）。
+>
+> **任意**: GitHub の PR・issue を読ませ、コメント・PR の作成もさせる場合は、GitHub CLI を入れてログインし（`brew install gh` → `gh auth login`）、扱ってよいリポジトリを `GITHUB_REPOS` に `owner/name` のカンマ区切りで足します（例: `GITHUB_REPOS=your-name/your-repo`）。読むときは承認なしで、コメント・PR の作成のたびに画面に本文が出て、許可するまで送られません。トークンを `.env.local` に書く必要はありません。`gh` を `LOCAL_COMMANDS` に書く必要もなく、書くと `gh api` などまで承認 1 回で使えるため、書かないでください（`docs/17-github-tools.md`）。
 
 ### データベースのマイグレーション
 

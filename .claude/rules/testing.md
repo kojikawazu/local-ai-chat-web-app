@@ -87,7 +87,7 @@ globs: "front/tests/**"
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。
   - 同じく、PlantUML サーバーに繋がらなければ開始前に止める（PlantUML の図の E2E は実際の PlantUML サーバーで描くため。ローカルは `docker compose up -d`、CI は `e2e-test.yml` の `services:`）。
-- **ローカルのファイル**: `webServer.env` で dev サーバーの `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`。定義は `tests/e2e/helpers/local-files.ts`）を渡す。開発者の `.env.local` のフォルダを E2E に読ませないため（#148）。再利用した dev サーバーがこれ無しで起動していると `local-files.spec.ts` が落ちる。書き込み（#148 Phase A2）は `LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダ（`E2E_WRITE_DIR`）を渡し、リポジトリの中は書き換えない。コマンドの実行（#148 Phase B）は `LOCAL_COMMANDS` に `node` だけを渡す（作業フォルダは同じ `E2E_WRITE_DIR`）
+- **ローカルのファイル**: `webServer.env` で dev サーバーの `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`。定義は `tests/e2e/helpers/local-files.ts`）を渡す。開発者の `.env.local` のフォルダを E2E に読ませないため（#148）。再利用した dev サーバーがこれ無しで起動していると `local-files.spec.ts` が落ちる。GitHub のツール（#148 Phase C）は `GITHUB_REPOS` に架空のリポジトリを、`PATH` の先頭に偽の `gh`（`tests/integration/helpers/fake-gh.ts`。IT と共通。置き場所と応答は `tests/e2e/helpers/github.ts`）のフォルダを渡し、本物の GitHub には触れない。書き込み（#148 Phase A2）は `LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダ（`E2E_WRITE_DIR`）を渡し、リポジトリの中は書き換えない。コマンドの実行（#148 Phase B）は `LOCAL_COMMANDS` に `node` だけを渡す（作業フォルダは同じ `E2E_WRITE_DIR`）
 - 失敗時: スクリーンショット + トレースを保存
 - テストファイル配置: `front/tests/e2e/`
 - Base URL: `http://localhost:3000`

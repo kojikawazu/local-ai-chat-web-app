@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-28
+> 最終更新: 2026-10-30
 
 ## 目次
 
@@ -33,6 +33,7 @@ Next.js Route Handlers (API層)
     ├──→ Prisma ORM ──→ PostgreSQL (Docker)
     ├──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
     ├──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
+    ├──→ GitHub のツール ──→ gh (GitHub CLI。アプリが組み立てた引数) ──→ GitHub（GITHUB_REPOS のリポジトリだけ）
     └──→ /api/diagrams/plantuml ──→ PlantUML サーバー (Docker・127.0.0.1:8889。SANDBOX)
 ```
 
@@ -40,6 +41,7 @@ Next.js Route Handlers (API層)
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
+- GitHub のツール（#148 Phase C）は、利用者の `gh`（`gh auth login` 済み）をシェルを介さずに起動する。引数はアプリが組み立て、モデルは `gh` の引数を書けない。コメント・PR の作成は実行前に承認を挟む（`docs/17-github-tools.md`）。
 - 図は、Mermaid はブラウザの中で描き、PlantUML は Route Handler 経由でローカルの PlantUML サーバーに描かせる（#169・#171）。どちらも SVG を data: URI の `<img>` で表示する。PlantUML サーバーは外部の URL・ファイルの読み込みを止めた設定（`PLANTUML_SECURITY_PROFILE=SANDBOX`）で動かす。
 
 ## ディレクトリ構成
@@ -157,6 +159,8 @@ front/src/
 │           └── organisms/
 │               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
+│   ├── agent/
+│   │   └── github.ts          #     GitHub のツールで共通の引数の定義（kind・number）・一覧の件数の上限（#148 Phase C）
 │   └── chat/
 │       ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
 │       └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
@@ -196,6 +200,13 @@ front/src/
 │   │       ├── web-search.ts  #       Web検索ツール（SearXNG）
 │   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
 │   │       ├── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       ├── github/        #       GitHub のツール（#148 Phase C。GITHUB_REPOS があるときだけ登録）
+│   │       │   ├── config.ts  #         GITHUB_REPOS の解釈（owner/name の形・大文字小文字の重なり）
+│   │       │   ├── args.ts    #         引数の定義と検証（repo・kind・number・state・limit・ブランチ名・本文）
+│   │       │   ├── gh.ts      #         gh の実行（一時フォルダ・絞った環境変数・終了コード）・JSON の読み取り・リポジトリの情報
+│   │       │   ├── format.ts  #         gh の JSON・差分 → モデルへ返す文章と要約（上限・差分の絞り込み）
+│   │       │   ├── list.ts / view.ts / pr-diff.ts #  github_list・github_view・github_pr_diff（承認なし）
+│   │       │   └── comment.ts / create-pr.ts #       github_comment・github_create_pr（承認が要る）
 │   │       ├── local-commands/ #      コマンドの実行のツール（#148 Phase B。LOCAL_COMMANDS と LOCAL_FILE_WRITE_ROOTS があるときだけ登録）
 │   │       │   ├── config.ts  #         LOCAL_COMMANDS（シェル等を外す）・LOCAL_COMMAND_TIMEOUT_MS の解釈
 │   │       │   ├── parse.ts   #         文字列 → 引数の配列（クォート・シェルの記号を断る）・クォートし直し
@@ -306,6 +317,7 @@ front/tests/
     ├── local-files.spec.ts        # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
+    ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -454,6 +466,7 @@ model Attachment {
 | `LOCAL_FILE_WRITE_ROOTS` | エージェントのファイルの書き込み（作成・編集。実行前に承認が要る）をしてよいフォルダの絶対パス（`LOCAL_FILE_ROOTS` の中だけ・カンマ区切り・`~` 可） | 未設定（書き込みのツールを使わない） |
 | `LOCAL_COMMANDS` | エージェントが実行してよいプログラムの名前（カンマ区切り。実行前に承認が要る。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけ。シェル・`env`・`sudo` 等は書いても使わない） | 未設定（コマンドの実行のツールを使わない） |
 | `LOCAL_COMMAND_TIMEOUT_MS` | コマンドの実行時間の上限（ms。上限 600000） | `120000` |
+| `GITHUB_REPOS` | エージェントの GitHub のツールで扱ってよいリポジトリ（`owner/name` のカンマ区切り。読むツールは承認なし、コメント・PR の作成は実行前に承認が要る。認証は `gh auth login`） | 未設定（GitHub のツールを使わない） |
 
 ## 状態管理
 

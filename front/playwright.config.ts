@@ -1,9 +1,11 @@
+import path from 'path';
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_OLLAMA_MODEL } from './tests/e2e/helpers/model';
 import {
   E2E_LOCAL_FILES_DIR,
   E2E_WRITE_DIR,
 } from './tests/e2e/helpers/local-files';
+import { E2E_FAKE_GH_DIR, E2E_GITHUB_REPO } from './tests/e2e/helpers/github';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -39,6 +41,9 @@ export default defineConfig({
       LOCAL_FILE_WRITE_ROOTS: E2E_WRITE_DIR,
       // コマンドの実行は node だけ（#148 Phase B）。どの環境にもあり、作業フォルダは上の書き込みのフォルダに限られる
       LOCAL_COMMANDS: 'node',
+      // GitHub のツールは架空のリポジトリだけ（#148 Phase C）。偽の gh を PATH の先頭に置き、本物の GitHub に触れない
+      GITHUB_REPOS: E2E_GITHUB_REPO,
+      PATH: [E2E_FAKE_GH_DIR, process.env.PATH ?? ''].join(path.delimiter),
     },
   },
 });

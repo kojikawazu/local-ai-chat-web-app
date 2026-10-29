@@ -2,8 +2,12 @@
 
 import { ShieldQuestion } from 'lucide-react';
 import type {
+  ApprovalPreview,
   CommandApprovalPreview,
   FileApprovalPreview,
+  GitHubCommentApprovalPreview,
+  GitHubCreatePrApprovalPreview,
+  GitHubVisibility,
   ToolApprovalRequest,
 } from '@/types/agent/tool-call';
 import Button from '@/components/common/atoms/Button';
@@ -12,13 +16,14 @@ import Button from '@/components/common/atoms/Button';
 const MAX_DIFF_LINES = 400;
 
 /** 何をするかの見出し */
-const ACTION_TITLES: Record<ToolApprovalRequest['preview']['action'], string> =
-  {
-    create: 'ファイルを作成します',
-    overwrite: 'ファイルを上書きします',
-    edit: 'ファイルを編集します',
-    run: 'コマンドを実行します',
-  };
+const ACTION_TITLES: Record<ApprovalPreview['action'], string> = {
+  create: 'ファイルを作成します',
+  overwrite: 'ファイルを上書きします',
+  edit: 'ファイルを編集します',
+  run: 'コマンドを実行します',
+  'github-comment': 'GitHub にコメントします',
+  'github-create-pr': 'GitHub に PR を作成します',
+};
 
 /** {@link ApprovalCard} の props。 */
 type ApprovalCardProps = {
@@ -112,9 +117,139 @@ function CommandPreview({ preview }: { preview: CommandApprovalPreview }) {
 }
 
 /**
- * ツールの実行前の承認カード（#148 Phase A2・Phase B。`docs/15-tool-approval.md`・`docs/16-command-execution.md`）。
+ * GitHub のリポジトリと、公開リポジトリなら誰でも読める旨（#148 Phase C）。
+ * ローカルの内容を外へ出してよいかの判断材料にする。
  *
- * 何をするかの見出しと、その中身（ファイルの書き込みなら差分、コマンドの実行ならコマンドと作業フォルダ）、
+ * @param props - リポジトリと公開・非公開を持つ props
+ * @param props.repo - リポジトリ（`owner/name`）
+ * @param props.visibility - 公開か非公開か
+ */
+function RepoLine({
+  repo,
+  visibility,
+}: {
+  repo: string;
+  visibility: GitHubVisibility;
+}) {
+  return (
+    <>
+      <dt className="text-nord-4/60">リポジトリ</dt>
+      <dd className="text-nord-4/80 break-all font-mono">
+        {repo}（{visibility === 'public' ? '公開' : '非公開'}）
+      </dd>
+    </>
+  );
+}
+
+/**
+ * 送る本文。Markdown として描かず、送る文字のまま出す（仕込まれた画像・リンク・HTML のコメントも見えるように）。
+ *
+ * @param props - 本文を持つ props
+ * @param props.body - 送る本文
+ * @param props.visibility - 公開か非公開か（公開なら注意を出す）
+ */
+function GitHubBody({
+  body,
+  visibility,
+}: {
+  body: string;
+  visibility: GitHubVisibility;
+}) {
+  return (
+    <>
+      <pre
+        aria-label="送る本文"
+        className="max-h-96 overflow-auto rounded-lg bg-nord-0 border border-nord-3 p-3 text-xs leading-relaxed font-mono text-nord-6 whitespace-pre-wrap break-words"
+      >
+        {body}
+      </pre>
+      {visibility === 'public' && (
+        <p role="note" className="text-xs text-nord-aurora-yellow">
+          公開リポジトリです。送った内容は誰でも読めます
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * GitHub の PR・issue へのコメントの、リポジトリ・コメント先・本文（#148 Phase C）。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - コメントの内容
+ */
+function GitHubCommentPreview({
+  preview,
+}: {
+  preview: GitHubCommentApprovalPreview;
+}) {
+  return (
+    <>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <RepoLine repo={preview.repo} visibility={preview.visibility} />
+        <dt className="text-nord-4/60">コメント先</dt>
+        <dd className="text-nord-4/80 break-all">
+          {preview.kind === 'pr' ? 'PR' : 'issue'} #{preview.number}{' '}
+          {preview.targetTitle}
+        </dd>
+      </dl>
+      <GitHubBody body={preview.body} visibility={preview.visibility} />
+    </>
+  );
+}
+
+/**
+ * GitHub の PR の作成の、リポジトリ・ブランチ・タイトル・本文（#148 Phase C）。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - PR の作成の内容
+ */
+function GitHubCreatePrPreview({
+  preview,
+}: {
+  preview: GitHubCreatePrApprovalPreview;
+}) {
+  return (
+    <>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <RepoLine repo={preview.repo} visibility={preview.visibility} />
+        <dt className="text-nord-4/60">ブランチ</dt>
+        <dd className="text-nord-4/80 break-all font-mono">
+          {preview.head} → {preview.base}
+          {preview.draft && '（下書き）'}
+        </dd>
+        <dt className="text-nord-4/60">タイトル</dt>
+        <dd className="text-nord-6 break-all">{preview.title}</dd>
+      </dl>
+      <GitHubBody body={preview.body} visibility={preview.visibility} />
+    </>
+  );
+}
+
+/**
+ * 承認で見せる内容を、何をするか（`action`）で出し分ける。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - 承認で見せる内容
+ */
+function PreviewBody({ preview }: { preview: ApprovalPreview }) {
+  switch (preview.action) {
+    case 'run':
+      return <CommandPreview preview={preview} />;
+    case 'github-comment':
+      return <GitHubCommentPreview preview={preview} />;
+    case 'github-create-pr':
+      return <GitHubCreatePrPreview preview={preview} />;
+    default:
+      return <FilePreview preview={preview} />;
+  }
+}
+
+/**
+ * ツールの実行前の承認カード（#148 Phase A2・Phase B・Phase C。`docs/15-tool-approval.md`・`docs/16-command-execution.md`・`docs/17-github-tools.md`）。
+ *
+ * 何をするかの見出しと、その中身（ファイルの書き込みなら差分、コマンドの実行ならコマンドと作業フォルダ、
+ * GitHub への書き込みならリポジトリと送る本文）、
  * 「許可」「拒否」のボタンを出す。
  *
  * @param props - 承認を待っている実行・残りの数・答えたときの処理を持つ props
@@ -141,11 +276,7 @@ export default function ApprovalCard({
         </h3>
       </div>
 
-      {preview.action === 'run' ? (
-        <CommandPreview preview={preview} />
-      ) : (
-        <FilePreview preview={preview} />
-      )}
+      <PreviewBody preview={preview} />
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-nord-4/60">

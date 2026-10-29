@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-10-27
+> 最終更新: 2026-10-30
 
 ## 目次
 
@@ -491,7 +491,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ### POST /api/agent/approvals/[id]
 
-エージェントのツールの実行前の承認に、許可か拒否かを渡す（#148 Phase A2。`docs/15-tool-approval.md`）。ファイルの書き込みとコマンドの実行（#148 Phase B。`docs/16-command-execution.md`）で同じ API を使う。`[id]` は `/api/chat` のストリームの `tool_approval_request` の `approvalId`。
+エージェントのツールの実行前の承認に、許可か拒否かを渡す（#148 Phase A2。`docs/15-tool-approval.md`）。ファイルの書き込み・コマンドの実行（#148 Phase B。`docs/16-command-execution.md`）・GitHub へのコメントと PR の作成（#148 Phase C。`docs/17-github-tools.md`）で同じ API を使う。`[id]` は `/api/chat` のストリームの `tool_approval_request` の `approvalId`。
 
 **リクエスト**
 

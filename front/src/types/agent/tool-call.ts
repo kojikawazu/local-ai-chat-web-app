@@ -43,10 +43,71 @@ export type CommandApprovalPreview = {
   timeoutMs: number;
 };
 
+/** GitHub のツールで扱うものの種類（#148 Phase C）。`pr` は Pull Request、`issue` は issue */
+export type GitHubItemKind = 'pr' | 'issue';
+
+/** GitHub の一覧（`github_list`）で絞れる状態（#148 Phase C）。`merged` は PR だけ */
+export const GITHUB_LIST_STATES = ['open', 'closed', 'merged', 'all'] as const;
+
+/** GitHub の一覧で絞る状態（{@link GITHUB_LIST_STATES} のどれか） */
+export type GitHubListState = (typeof GITHUB_LIST_STATES)[number];
+
+/**
+ * GitHub のリポジトリが公開か非公開か（#148 Phase C）。`gh repo view` の `PUBLIC` だけを `public` にし、
+ * `PRIVATE`・`INTERNAL` は `private` にする（誰でも読めるかどうかだけを利用者に知らせるため）
+ */
+export type GitHubVisibility = 'public' | 'private';
+
+/**
+ * GitHub の PR・issue へのコメントの前に、利用者へ見せる内容（#148 Phase C。`docs/17-github-tools.md`）。
+ */
+export type GitHubCommentApprovalPreview = {
+  /** 何をするか。常に `github-comment` */
+  action: 'github-comment';
+  /** リポジトリ（`owner/name`） */
+  repo: string;
+  /** リポジトリが公開か非公開か */
+  visibility: GitHubVisibility;
+  /** コメント先の種類 */
+  kind: GitHubItemKind;
+  /** コメント先の番号 */
+  number: number;
+  /** コメント先のタイトル（準備で GitHub から取ったもの） */
+  targetTitle: string;
+  /** 送る本文（そのまま） */
+  body: string;
+};
+
+/**
+ * GitHub の PR の作成の前に、利用者へ見せる内容（#148 Phase C。`docs/17-github-tools.md`）。
+ */
+export type GitHubCreatePrApprovalPreview = {
+  /** 何をするか。常に `github-create-pr` */
+  action: 'github-create-pr';
+  /** リポジトリ（`owner/name`） */
+  repo: string;
+  /** リポジトリが公開か非公開か */
+  visibility: GitHubVisibility;
+  /** PR にするブランチ */
+  head: string;
+  /** マージ先のブランチ（省略されたら、準備で解決したリポジトリの既定のブランチ） */
+  base: string;
+  /** タイトル */
+  title: string;
+  /** 本文（そのまま） */
+  body: string;
+  /** 下書きにするか */
+  draft: boolean;
+};
+
 /**
  * 実行前に承認を求めるときに、利用者へ見せる内容。何をするか（`action`）で形が決まる。
  */
-export type ApprovalPreview = FileApprovalPreview | CommandApprovalPreview;
+export type ApprovalPreview =
+  | FileApprovalPreview
+  | CommandApprovalPreview
+  | GitHubCommentApprovalPreview
+  | GitHubCreatePrApprovalPreview;
 
 /**
  * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。
