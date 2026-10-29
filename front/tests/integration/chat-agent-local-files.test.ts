@@ -199,7 +199,7 @@ describe('POST /api/chat（エージェント・ローカルのファイル）',
         expect(resultOf(events, name)).toMatchObject({
           isError: true,
           summary:
-            '実行しませんでした（ローカルのファイル・コマンドの出力を読んだ後のため）',
+            '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため）',
         });
       }
       expect(events.at(-1)?.type).toBe('done');

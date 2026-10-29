@@ -13,4 +13,9 @@ export const TOOL_LABELS: Record<string, string> = {
   search_files: 'ファイルを探す',
   read_file: 'ファイルを読む',
   run_command: 'コマンドを実行',
+  github_list: 'GitHub の一覧',
+  github_view: 'GitHub の詳細',
+  github_pr_diff: 'PR の差分',
+  github_comment: 'GitHub にコメント',
+  github_create_pr: 'PR を作成',
 };

@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-28
+> 最終更新: 2026-10-30
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1058,3 +1058,16 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 結果が届く前の記録の状態（実行中・承認待ち）と表示（`lib/chat/tool-call-progress.ts`・`ToolCallResult`）
 - [x] UT（`tool-call-progress.test.ts` 12 件）・E2E（`command-approval.spec.ts`・`file-write-approval.spec.ts` に承認待ちの確認を追加。大モデルのみ）
 - [x] ドキュメント（`docs/02`・`06`・`09`・`15`、`CLAUDE.md`）
+
+## フェーズ43: GitHub のツール（#148 Phase C）
+
+エージェントが、許可したリポジトリの PR・issue を読み、コメントと PR の作成をする。`run_command` に `gh` を許可する使い方を試し、読むだけでも毎回の承認が要ること・`gh api` 等まで通ることから、専用のツールにした。設計は [17-github-tools.md](./17-github-tools.md)。 — #148・サブ issue #194（2026-10-30 着手）
+
+- [x] `run_command` + `gh` での試用（PR の一覧・要約・CI・コメントの 4 件）
+- [x] 設計（`docs/17-github-tools.md`。`GITHUB_REPOS` の許可リスト・読む 3 つは承認なし・書く 2 つは毎回の承認・`gh` の引数はアプリが組み立てる）
+- [x] 設計のレビュー（推奨どおり: 5 つのツール・`GITHUB_REPOS` 1 つ・読むときは承認なし・読んだ後は Web のツールを止める・本文はそのままの文字で見せる・マージは作らない）
+- [x] `GITHUB_REPOS` の解釈・引数の検証・`gh` の実行（`runProcess` に標準出力を別に受ける `stdout` を足す）
+- [x] 読むツール（`github_list`・`github_view`・`github_pr_diff`）
+- [x] 書くツール（`github_comment`・`github_create_pr`）と承認カードの出し分け
+- [x] UT（`github-tools.test.ts` 57 件）・IT（`chat-agent-github.test.ts` 14 件。偽の `gh`・`tools.test.ts`）・E2E（`github-tools.spec.ts` 4 件。モデルにツールを呼ばせる 3 件は大モデルのみ）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`14`・`15`・`16`・`17`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）

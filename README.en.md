@@ -90,6 +90,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `LOCAL_FILE_WRITE_ROOTS` | Folders (inside `LOCAL_FILE_ROOTS`) where the agent may create / edit files, each write approved by you first | unset (write tools disabled) |
 | `LOCAL_COMMANDS` | Program names (comma-separated) the agent may run, each run approved by you first; the working folder must be inside `LOCAL_FILE_WRITE_ROOTS` (shells, `env`, `sudo`, etc. are ignored) | unset (command tool disabled) |
 | `LOCAL_COMMAND_TIMEOUT_MS` | Time limit for a command (ms, max 600000) | `120000` |
+| `GITHUB_REPOS` | Repositories (`owner/name`, comma-separated) the agent's GitHub tools may use; reading needs no approval, commenting / creating a PR is approved by you first (signs in with `gh auth login`) | unset (GitHub tools disabled) |
 
 ## Commands
 

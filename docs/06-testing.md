@@ -1,6 +1,6 @@
 # テスト要件書
 
-> 最終更新: 2026-10-28
+> 最終更新: 2026-10-30
 
 ## 目次
 
@@ -200,6 +200,11 @@ describe('機能名', () => {
 - 正常系: `GET /api/tools` に `run_command` が出る。モデルにコマンドの実行を頼むと承認カードにコマンドと作業フォルダが出て、許可するまで実行されず（結果の欄は ✅ ではなく承認待ち。#192）、許可すると実行される（**ツール呼び出しが要るため軽量モデルではスキップ**）
 - 準正常系: 拒否すると実行されず、❌ と「拒否されました」が出る（同上）
 - 異常系: 終了コードが 0 以外のコマンドは、許可して実行した後に ❌ と終了コードが出る（同上）。承認の API の 404・400 は同じ API のため上の spec に任せる
+
+**GitHub のツール（`github-tools.spec.ts`、#148 Phase C）**（dev サーバーには `playwright.config.ts` が `GITHUB_REPOS`（架空のリポジトリ）と、偽の `gh` のフォルダを先頭に足した `PATH` を渡す。偽の `gh` は真の外部（GitHub）の境界の差し替えで、本物の GitHub には触れない）
+- 正常系: `GET /api/tools` に GitHub の 5 つのツールが出る。PR の一覧は承認カードを出さずに読み、件数が ✅ で出る（**ツール呼び出しが要るため軽量モデルではスキップ**）
+- 準正常系: コメントを頼むと承認カードにコメント先・送る本文・公開リポジトリの知らせが出て（結果の欄は承認待ち）、拒否すると `gh` でコメントしない（同上）
+- 異常系: 存在しない PR は、`gh` のエラーが ❌ で出る（同上）
 
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
@@ -421,6 +426,7 @@ front/tests/
 │   ├── sidebar-visibility.test.ts # サイドバーの表示状態の保存値の解釈（open / closed / 不正な値 / 未保存）（#24）
 │   ├── tool-call-progress.test.ts # 結果が届く前のツールの記録（実行中の仮の記録・承認待ちとの行き来・結果での置き換え・同じ名前が続くときの順番）（#192）
 │   ├── tool-approval.test.ts     # 承認待ちの決着（許可・拒否・時間切れ・停止。偽のタイマー）・edit_file の一致と CRLF・差分の行数・.git の判定・拒否の文章・承認の API のボディ（#148 Phase A2）
+│   ├── github-tools.test.ts      # GitHub のツールの純関数（GITHUB_REPOS の解釈・引数の検証（番号の書き方・ブランチ名・本文の長さ）・一覧／詳細／差分の文章と上限・差分の絞り込み・書き込みの結果・公開か非公開か。#148 Phase C）
 │   ├── local-commands.test.ts    # コマンドの解釈（クォート・シェルの記号を断る・上限）・クォートし直し・許可リスト（シェル等を外す）・渡す環境変数・出力の先頭と末尾と制御文字・結果の文章（#148 Phase B）
 │   ├── local-files.test.ts       # ローカルのファイルのツールの純関数（LOCAL_FILE_ROOTS の解釈・包含の判定・秘匿ファイルの名前・行の切り出し・ワイルドカード・結果の文章・持ち出しの判定。#148）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
@@ -428,7 +434,8 @@ front/tests/
 │   ├── helpers/
 │   │   ├── global-setup.ts       # 使い捨てPostgreSQL起動 + migrate deploy
 │   │   ├── setup-env.ts          # 接続URLを DATABASE_URL に注入
-│   │   └── db.ts                 # resetDb・NextRequest/コンテキスト構築
+│   │   ├── db.ts                 # resetDb・NextRequest/コンテキスト構築
+│   │   └── fake-gh.ts            # 偽の gh（受け取った引数・環境変数の名前を記録し、決めた応答を返す node のスクリプト。E2E も使う。#148 Phase C）
 │   ├── conversations.test.ts     # 作成/一覧（POST/GET）
 │   ├── conversations-search.test.ts # 会話検索（タイトル・本文・大文字と小文字・AND・並び順・0 件・% と _・ページ分け・抜粋・metadata は対象外・400）
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
@@ -439,11 +446,12 @@ front/tests/
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない・ツールの本文の位置 contentOffset とラウンドの区切りの空行）
 │   ├── chat-agent-local-files.test.ts # /api/chat エージェント経路のローカルのファイルのツール（読んだ後の url_fetch・web_search を実行しない・読む前・失敗後は止めない）と GET /api/tools への登録（#148）
 │   ├── local-files.test.ts       # 一時フォルダでの list_directory・search_files・read_file（秘匿ファイル・シンボリックリンクと .. で外へ出られない・上限・バイナリ・行の範囲。#148）
-│   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS・LOCAL_FILE_WRITE_ROOTS が無ければローカルのファイルのツールを出さない。LOCAL_COMMANDS があっても書き込みのフォルダが無ければ run_command を出さない）
+│   ├── tools.test.ts             # GET /api/tools（LOCAL_FILE_ROOTS・LOCAL_FILE_WRITE_ROOTS が無ければローカルのファイルのツールを出さない。LOCAL_COMMANDS があっても書き込みのフォルダが無ければ run_command を出さない。GITHUB_REPOS に使える値が無ければ GitHub のツールを出さない）
 │   ├── local-file-write.test.ts  # 一時フォルダでの write_file・edit_file の準備と実行（作成・上書き・置き換え・CRLF・承認の間の変更・同名の新規・.git と秘匿と外・先の無いリンク・承認なしの execute。#148 Phase A2）
 │   ├── chat-agent-approval.test.ts # /api/chat の承認の流れ（差分付きの承認の依頼・許可で書く・拒否で書かない・準備の失敗は承認を求めない・停止で取り消し）と承認の API（400 / 404）
 │   ├── local-command.test.ts     # 実際に node を起動する run_command の準備と実行（出力・作業フォルダ・標準入力を閉じる・終了コード・環境変数の絞り込み・許可リスト／パス／シェルの記号／範囲外の作業フォルダを断る・時間の上限・停止で孫まで止める・親が先に終わったときの残り。#148 Phase B）
 │   ├── chat-agent-command.test.ts # /api/chat のコマンドの承認の流れ（許可で実行・拒否で実行しない・実行中の停止でプロセスを止める・実行の後は外部と通信するツールを止める）と GET /api/tools
+│   ├── chat-agent-github.test.ts # /api/chat の GitHub のツール（偽の gh。読むツールは承認なしで決まった引数・一時フォルダ・絞った環境変数・コメントと PR の作成の承認カードと --flag=… の引数・拒否で送らない・検証で断ったら gh を呼ばない・既存の PR・gh の失敗・未ログインで再び実行しない・gh が無い・読んだ後は外部と通信するツールを止める）と GET /api/tools（#148 Phase C）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
@@ -457,6 +465,7 @@ front/tests/
     │   ├── long-answer.ts        # 長い応答を生成中にする（停止・再生成の検証用）
     │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
     │   ├── local-files.ts        # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
+    │   ├── github.ts             # E2E の GITHUB_REPOS（架空のリポジトリ）・偽の gh のフォルダと応答（#148 Phase C）
     │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
@@ -487,6 +496,7 @@ front/tests/
     ├── local-files.spec.ts       # ローカルのファイルのツール（一覧への登録・保存済みの結果の表示・止めた外部のツール・実際に読ませる（大モデルのみ））
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
+    ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```

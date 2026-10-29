@@ -61,7 +61,7 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
 }
 
 /**
- * ローカルのファイル・コマンドの出力を読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
+ * ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
  *
  * 読んだ内容を検索語・URL に埋めて外へ送らせないため。Web の結果などに仕込まれた指示で
  * ファイルを読まされた場合でも、そこから外へ出す手段を無くす。
@@ -71,10 +71,10 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
  */
 function blockedNetworkToolOutput(name: string): ToolOutput {
   return {
-    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
+    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力・GitHub の内容を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
     isError: true,
     summary:
-      '実行しませんでした（ローカルのファイル・コマンドの出力を読んだ後のため）',
+      '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため）',
   };
 }
 
@@ -457,7 +457,7 @@ export function runAgentLoop(
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
-  // この応答でローカルのファイルを読むツールが成功したか。以降は外部と通信するツールを止める
+  // この応答で手元の情報を読むツール（access: local。ファイル・コマンド・GitHub）が成功したか。以降は外部と通信するツールを止める
   let hasReadLocalFiles = false;
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();

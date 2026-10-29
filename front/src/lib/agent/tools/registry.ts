@@ -20,6 +20,12 @@ import { createWriteFileTool } from './local-files/write-file';
 import { createEditFileTool } from './local-files/edit-file';
 import { getCommandTimeoutMs, getLocalCommands } from './local-commands/config';
 import { createRunCommandTool } from './local-commands/run-command';
+import { getGitHubRepos } from './github/config';
+import { createGitHubListTool } from './github/list';
+import { createGitHubViewTool } from './github/view';
+import { createGitHubPrDiffTool } from './github/pr-diff';
+import { createGitHubCommentTool } from './github/comment';
+import { createGitHubCreatePrTool } from './github/create-pr';
 
 let initialized = false;
 
@@ -32,6 +38,8 @@ let initialized = false;
  * （`LOCAL_FILE_WRITE_ROOTS`。読み取りのフォルダの中だけ）が 1 つ以上あるときだけ登録する。
  * コマンドの実行（`run_command`。実行前に承認が要る。#148 Phase B）は、実行してよいプログラム（`LOCAL_COMMANDS`）と
  * 書き込みのフォルダ（作業フォルダにしてよい範囲）の両方があるときだけ登録する。
+ * GitHub のツール（読む `github_list`・`github_view`・`github_pr_diff` と、承認が要る `github_comment`・`github_create_pr`。
+ * #148 Phase C）は、扱ってよいリポジトリ（`GITHUB_REPOS`）が 1 つ以上あるときだけ登録する。
  * 2 回目以降の呼び出しは何もしない（`initialized` フラグで冪等性を保証）。
  * `/api/chat` と `/api/tools` の両方から呼ばれても登録は 1 回だけ行われる。
  */
@@ -71,5 +79,14 @@ export function initializeTools(): void {
         'LOCAL_COMMANDS がありますが、作業フォルダにできる LOCAL_FILE_WRITE_ROOTS が無いため run_command を使いません'
       );
     }
+  }
+
+  const repos = getGitHubRepos();
+  if (repos.length > 0) {
+    registerTool(createGitHubListTool(repos));
+    registerTool(createGitHubViewTool(repos));
+    registerTool(createGitHubPrDiffTool(repos));
+    registerTool(createGitHubCommentTool(repos));
+    registerTool(createGitHubCreatePrTool(repos));
   }
 }
