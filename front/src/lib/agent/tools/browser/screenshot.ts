@@ -2,7 +2,9 @@ import type { Tool } from '../types';
 import { toolError } from '../output';
 import { getOpenedPage } from './session';
 import {
+  BROWSER_EXCLUSIVE,
   BROWSER_NO_CONTEXT_REASON,
+  BROWSER_NOT_OPENED_REASON,
   BROWSER_VIEWPORT,
 } from '@/constants/agent/browser';
 
@@ -19,6 +21,7 @@ const SCREENSHOT_TIMEOUT_MS = 10_000;
  */
 export function createBrowserScreenshotTool(): Tool {
   return {
+    exclusive: BROWSER_EXCLUSIVE,
     requiresVision: true,
     definition: {
       name: 'browser_screenshot',
@@ -31,7 +34,7 @@ export function createBrowserScreenshotTool(): Tool {
       if (!context) return toolError(BROWSER_NO_CONTEXT_REASON);
       const opened = await getOpenedPage(context);
       if (!opened) {
-        return toolError('先に browser_navigate でページを開いてください');
+        return toolError(BROWSER_NOT_OPENED_REASON);
       }
       const { page, session } = opened;
       try {

@@ -21,4 +21,7 @@ export const TOOL_LABELS: Record<string, string> = {
   browser_navigate: 'ページを開く',
   browser_snapshot: 'ページを読む',
   browser_screenshot: 'スクリーンショット',
+  browser_click: 'クリック',
+  browser_type: '入力',
+  browser_select: '選択',
 };

@@ -255,6 +255,30 @@ export function declinedOutput(
 }
 
 /**
+ * 同じ組のツールを、呼ばれた順に 1 つずつ実行する順番待ちを作る（#149 Phase C。`Tool` の `exclusive`）。
+ *
+ * 組ごとに、最後に入れた処理の終わりをつなぐ。前の処理が失敗しても、続きの処理は進める。
+ * 組の名前が無ければ待たずにすぐ実行する（並べて実行する）。
+ *
+ * @returns 処理を入れる関数。組の名前と処理を受け取り、処理の結果を返す
+ */
+export function createInOrderQueue(): <T>(
+  key: string | undefined,
+  task: () => Promise<T>
+) => Promise<T> {
+  const tails = new Map<string, Promise<unknown>>();
+  return (key, task) => {
+    if (key === undefined) return task();
+    const next = (tails.get(key) ?? Promise.resolve()).then(task);
+    tails.set(
+      key,
+      next.catch(() => {})
+    );
+    return next;
+  };
+}
+
+/**
  * 承認が要るツールを、準備 → 承認 → 実行の順に進める（#148 Phase A2。`docs/15-tool-approval.md`）。
  *
  * 準備で失敗したら承認は求めず、その結果を返す。準備できたら `tool_approval_request` を送り、
@@ -265,18 +289,20 @@ export function declinedOutput(
  * @param args - LLM から渡された引数
  * @param send - イベントを送る関数
  * @param loopSignal - ループ全体の中断の signal
+ * @param context - 応答ごとの文脈（準備に渡す。ブラウザの操作が開いたページを使う。#149 Phase C）
  * @returns 実行結果・所要時間・承認の結果（準備で失敗したら承認の結果は無し）
  */
 async function runWithApproval(
   tool: Tool & { prepare: NonNullable<Tool['prepare']> },
   args: Record<string, unknown>,
   send: (event: AgentStreamEvent) => void,
-  loopSignal: AbortSignal
+  loopSignal: AbortSignal,
+  context: ToolContext
 ): Promise<ToolExecution & { durationMs: number; approval?: ToolApproval }> {
   const name = tool.definition.name;
   const prepared = await withToolTimeout(
     name,
-    (signal) => tool.prepare(args, signal),
+    (signal) => tool.prepare(args, signal, context),
     loopSignal
   );
   if (!prepared.ok) {
@@ -514,6 +540,8 @@ export function runAgentLoop(
     },
     hasReadLocal: () => hasReadLocalFiles,
   };
+  // 同じ組（exclusive）のツールを、呼ばれた順に 1 つずつ実行する（#149 Phase C）
+  const inOrder = createInOrderQueue();
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();
   const loopSignal = signal
@@ -636,44 +664,59 @@ export function runAgentLoop(
                 contentOffset,
               });
 
-              const skipReason = unavailableTools.get(name);
               const tool = getTool(name);
-              const access = resolveAccess(tool, args);
-              // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない
-              const { durationMs, unavailable, images, readLocal, ...output } =
-                skipReason !== undefined
-                  ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
-                  : tool?.requiresVision && !vision
-                    ? { ...visionRequiredOutput(name), durationMs: 0 }
-                    : shouldBlockTool(access, hasReadLocalFiles)
-                      ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
-                      : tool?.prepare
-                        ? await runWithApproval(
-                            { ...tool, prepare: tool.prepare },
-                            args,
-                            send,
-                            loopSignal
-                          )
-                        : await runTool(name, args, loopSignal, toolContext);
-              if (unavailable) {
-                unavailableTools.set(name, output.summary ?? output.result);
-              }
-              if ((access === 'local' && !output.isError) || readLocal) {
-                hasReadLocalFiles = true;
-              }
+              // 同じ組（exclusive）のツールは、前の呼び出しの結果を送り終えてから始める（#149 Phase C）。
+              // 止めるかの判定（使えない・手元を読んだ後）も、前の呼び出しの結果を見てから行う
+              return inOrder(tool?.exclusive, async () => {
+                // 順番を待つ間に停止・切断された。結果はもう送らないため、実行せずに終える
+                if (loopSignal.aborted) {
+                  return { name, result: '', images: undefined };
+                }
+                const skipReason = unavailableTools.get(name);
+                const access = resolveAccess(tool, args);
+                // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない
+                const {
+                  durationMs,
+                  unavailable,
+                  images,
+                  readLocal,
+                  ...output
+                } =
+                  skipReason !== undefined
+                    ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
+                    : tool?.requiresVision && !vision
+                      ? { ...visionRequiredOutput(name), durationMs: 0 }
+                      : shouldBlockTool(access, hasReadLocalFiles)
+                        ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
+                        : tool?.prepare
+                          ? await runWithApproval(
+                              { ...tool, prepare: tool.prepare },
+                              args,
+                              send,
+                              loopSignal,
+                              toolContext
+                            )
+                          : await runTool(name, args, loopSignal, toolContext);
+                if (unavailable) {
+                  unavailableTools.set(name, output.summary ?? output.result);
+                }
+                if ((access === 'local' && !output.isError) || readLocal) {
+                  hasReadLocalFiles = true;
+                }
 
-              // 実行結果イベント
-              send({ type: 'tool_call_result', name, ...output });
+                // 実行結果イベント
+                send({ type: 'tool_call_result', name, ...output });
 
-              toolCallRecords.push({
-                name,
-                arguments: args,
-                ...output,
-                durationMs,
-                contentOffset,
+                toolCallRecords.push({
+                  name,
+                  arguments: args,
+                  ...output,
+                  durationMs,
+                  contentOffset,
+                });
+
+                return { name, result: output.result, images };
               });
-
-              return { name, result: output.result, images };
             })
           );
 

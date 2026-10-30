@@ -244,16 +244,25 @@ export type Tool = {
    */
   runTimeoutMs?: number;
   /**
+   * 順に実行する組の名前（#149 Phase C）。同じ組のツールは、同じ応答の中で 1 つずつ、呼ばれた順に実行する
+   * （前の呼び出しの準備・承認・実行が終わってから次に入る）。1 つのページを共有するブラウザのツールが、
+   * 前の操作の後のページで次の準備（承認カードの要素）を作るため。省略したツールは並べて実行する
+   */
+  exclusive?: string;
+  /**
    * 実行前に承認が要るツールの準備（#148 Phase A2）。持つツールは、エージェントループが準備 → 承認 → `run` の順に進め、
    * `execute` は呼ばない。承認の要らないツールは省略する
    *
    * @param args - LLM から渡された引数
    * @param signal - ツールのタイムアウト・停止で中断される signal
+   * @param context - 応答ごとの文脈（{@link ToolContext}。#149 Phase C）。エージェントループは必ず渡す。
+   *   使わないツールは受け取らなくてよい。ループの外（テスト）から直接呼ぶときは省略でき、文脈が要るツールは失敗を返す
    * @returns 準備の結果（{@link PreparedAction}）
    */
   prepare?: (
     args: Record<string, unknown>,
-    signal: AbortSignal
+    signal: AbortSignal,
+    context?: ToolContext
   ) => Promise<PreparedAction>;
   /**
    * ツール本体を実行する。

@@ -128,7 +128,7 @@ front/src/
 │       │   ├── atoms/
 │       │   │   └── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
 │       │   ├── molecules/
-│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・許可 / 拒否。#148 Phase A2・B）
+│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C）
 │       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像の拡大のダイアログ（#6）
@@ -207,9 +207,12 @@ front/src/
 │   │       │   ├── url-policy.ts #      開く URL の読み取り・宛先の判定（アプリ自身・許可した開発サーバー・プライベート・手元を読んだ後）
 │   │       │   ├── proxy.ts   #         宛先を判定して中継する HTTP プロキシ（http・CONNECT。判定したアドレスへ接続）
 │   │       │   ├── browser.ts #         Chromium の起動・使い回し・同時のセッションの上限・放置で閉じる（globalThis）
-│   │       │   ├── session.ts #         応答ごとのコンテキストとページ・後始末
+│   │       │   ├── session.ts #         応答ごとのコンテキストとページ・後始末・閉じたダイアログと新しいウィンドウの記録・通信が落ち着くのを待つ
 │   │       │   ├── snapshot.ts #        スナップショットの取得・上限での切り詰め・結果の文章
-│   │       │   └── navigate.ts / read-snapshot.ts / screenshot.ts # browser_navigate・browser_snapshot・browser_screenshot
+│   │       │   ├── navigate.ts / read-snapshot.ts / screenshot.ts # browser_navigate・browser_snapshot・browser_screenshot
+│   │       │   ├── element.ts #         参照の形・スナップショットから参照の行を探す・要素の役割と名前（#149 Phase C）
+│   │       │   ├── action.ts  #         操作のツールに共通の準備（承認カード）と実行（照合・操作・操作の後のページ）
+│   │       │   └── click.ts / type.ts / select.ts # browser_click・browser_type・browser_select（実行前に承認）
 │   │       ├── github/        #       GitHub のツール（#148 Phase C。GITHUB_REPOS があるときだけ登録）
 │   │       │   ├── config.ts  #         GITHUB_REPOS の解釈（owner/name の形・大文字小文字の重なり）
 │   │       │   ├── args.ts    #         引数の定義と検証（repo・kind・number・state・limit・ブランチ名・本文）
@@ -328,7 +331,7 @@ front/tests/
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
-    ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
+    ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -478,7 +481,7 @@ model Attachment {
 | `LOCAL_COMMANDS` | エージェントが実行してよいプログラムの名前（カンマ区切り。実行前に承認が要る。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけ。シェル・`env`・`sudo` 等は書いても使わない） | 未設定（コマンドの実行のツールを使わない） |
 | `LOCAL_COMMAND_TIMEOUT_MS` | コマンドの実行時間の上限（ms。上限 600000） | `120000` |
 | `GITHUB_REPOS` | エージェントの GitHub のツールで扱ってよいリポジトリ（`owner/name` のカンマ区切り。読むツールは承認なし、コメント・PR の作成は実行前に承認が要る。認証は `gh auth login`） | 未設定（GitHub のツールを使わない） |
-| `BROWSER_ENABLED` | `true` でエージェントのブラウザのツール（ページを開く・読む・スクリーンショット）を使う（要 `pnpm exec playwright install chromium`） | 未設定（ブラウザのツールを使わない） |
+| `BROWSER_ENABLED` | `true` でエージェントのブラウザのツール（ページを開く・読む・スクリーンショット・クリック・入力・選択。操作は実行前に承認が要る）を使う（要 `pnpm exec playwright install chromium`） | 未設定（ブラウザのツールを使わない） |
 | `BROWSER_LOCAL_ORIGINS` | ブラウザのツールで開いてよい手元の開発サーバーのオリジン（`http://localhost:5173` の形・カンマ区切り。このアプリ自身は書いても開けない） | 未設定（手元のサーバーは開けない） |
 
 ## 状態管理

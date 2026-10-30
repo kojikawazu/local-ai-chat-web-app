@@ -101,13 +101,44 @@ export type GitHubCreatePrApprovalPreview = {
 };
 
 /**
+ * ブラウザの操作の種類（#149 Phase C）。`click` はクリック、`type` は文字の入力、`select` は選択欄で選ぶ
+ */
+export type BrowserOperation = 'click' | 'type' | 'select';
+
+/**
+ * ブラウザの操作の前に、利用者へ見せる内容（#149 Phase C。`docs/18-browser-tools.md`「Phase C: 操作のツール」）。
+ */
+export type BrowserActionApprovalPreview = {
+  /** 何をするか。常に `browser-action` */
+  action: 'browser-action';
+  /** 操作の種類 */
+  operation: BrowserOperation;
+  /** 操作するページの URL */
+  url: string;
+  /** 操作するページのタイトル */
+  title: string;
+  /** 手元の開発サーバー（`BROWSER_LOCAL_ORIGINS`）のページなら true。公開のページなら false */
+  local: boolean;
+  /**
+   * 操作する要素。モデルの説明ではなく、参照から引いた実際の役割と名前（`button "送信する"`）。
+   * ページの中の指示に従ったモデルが、説明と違う要素を指しても見抜けるようにする
+   */
+  element: string;
+  /** 入れる文字（`type`）・選ぶ項目（`select`）。クリックでは省略 */
+  value?: string;
+  /** 入れた後に Enter を押すか（`type` だけ） */
+  submit?: boolean;
+};
+
+/**
  * 実行前に承認を求めるときに、利用者へ見せる内容。何をするか（`action`）で形が決まる。
  */
 export type ApprovalPreview =
   | FileApprovalPreview
   | CommandApprovalPreview
   | GitHubCommentApprovalPreview
-  | GitHubCreatePrApprovalPreview;
+  | GitHubCreatePrApprovalPreview
+  | BrowserActionApprovalPreview;
 
 /**
  * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。

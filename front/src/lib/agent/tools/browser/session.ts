@@ -1,4 +1,4 @@
-import type { BrowserContext, Page } from 'playwright-core';
+import type { BrowserContext, Frame, Page } from 'playwright-core';
 import type { ToolContext } from '../types';
 import { acquireBrowser, releaseBrowser } from './browser';
 import type { BrowserProxy } from './proxy';
@@ -10,15 +10,38 @@ import {
   isLocalOriginUrl,
   judgeDestination,
 } from './url-policy';
-import { BROWSER_VIEWPORT } from '@/constants/agent/browser';
+import {
+  BROWSER_SETTLE_TIMEOUT_MS,
+  BROWSER_VIEWPORT,
+} from '@/constants/agent/browser';
 
 /** 応答ごとの文脈（`scope`）にセッションを置くキー */
 const SESSION_KEY = 'browser-session';
+
+/** 通信が落ち着いたとみなす、進行中のリクエストが無い時間（ミリ秒）。Playwright の `networkidle` と同じ長さ */
+const QUIET_MS = 500;
+
+/** 通信が落ち着いたかを確かめる間隔（ミリ秒） */
+const QUIET_POLL_MS = 50;
 
 /** 1 回の応答の間だけ使うブラウザのセッション。 */
 export type BrowserSession = {
   /** 宛先を判定するプロキシ（止めた接続の記録を持つ） */
   proxy: BrowserProxy;
+  /**
+   * ページで起きたことの記録（閉じたダイアログ・開かずに閉じた新しいウィンドウ）。古い順に足していく。
+   * 操作のツール（#149 Phase C）が、操作の間に増えた分を結果に書く
+   */
+  notices: string[];
+  /**
+   * 通信が落ち着くまで待つ（#149 Phase C）。進行中のリクエストが無い状態が {@link QUIET_MS} 続いたら返る。
+   * 上限（{@link BROWSER_SETTLE_TIMEOUT_MS}）で待つのをやめる（ポーリングするページで時間を使い切らない）。
+   * `waitForLoadState('networkidle')` は文書ごとに 1 度しか待たず、操作が後から始めたリクエスト（`fetch`・新しいウィンドウ）を待たないため、
+   * コンテキストのリクエストを数えて待つ
+   *
+   * @returns 落ち着いた・上限に達したら解決する Promise
+   */
+  waitForQuiet: () => Promise<void>;
   /**
    * ページを返す。まだ無い・中断で閉じたなら開き直す
    *
@@ -138,16 +161,72 @@ async function createSession(
   });
 
   let current: Page | undefined;
+  const notices: string[] = [];
+  // 新しいウィンドウは、最初のページの読み込みのリクエストで記録する。popup のイベントは読み込みの応答の後まで来ず、
+  // 操作の後に落ち着くのを待つ間に間に合わないため（docs/18-browser-tools.md「Phase C の前提の調査」）。転送で続くリクエストは記録しない
+  const noticedPopups = new WeakSet<Page>();
+  const noticePopup = (url: string) =>
+    notices.push(
+      `新しいウィンドウ（${url}）は開かずに閉じました。開くなら browser_navigate を使ってください`
+    );
+  // 進行中のリクエストの数と、最後に始まった・終わった時刻（waitForQuiet が読む）
+  let inflight = 0;
+  let lastActivity = 0;
+  const settle = () => {
+    inflight = Math.max(0, inflight - 1);
+    lastActivity = Date.now();
+  };
+  openedContext.on('requestfinished', settle);
+  openedContext.on('requestfailed', settle);
+  openedContext.on('request', (request) => {
+    inflight++;
+    lastActivity = Date.now();
+    if (!request.isNavigationRequest() || request.redirectedFrom()) return;
+    let frame: Frame;
+    try {
+      frame = request.frame();
+    } catch {
+      // 新しいウィンドウの最初の読み込みは、フレームができる前に始まり、frame() が例外を投げる
+      noticePopup(request.url());
+      return;
+    }
+    // window.open() で空のウィンドウを開いてから移る場合は、フレームがある
+    const page = frame.page();
+    if (page === current || frame !== page.mainFrame()) return;
+    if (noticedPopups.has(page)) return;
+    noticedPopups.add(page);
+    noticePopup(request.url());
+  });
   return {
     ok: true,
     session: {
       proxy: openedProxy,
+      notices,
+      async waitForQuiet() {
+        const since = Date.now();
+        const deadline = since + BROWSER_SETTLE_TIMEOUT_MS;
+        while (Date.now() < deadline) {
+          if (
+            inflight === 0 &&
+            Date.now() - Math.max(lastActivity, since) >= QUIET_MS
+          ) {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, QUIET_POLL_MS));
+        }
+      },
       async page() {
         if (current && !current.isClosed()) return current;
         const page = await openedContext.newPage();
-        // 新しいウィンドウは開かせず、ダイアログ（alert・confirm）は閉じる（読み取りだけのため。Phase C で見直す）
+        // 新しいウィンドウは開かせず（記録は上のリクエストで）、ダイアログ（alert・confirm・prompt）は閉じる（confirm はキャンセルになる）。
+        // ページは 1 つに保ち、確かめる操作を確かめずに進めない（docs/18-browser-tools.md「Phase C の決めること」）
         page.on('popup', (popup) => void popup.close().catch(() => {}));
-        page.on('dialog', (dialog) => void dialog.dismiss().catch(() => {}));
+        page.on('dialog', (dialog) => {
+          notices.push(
+            `ダイアログ（${dialog.type()}）「${dialog.message()}」を${dialog.type() === 'alert' ? '閉じました' : 'キャンセルしました'}`
+          );
+          void dialog.dismiss().catch(() => {});
+        });
         // ページの中のスクリプトによる移動（location.href 等）・転送の後も、最上位のページを追う
         page.on('framenavigated', (frame) => {
           if (frame === page.mainFrame()) topIsLocal = isLocalUrl(frame.url());

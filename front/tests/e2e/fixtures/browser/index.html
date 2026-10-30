@@ -8,9 +8,17 @@
     <h1>確認用のページ</h1>
     <!-- 合言葉は JavaScript で描く（静的な HTML には無いため、ブラウザで開かないと読めない） -->
     <p id="passphrase"></p>
+    <!-- 押すと回数が増える（ブラウザの操作のツール。#149 Phase C） -->
+    <p id="count">押した回数: 0</p>
+    <button id="counter" type="button">数える</button>
     <script>
       document.getElementById('passphrase').textContent =
         '合言葉は「しろくま73」です';
+      let count = 0;
+      document.getElementById('counter').addEventListener('click', () => {
+        count += 1;
+        document.getElementById('count').textContent = `押した回数: ${count}`;
+      });
     </script>
   </body>
 </html>

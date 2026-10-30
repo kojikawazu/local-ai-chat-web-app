@@ -30,6 +30,9 @@ import { getBrowserLocalOrigins, isBrowserEnabled } from './browser/config';
 import { createBrowserNavigateTool } from './browser/navigate';
 import { createBrowserSnapshotTool } from './browser/read-snapshot';
 import { createBrowserScreenshotTool } from './browser/screenshot';
+import { createBrowserClickTool } from './browser/click';
+import { createBrowserTypeTool } from './browser/type';
+import { createBrowserSelectTool } from './browser/select';
 
 let initialized = false;
 
@@ -44,7 +47,7 @@ let initialized = false;
  * 書き込みのフォルダ（作業フォルダにしてよい範囲）の両方があるときだけ登録する。
  * GitHub のツール（読む `github_list`・`github_view`・`github_pr_diff` と、承認が要る `github_comment`・`github_create_pr`。
  * #148 Phase C）は、扱ってよいリポジトリ（`GITHUB_REPOS`）が 1 つ以上あるときだけ登録する。
- * ブラウザのツール（`browser_navigate`・`browser_snapshot`・`browser_screenshot`。#149）は、`BROWSER_ENABLED=true` のときだけ登録する。
+ * ブラウザのツール（読み取りの `browser_navigate`・`browser_snapshot`・`browser_screenshot`。#149。操作の `browser_click`・`browser_type`・`browser_select`。#149 Phase C）は、`BROWSER_ENABLED=true` のときだけ登録する。
  * 手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` に書いたものだけを開ける（無ければ公開の Web だけ）。
  * 2 回目以降の呼び出しは何もしない（`initialized` フラグで冪等性を保証）。
  * `/api/chat` と `/api/tools` の両方から呼ばれても登録は 1 回だけ行われる。
@@ -97,8 +100,12 @@ export function initializeTools(): void {
   }
 
   if (isBrowserEnabled()) {
-    registerTool(createBrowserNavigateTool(getBrowserLocalOrigins()));
+    const localOrigins = getBrowserLocalOrigins();
+    registerTool(createBrowserNavigateTool(localOrigins));
     registerTool(createBrowserSnapshotTool());
     registerTool(createBrowserScreenshotTool());
+    registerTool(createBrowserClickTool(localOrigins));
+    registerTool(createBrowserTypeTool(localOrigins));
+    registerTool(createBrowserSelectTool(localOrigins));
   }
 }

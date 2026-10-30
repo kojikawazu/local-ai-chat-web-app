@@ -574,6 +574,8 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 - ブラウザのツールは #149（[18-browser-tools.md](./18-browser-tools.md)）。`BROWSER_ENABLED=true` のときだけ登録する（`lib/agent/tools/browser/`）。`browser_navigate`（開いてアクセシビリティツリーを返す）・`browser_snapshot`（読み直す・`offset` で続きを読む。1 回 12,000 文字）・`browser_screenshot`（見えている範囲の PNG をモデルへ画像で渡す）。Chromium の通信はアプリの中のプロキシで接続ごとに宛先を判定する。
   - **応答ごとの文脈（`ToolContext`）**: ループは応答ごとに `appOrigin`（`/api/chat` のオリジン）・`scope`（応答ごとに 1 つ作るものの置き場）・`onDispose`（応答の終わりの後始末）・`hasReadLocal` を作り、`execute` の 3 つ目の引数で渡す。ブラウザのセッションは `scope` に置き、応答が終わる（完了・エラー・停止）とループが閉じる。
   - **呼び出しごとの `access`**: `access` に引数から決める関数も書ける（`resolveAccess`）。`browser_navigate` は開く URL が `BROWSER_LOCAL_ORIGINS` なら `local`、それ以外は `network`。実行の後で手元の情報を読んだと分かったとき（手元のページを読み直した・撮った）は、結果の `readLocal` でループに知らせる。公開のページ（その中のスクリプト・iframe・転送）からは、プロキシが手元の開発サーバーへ接続させない（最上位のページが手元のときだけ通す）。
+  - **操作のツール（#149 Phase C）**: `browser_click`・`browser_type`・`browser_select` は `prepare` を持ち、承認カードに参照から引いた実際の要素を出してから操作する。`prepare` にも応答ごとの文脈を渡す（3 つ目の引数）。準備・実行ともにページ全体のスナップショットを取り直して参照の行を探し、承認の間に要素が変わっていたら操作しない。操作の後のスナップショットを返す。
+  - **順に実行する組（`exclusive`）**: 同じ組のツールは、同じ応答の中で 1 つずつ、呼ばれた順に実行する（`createInOrderQueue`。前の呼び出しの準備・承認・実行・結果の送信が終わってから次に入る）。6 つのブラウザのツールは `browser` の組で、モデルが 1 回の応答で並べて呼んだ操作も、前の操作の後のページで次の準備をする。止めるかの判定（使えない・手元を読んだ後）も、前の結果を見てから行う。組を持たないツールは今までどおり並べて実行する。
   - **画像のツール**: `requiresVision` のツール（`browser_screenshot`）は、ループの最初にモデルの対応機能（`supportsVision`）を確かめ、画像を読めなければツールの一覧から外す（呼ばれても実行しない）。結果の `images` は `role: 'tool'` のメッセージの `images` に入れ、画面・DB へは送らない。画像を渡せないのに「撮った」とだけ返すと、モデルは見たふりをして答えるため（`docs/18-browser-tools.md`「前提の調査」）。
 
 ---

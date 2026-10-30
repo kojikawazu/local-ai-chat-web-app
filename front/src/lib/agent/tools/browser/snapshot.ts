@@ -9,13 +9,16 @@ const SNAPSHOT_TIMEOUT_MS = 5_000;
 /**
  * ページのアクセシビリティツリーを文字で取る（#149）。
  *
- * 通常の形（要素の参照なし）で取る。参照付き（`mode: 'ai'`）は 1.5 倍の文字数になり、読み取りでは使わないため。
+ * 要素の参照付き（`mode: 'ai'`。`button "送信する" [ref=e10]`）で取る。操作のツール（#149 Phase C）は要素を参照で指すため、
+ * 読み直しを挟まずに操作へ進めるよう、読み取りの結果にも付ける（文字数は通常の形の約 1.5 倍になる）。
  *
  * @param page - 読むページ
  * @returns スナップショット（YAML に近い形の文字列）
  */
 export function takeSnapshot(page: Page): Promise<string> {
-  return page.locator('body').ariaSnapshot({ timeout: SNAPSHOT_TIMEOUT_MS });
+  return page
+    .locator('body')
+    .ariaSnapshot({ mode: 'ai', timeout: SNAPSHOT_TIMEOUT_MS });
 }
 
 /** {@link formatPageResult} に渡すページの情報。 */

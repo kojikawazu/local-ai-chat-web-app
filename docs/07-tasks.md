@@ -1086,3 +1086,16 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 自動のセキュリティレビューの指摘: アドレスの判定が `[::ffff:7f00:1]`（URL が書き換える IPv4-mapped の形）・`::` ですり抜け、`url_fetch` もループバックに届いた。`network-guard.ts` を `net.BlockList` にし、NAT64・IPv4-compatible の埋め込みも判定する（UT `network-guard.test.ts` 31 件）
 - [x] PR #197 の自動のセキュリティレビューの指摘: 公開のページの中のスクリプトが、許可した手元の開発サーバーを `fetch` で読めた（手元を読んだ印が付かず、外へ送れた）。最上位のページが手元のときだけ手元への接続を通す（`gateByTopPage`。UT 4 件）。続く指摘で、公開のページから手元へ移るときに古いページのスクリプトが残る隙も、先に `about:blank` へ移ってから切り替えて塞いだ
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`18`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）
+
+## フェーズ45: ブラウザでクリック・入力するツール（#149 Phase C）
+
+エージェントが、開いたページの要素をクリックする・文字を入れる・選択欄で選ぶ。操作の前には毎回、利用者の承認を挟む。設計は [18-browser-tools.md](./18-browser-tools.md)「Phase C: 操作のツール」。 — #149・サブ issue #198（2026-10-30 着手）
+
+- [x] 前提の調査（要素の参照 `mode: 'ai'` は要素に結び付き、DOM が変わってもずれない。消えた要素の参照は待ち時間の上限で失敗する。`qwen3.8:27b` は参照を正しく選び、1 回の応答で複数の操作を並べて呼ぶ）
+- [x] 設計（`docs/18-browser-tools.md`。3 つのツール・参照で指定・スナップショットを参照付きに・毎回の承認・実際の要素をカードに出す・実行の直前の照合・ブラウザのツールを順に実行・パスワード欄は断る）
+- [x] 設計のレビュー（推奨どおり）
+- [x] 順に実行する組（`exclusive`。`createInOrderQueue`）と `prepare` への文脈の受け渡し（ループ）
+- [x] 参照で要素を探す・照合する（`element.ts`）と操作の共通の準備と実行（`action.ts`）。実装の IT で、要素だけのスナップショットを取ると Playwright の参照の表が置き換わり、承認の後に参照が引けなくなると分かった。ページ全体のスナップショットを取り直して参照の行を探す形にした
+- [x] `browser_click`・`browser_type`・`browser_select` と承認カード（`browser-action`）。新しいウィンドウは `popup` のイベントが遅いため最初の読み込みのリクエストで記録し、操作の後は `networkidle` ではなくリクエストを数えて落ち着くのを待つ（`waitForQuiet`）
+- [x] UT（`browser-actions.test.ts` 22 件）・IT（`chat-agent-browser-actions.test.ts` 16 件。実際の Chromium と承認の API）・E2E（`browser-tools.spec.ts` に 2 件。承認カードの許可と拒否は大モデルのみ。確認用のページに「数える」ボタンを足した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`15`・`18`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/security.md`）
