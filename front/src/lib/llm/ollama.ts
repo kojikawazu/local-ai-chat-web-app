@@ -45,6 +45,20 @@ export interface OllamaStreamChunk {
   };
   /** ストリームの終端チャンクなら true */
   done: boolean;
+  /** 入力のトークン数（終端チャンクだけ。キャッシュの分を含む。#31） */
+  prompt_eval_count?: number;
+  /** 入力のうちキャッシュから読んだトークン数（終端チャンクだけ。#31） */
+  prompt_eval_cached_count?: number;
+  /** 入力の処理の時間（ナノ秒。終端チャンクだけ。#31） */
+  prompt_eval_duration?: number;
+  /** 出力のトークン数（終端チャンクだけ。思考のトークンを含む。#31） */
+  eval_count?: number;
+  /** 出力の生成の時間（ナノ秒。終端チャンクだけ。#31） */
+  eval_duration?: number;
+  /** モデルの読み込みの時間（ナノ秒。終端チャンクだけ。#31） */
+  load_duration?: number;
+  /** Ollama の中の時間の合計（ナノ秒。終端チャンクだけ。#31） */
+  total_duration?: number;
 }
 
 /**

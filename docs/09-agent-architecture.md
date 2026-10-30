@@ -335,7 +335,7 @@ Content-Type: application/x-ndjson
 | `tool_call_start` | `name: string`, `arguments: object`, `contentOffset: number` | ツール呼び出し開始。`contentOffset` はその時点で送った本文の文字数（#186） | A |
 | `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean`, `approval?: 'approved' \| 'rejected' \| 'expired'`, `screenshots?: ToolScreenshot[]` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150。`approval` は承認が要るツールの承認の結果。#148 Phase A2。`screenshots` はブラウザのツールが撮った画面で、中身（`data`）付き。`done` の `toolCalls` は中身を外して載せる。#200） | A |
 | `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview`, `timeoutMs: number` | 承認が要るツールの実行前に、見せる内容を送って利用者の許可を待つ。`timeoutMs` は待ち時間の上限で、画面は受け取った時刻から承認カードの残り時間を数える（#202）。`preview` は `action` で形が決まる（`create` / `overwrite` / `edit` はファイルの差分、`run` はコマンド・実行ファイル・作業フォルダ・時間の上限、`github-comment`・`github-create-pr` はリポジトリと公開か・送る本文）（#148 Phase A2・B・C。`docs/15-tool-approval.md`・`docs/16-command-execution.md`・`docs/17-github-tools.md`） | A2 |
-| `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
+| `done` | `metadata?: { toolCalls?: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number; metrics?: ResponseMetrics }` | ストリーミング完了（実行統計付き）。`metrics` はトークン数・所要時間で、エージェントはラウンドの合計（#31。`docs/19-token-metrics.md`）。通常のチャットの `done` は `metrics` だけを持つ | A/C |
 | `error` | `message: string` | エラー発生 | A |
 | `thinking` | `content: string` | エージェントの思考過程 | C |
 
@@ -349,7 +349,7 @@ Content-Type: application/x-ndjson
 
 ### 後方互換性
 
-エージェントモード無効時（ツール定義なし）は、従来のプレーンテキストストリーミングを維持する。
+エージェントモード無効時（ツール定義なし）も、#31 から同じ NDJSON で `text_delta` と `done`（トークン数・所要時間付き）を送る。それより前は本文の文字列を流していた。画面は文字列の応答も読める経路を残している（E2E で `/api/chat` を文字列の応答に差し替えるテストのため）。
 
 フロントエンドはレスポンスの **`Content-Type` ヘッダー**でフォーマットを判定する:
 - `application/x-ndjson` → NDJSON イベントストリームとしてパース
@@ -601,7 +601,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 ```
 
 **動作:**
-- `enableTools: false`（デフォルト）: 従来と同じプレーンテキストストリーミング
+- `enableTools: false`（デフォルト）: ツールを渡さない。NDJSON で `text_delta` と `done` を返す（#31。それより前はプレーンテキストストリーミング）
 - `enableTools: true`: ツール定義を Ollama に渡し、NDJSON イベントストリームで応答
 - `systemPrompt` が指定された場合、エージェントループの先頭に `role: 'system'` メッセージとして挿入
 - **追記（#10）**: 会話の役割（システムプロンプト）の導入で、`systemPrompt` は通常モードでも先頭に付けるようになった。エージェントモードでは、クライアントが会話の役割を先に、下記のプリセットを後に置いて連結したものを送る（`lib/chat/system-prompt.ts` の `buildSystemPrompt`。詳細は `03-api-design.md`）
@@ -682,7 +682,7 @@ model Message {
 }
 ```
 
-- 値のある項目だけを保存する。ツールを使わず思考だけした応答でも、`thinkingText`・`agentRounds`・`agentDurationMs` は残る。値のある項目が 1 つも無い場合（通常チャットの応答）は `metadata` は `null`
+- 値のある項目だけを保存する。ツールを使わず思考だけした応答でも、`thinkingText`・`agentRounds`・`agentDurationMs` は残る。値のある項目が 1 つも無い場合は `metadata` は `null`。通常チャットの応答は、トークン数・所要時間（`metrics`。#31）が届けばそれだけを持つ
 - 表示用の state と保存する値は、同じ関数（`lib/chat/message-metadata.ts` の `buildMessageMetadata`）で組み立てる。片方だけ項目が欠けて、再読み込みで表示が消えるのを防ぐ
 - 取得時は `parseMessageMetadata` で項目ごとに実行時検証し、型が合わない項目だけを捨てる（DB の JSON 列は任意の値を持てるため）。ツール呼び出しは名前と結果が文字列なら復元し、欠けた項目は既定値で補う
 - **本文が空の応答は保存されない**（保存 API が `content` を必須とするため）。ツール呼び出し後にモデルが最終回答の本文を返さなかった場合、付随情報ごと再読み込みで消える
@@ -788,7 +788,7 @@ export interface Message {
 1. **NDJSON パーサー追加**: レスポンスを行単位で読み取り、JSON パースしてイベント型で処理
 2. **ツール状態管理**: `activeToolCall: { name: string; arguments: object } | null` を追加
 3. **メタデータ蓄積**: ツール呼び出し情報を蓄積し、最終的に Message の metadata に格納
-4. **後方互換**: プレーンテキストストリーミング（エージェント無効時）も引き続きサポート
+4. **後方互換**: プレーンテキストストリーミングも引き続き読める（#31 で通常のチャットも NDJSON にしたため、今は E2E の差し替えの応答だけが使う）
 
 #### ToolCallIndicator コンポーネント
 

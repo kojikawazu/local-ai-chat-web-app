@@ -834,7 +834,7 @@ describe('POST /api/chat（エージェント・本文の位置とラウンド�
       expect(start).toMatchObject({ contentOffset: narration.length });
       const done = events.at(-1);
       expect(
-        done?.type === 'done' && done.metadata?.toolCalls[0]
+        done?.type === 'done' && done.metadata?.toolCalls?.[0]
       ).toMatchObject({
         name: 'get_current_datetime',
         contentOffset: narration.length,
@@ -861,4 +861,99 @@ describe('POST /api/chat（エージェント・本文の位置とラウンド�
   });
 
   // 異常系: 位置と区切りはループが数えるだけで、入力起因の失敗経路が無い（Ollama の失敗はこのファイルの他の describe が担う）
+});
+
+describe('POST /api/chat（エージェント・トークン数と所要時間。#31）', () => {
+  const datetimeCall = {
+    tool_calls: [{ function: { name: 'get_current_datetime', arguments: {} } }],
+  };
+
+  /**
+   * イベント列の done の metrics を取り出す。
+   *
+   * @param events - イベント列
+   * @returns done の metadata の metrics（無ければ undefined）
+   */
+  function metricsOf(events: AgentStreamEvent[]) {
+    const done = events.at(-1);
+    return done?.type === 'done' ? done.metadata?.metrics : undefined;
+  }
+
+  describe('正常系', () => {
+    it('ラウンドごとの値を合計し、文脈の大きさは一番大きかった入力にする', async () => {
+      stubOllamaSequence([
+        () =>
+          ollamaChunksResponse([datetimeCall], {
+            prompt_eval_count: 1_000,
+            prompt_eval_cached_count: 0,
+            prompt_eval_duration: 300_000_000,
+            eval_count: 20,
+            eval_duration: 500_000_000,
+            load_duration: 2_800_000_000,
+            total_duration: 3_700_000_000,
+          }),
+        () =>
+          ollamaChunksResponse([{ content: '今です' }], {
+            prompt_eval_count: 1_200,
+            prompt_eval_cached_count: 1_000,
+            prompt_eval_duration: 50_000_000,
+            eval_count: 80,
+            eval_duration: 2_000_000_000,
+            load_duration: 1_000_000,
+            total_duration: 2_100_000_000,
+          }),
+      ]);
+
+      const events = await runAgent();
+
+      expect(metricsOf(events)).toEqual({
+        model: 'test',
+        calls: 2,
+        promptTokens: 2_200,
+        promptCachedTokens: 1_000,
+        maxPromptTokens: 1_200,
+        promptDurationMs: 350,
+        outputTokens: 100,
+        outputDurationMs: 2_500,
+        loadDurationMs: 2_801,
+        totalDurationMs: 5_800,
+      });
+      const done = events.at(-1);
+      expect(done?.type === 'done' && done.metadata?.agentRounds).toBe(2);
+    });
+  });
+
+  describe('準正常系', () => {
+    it('値を返さなかったラウンドは合計に入れない', async () => {
+      stubOllamaSequence([
+        () => ollamaChunksResponse([datetimeCall]),
+        () =>
+          ollamaChunksResponse([{ content: '今です' }], {
+            prompt_eval_count: 1_200,
+            eval_count: 80,
+            eval_duration: 2_000_000_000,
+          }),
+      ]);
+
+      const events = await runAgent();
+
+      expect(metricsOf(events)).toMatchObject({
+        calls: 1,
+        promptTokens: 1_200,
+        promptCachedTokens: 0,
+        outputTokens: 80,
+      });
+    });
+
+    it('どのラウンドも値を返さなければ、done は metrics を持たない', async () => {
+      stubOllamaSequence([
+        () => ollamaChunksResponse([datetimeCall]),
+        () => ollamaChunksResponse([{ content: '今です' }]),
+      ]);
+
+      expect(metricsOf(await runAgent())).toBeUndefined();
+    });
+  });
+
+  // 異常系: 値の形の検査（数でない・負）は UT（token-metrics.test.ts）が担う。ここでは Ollama の返し方ごとの配線だけを見る
 });

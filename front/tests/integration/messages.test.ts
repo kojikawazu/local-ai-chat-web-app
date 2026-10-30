@@ -146,6 +146,36 @@ describe('POST /api/conversations/[id]/messages（保存）', () => {
       expect(res.status).toBe(201);
     });
 
+    it('通常のチャットの応答のトークン数・所要時間（metrics）を保存し、GET で同じ内容を返す（#31）', async () => {
+      const id = await createConversation();
+      const metadata = {
+        metrics: {
+          model: 'qwen3.8:27b',
+          calls: 1,
+          promptTokens: 1204,
+          promptCachedTokens: 1180,
+          maxPromptTokens: 1204,
+          promptDurationMs: 312.5,
+          outputTokens: 312,
+          outputDurationMs: 7410,
+          loadDurationMs: 2.2,
+          totalDurationMs: 7800,
+        },
+      };
+      await POST(
+        jsonRequest(URL, 'POST', {
+          role: 'assistant',
+          content: 'こんにちは',
+          metadata,
+        }),
+        routeContext(id)
+      );
+
+      const res = await GET(jsonRequest(URL, 'GET'), routeContext(id));
+      const { messages } = await res.json();
+      expect(messages[0].metadata).toEqual(metadata);
+    });
+
     it('ツール呼び出しが無く思考過程と統計だけの metadata も保存される（#94）', async () => {
       const id = await createConversation();
       const metadata = {

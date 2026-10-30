@@ -3,6 +3,7 @@ import type {
   ToolCallInfo,
   ToolScreenshot,
 } from '@/types/agent/tool-call';
+import type { ResponseMetrics } from '@/types/chat/metrics';
 
 /**
  * Ollama API の function calling へ渡すツール定義。
@@ -128,7 +129,8 @@ export type ToolContext = {
  * - `text_delta`: LLM 応答テキストの増分。逐次的に画面へ追記する。
  * - `tool_call_start`: ツール実行の開始通知。どのツールをどの引数で呼ぶかと、その時点の本文の文字数（`contentOffset`。#186）を含む。
  * - `tool_call_result`: ツール実行の完了通知。結果文字列・エラー有無・要約を含む。ブラウザのツールは撮った画面を中身付きで含む（#200）。
- * - `done`: エージェントループ完了。ツール呼び出し履歴・ラウンド数・総所要時間を含みうる。
+ * - `done`: 応答の完了。ツール呼び出し履歴・ラウンド数・総所要時間と、トークン数・所要時間（`metrics`。#31）を含みうる。
+ *   通常のチャット（ツールなし）も `text_delta` と `done` を送る（#31）。その `done` は `metrics` だけを持つ。
  * - `error`: 処理中に発生したエラー内容。
  * - `thinking`: LLM の思考過程テキスト（Phase C で追加）。
  * - `tool_approval_request`: 承認が要るツールの実行前に、承認 ID と見せる内容を送る（#148 Phase A2）。
@@ -148,9 +150,10 @@ export type AgentStreamEvent =
   | {
       type: 'done';
       metadata?: {
-        toolCalls: ToolCallInfo[];
+        toolCalls?: ToolCallInfo[];
         agentRounds?: number;
         agentDurationMs?: number;
+        metrics?: ResponseMetrics;
       };
     }
   | { type: 'error'; message: string }

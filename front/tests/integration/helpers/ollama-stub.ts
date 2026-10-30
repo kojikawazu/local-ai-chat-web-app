@@ -9,12 +9,33 @@ import { vi } from 'vitest';
  */
 
 /**
+ * 終わりのチャンクに足すトークン数・所要時間（`eval_count`・`eval_duration` 等。時間はナノ秒。#31）。
+ * 省略すると終わりのチャンクは値を持たない（値を返さない Ollama と同じ）。
+ */
+export type StubDoneMetrics = Partial<
+  Record<
+    | 'prompt_eval_count'
+    | 'prompt_eval_cached_count'
+    | 'prompt_eval_duration'
+    | 'eval_count'
+    | 'eval_duration'
+    | 'load_duration'
+    | 'total_duration',
+    number
+  >
+>;
+
+/**
  * Ollama `/api/chat` 相当の NDJSON ストリーミング成功レスポンスを組み立てる。
  *
  * @param contents - 各チャンクが運ぶテキスト断片（順に連結される）
+ * @param metrics - 終わりのチャンクに足すトークン数・所要時間（省略時は持たない）
  * @returns `.ok` が true でボディが NDJSON ストリームの `Response`
  */
-export function ollamaStreamResponse(contents: string[]): Response {
+export function ollamaStreamResponse(
+  contents: string[],
+  metrics: StubDoneMetrics = {}
+): Response {
   const lines = [
     ...contents.map((content) =>
       JSON.stringify({
@@ -27,6 +48,7 @@ export function ollamaStreamResponse(contents: string[]): Response {
       model: 'test',
       message: { role: 'assistant', content: '' },
       done: true,
+      ...metrics,
     }),
   ]
     .map((l) => l + '\n')
@@ -63,9 +85,13 @@ type StubChunkMessage = {
  * ツール呼び出しを本文と混ぜた順序で流したい場合に使う。末尾に `done: true` のチャンクを付ける。
  *
  * @param chunks - 各チャンクが運ぶメッセージ断片（この順に流れる）
+ * @param metrics - 終わりのチャンクに足すトークン数・所要時間（省略時は持たない）
  * @returns `.ok` が true でボディが NDJSON ストリームの `Response`
  */
-export function ollamaChunksResponse(chunks: StubChunkMessage[]): Response {
+export function ollamaChunksResponse(
+  chunks: StubChunkMessage[],
+  metrics: StubDoneMetrics = {}
+): Response {
   const lines = [
     ...chunks.map((message) =>
       JSON.stringify({
@@ -78,6 +104,7 @@ export function ollamaChunksResponse(chunks: StubChunkMessage[]): Response {
       model: 'test',
       message: { role: 'assistant', content: '' },
       done: true,
+      ...metrics,
     }),
   ]
     .map((l) => l + '\n')

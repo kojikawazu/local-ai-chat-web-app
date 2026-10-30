@@ -143,7 +143,7 @@ make db-migrate      # マイグレーション実行
 ```
 
 - フロントエンドからOllamaへの直接通信はしない（Route Handlers経由）
-- ストリーミングは `ReadableStream` でリアルタイム中継（通常モードは text、エージェントモードは NDJSON イベント）
+- ストリーミングは `ReadableStream` でリアルタイム中継（NDJSON イベント。応答の終わりにトークン数・所要時間を送る）
 - エージェントモードは Route Handler 内のループでツールを実行し、結果を LLM に再投入
 - CSS変数ベースのテーマシステム（`data-theme`属性で切替）
 

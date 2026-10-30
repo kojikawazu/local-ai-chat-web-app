@@ -21,6 +21,7 @@ import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
 import MessageImages from '@/components/features/chat/molecules/MessageImages';
 import ApprovalCard from '@/components/features/chat/molecules/ApprovalCard';
+import ResponseMetrics from '@/components/features/chat/molecules/ResponseMetrics';
 import { ToolCallResult } from './ToolCallResult';
 import { AgentThinking } from './AgentThinking';
 import AgentSteps from './AgentSteps';
@@ -205,13 +206,23 @@ export default function ChatWindow({
                   )}
 
                 {msg.role === 'assistant' &&
-                  (msg.metadata?.agentRounds ?? 0) > 0 && (
-                    <div className="mt-1 flex gap-3 text-xs text-[var(--color-nord-4)] opacity-40">
-                      <span>{msg.metadata!.agentRounds} ラウンド</span>
-                      {msg.metadata!.agentDurationMs !== undefined && (
-                        <span>
-                          {(msg.metadata!.agentDurationMs / 1000).toFixed(1)}s
+                  ((msg.metadata?.agentRounds ?? 0) > 0 ||
+                    msg.metadata?.metrics) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-nord-4)]">
+                      {(msg.metadata!.agentRounds ?? 0) > 0 && (
+                        <span className="opacity-40">
+                          {msg.metadata!.agentRounds} ラウンド
                         </span>
+                      )}
+                      {(msg.metadata!.agentRounds ?? 0) > 0 &&
+                        msg.metadata!.agentDurationMs !== undefined && (
+                          <span className="opacity-40">
+                            {(msg.metadata!.agentDurationMs / 1000).toFixed(1)}s
+                          </span>
+                        )}
+                      {/* トークン数・生成の速さ（#31）。押すと内訳が開く */}
+                      {msg.metadata!.metrics && (
+                        <ResponseMetrics metrics={msg.metadata!.metrics} />
                       )}
                     </div>
                   )}

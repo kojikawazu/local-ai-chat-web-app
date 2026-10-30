@@ -134,6 +134,7 @@ front/src/
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
 │       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
+│       │   │   ├── ResponseMetrics.tsx   # 応答のトークン数・生成の速さの要約と、押して開く内訳（#31）
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
 │       │   │   ├── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示。ソースとの切り替え・拡大のボタン（#169・#171・#176）
@@ -244,7 +245,8 @@ front/src/
 │   │           └── edit-file.ts #       1 か所だけ一致する文字列の置き換え（承認が要る・CRLF）
 │   ├── llm/                   #   LLM（Ollama）との通信
 │   │   ├── ollama.ts          #     Ollamaクライアント（streamChat / chatOnce / listModels / getDefaultModel。接続先・モデル解決の唯一の窓口）
-│   │   └── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
+│   │   ├── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
+│   │   └── metrics.ts         #     Ollama の終わりのチャンクからトークン数・所要時間を集める・ラウンドの合計（#31）
 │   ├── chat/                  #   チャット（チャットの部品・useChat から使う）
 │   │   ├── chat-state.ts      #     会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
 │   │   ├── conversation-history.ts # 表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
@@ -253,6 +255,7 @@ front/src/
 │   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
 │   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）
 │   │   ├── approval-countdown.ts #  承認カードの残り時間（受け取った待ち時間からの期限・切り上げ・警告・時間切れ。#202）
+│   │   ├── response-metrics.ts #    応答のトークン数の表示の文字列（要約・内訳・速さ。#31）
 │   │   ├── tool-screenshots.ts #    ツールの画面の表示の URL・保存する記録から中身を外す・保存の添付にする・done の記録に中身を戻す（#200）
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
@@ -282,6 +285,7 @@ front/src/
     │   ├── message.ts         #     Message・MessageImage・MessageSaveState・HistoryEntry
     │   ├── attachment.ts      #     PreparedImage（送信前の添付画像。#6）
     │   ├── agent-timeline.ts  #     AgentTimeline・AgentTimelineStep（エージェントの応答の時系列。#186）
+    │   ├── metrics.ts         #     ResponseMetrics（応答のトークン数・所要時間。#31）
     │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
@@ -338,6 +342,7 @@ front/tests/
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
+    ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）

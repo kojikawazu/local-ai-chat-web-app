@@ -140,7 +140,7 @@ describe('POST /api/chat（エージェント・最大ラウンド到達）', ()
 
       const done = doneOf(events);
       expect(done.metadata?.toolCalls).toHaveLength(MAX_ROUNDS);
-      expect(done.metadata?.toolCalls.every((t) => t.name === TOOL_NAME)).toBe(
+      expect(done.metadata?.toolCalls?.every((t) => t.name === TOOL_NAME)).toBe(
         true
       );
       // 問い合わせ回数 = ツール呼び出しのラウンド + 最終回答の 1 回
