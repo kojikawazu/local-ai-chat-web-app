@@ -133,6 +133,7 @@ export type ToolContext = {
  * - `thinking`: LLM の思考過程テキスト（Phase C で追加）。
  * - `tool_approval_request`: 承認が要るツールの実行前に、承認 ID と見せる内容を送る（#148 Phase A2）。
  *   画面は承認の API で許可か拒否かを返す。決着は続く `tool_call_result`（`approval` 付き）で分かる。
+ *   待ち時間の上限（`timeoutMs`）を載せ、画面は受け取った時刻から残り時間を数える（#202。時計のずれに左右されないよう、絶対時刻は送らない）。
  */
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
@@ -159,6 +160,7 @@ export type AgentStreamEvent =
       approvalId: string;
       name: string;
       preview: ApprovalPreview;
+      timeoutMs: number;
     };
 
 /**

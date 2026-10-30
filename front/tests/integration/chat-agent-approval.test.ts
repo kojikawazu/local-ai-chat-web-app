@@ -13,6 +13,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 import type { NextRequest } from 'next/server';
 import type { AgentStreamEvent } from '@/lib/agent/tools/types';
+import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
 import { jsonRequest, routeContext } from './helpers/db';
 import { ollamaStreamResponse, stubFetch } from './helpers/ollama-stub';
 
@@ -164,6 +165,8 @@ describe('POST /api/chat（ツールの承認）', () => {
       expect(request).toMatchObject({
         name: 'edit_file',
         preview: { action: 'edit', added: 1, removed: 1 },
+        // 画面が承認カードに残り時間を出すための、待ち時間の上限（#202）
+        timeoutMs: APPROVAL_TIMEOUT_MS,
       });
       expect(editResult(events)).toMatchObject({
         isError: false,

@@ -1,6 +1,7 @@
 'use client';
 
-import { ShieldQuestion } from 'lucide-react';
+import { ShieldQuestion, Timer } from 'lucide-react';
+import type { CountdownLevel } from '@/lib/chat/approval-countdown';
 import type {
   ApprovalPreview,
   BrowserActionApprovalPreview,
@@ -14,6 +15,8 @@ import type {
 } from '@/types/agent/tool-call';
 import Button from '@/components/common/atoms/Button';
 import { TOOL_LABELS } from '@/constants/chat/toolLabels';
+import { useApprovalCountdown } from '@/hooks/chat/useApprovalCountdown';
+import { cn } from '@/lib/shared/class-names';
 import ToolScreenshots from './ToolScreenshots';
 
 /** 差分を表示する最大の行数。超えた分は「ほか N 行」と書く（承認は全体に対して行う） */
@@ -50,6 +53,13 @@ function titleOf(preview: ApprovalPreview): string {
     ? BROWSER_TITLES[preview.operation]
     : ACTION_TITLES[preview.action];
 }
+
+/** 残り時間の色（残り 1 分を切ったら黄、時間切れは赤。#202） */
+const COUNTDOWN_CLASSES: Record<CountdownLevel, string> = {
+  normal: 'text-nord-4/80',
+  warning: 'text-nord-aurora-yellow font-bold',
+  expired: 'text-nord-aurora-red font-bold',
+};
 
 /** {@link ApprovalCard} の props。 */
 type ApprovalCardProps = {
@@ -347,6 +357,8 @@ function PreviewBody({ preview }: { preview: ApprovalPreview }) {
  * 何をするかの見出しと、その中身（ファイルの書き込みなら差分、コマンドの実行ならコマンドと作業フォルダ、
  * GitHub への書き込みならリポジトリと送る本文、ブラウザの操作ならページと要素）、
  * 「許可」「拒否」のボタンを出す。
+ * 見出しの横に承認の残り時間を出し（残り 1 分を切ったら黄）、時間切れになったらボタンを押せなくする（#202。
+ * 決着はサーバーが時間切れとして送る `tool_call_result` で届き、カードはそこで消える）。
  *
  * @param props - 承認を待っている実行・残りの数・答えたときの処理を持つ props
  */
@@ -356,6 +368,8 @@ export default function ApprovalCard({
   onRespond,
 }: ApprovalCardProps) {
   const { preview } = request;
+  const countdown = useApprovalCountdown(request.expiresAt);
+  const expired = countdown?.level === 'expired';
 
   return (
     <section
@@ -368,6 +382,19 @@ export default function ApprovalCard({
           className="shrink-0 text-nord-aurora-yellow"
         />
         <h3 className="font-bold text-nord-6">{titleOf(preview)}</h3>
+        {countdown && (
+          <p
+            role="timer"
+            aria-label="承認の残り時間"
+            className={cn(
+              'ml-auto flex shrink-0 items-center gap-1 text-xs tabular-nums',
+              COUNTDOWN_CLASSES[countdown.level]
+            )}
+          >
+            <Timer size={14} aria-hidden />
+            {countdown.label}
+          </p>
+        )}
       </div>
 
       <PreviewBody preview={preview} />
@@ -378,10 +405,16 @@ export default function ApprovalCard({
           {remaining > 0 && `（ほかに ${remaining} 件が待っています）`}
         </p>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => onRespond(false)}>
+          <Button
+            variant="secondary"
+            disabled={expired}
+            onClick={() => onRespond(false)}
+          >
             拒否
           </Button>
-          <Button onClick={() => onRespond(true)}>許可</Button>
+          <Button disabled={expired} onClick={() => onRespond(true)}>
+            許可
+          </Button>
         </div>
       </div>
     </section>

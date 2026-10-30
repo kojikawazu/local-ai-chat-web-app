@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-10-31
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1113,3 +1113,14 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] UT（`browser-screenshots.test.ts` 16 件・`request-body.test.ts` に 3 件）・IT（`chat-agent-browser-screenshots.test.ts` 7 件・`attachments.test.ts`・`message-replace.test.ts` に 4 件）・E2E（`browser-tools.spec.ts` に 3 件。API で保存した会話を開く形で CI でも動く。大モデルの承認のテストに承認カードと結果の画面を足した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`05`・`06`・`09`・`10`・`12`・`13`・`18`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,security}.md`）
 - [x] 動作確認の指摘で直した: 画面が小さく読めない（高さ 120px のサムネイル → 欄の幅いっぱいに縦に並べる）。新しいウィンドウを開かずに閉じるのは分かりにくい（開いたまま操作の対象に切り替え、元のページは閉じる。`session.ts` の `watchPage`）
+
+## フェーズ47: 承認カードに承認の待ち時間の残りを出す
+
+承認の待ち時間（5 分）の残りを承認カードに出し、時間切れが近いことに気づけるようにする。設計は [15-tool-approval.md](./15-tool-approval.md)「承認の待ち時間の表示」。 — #202（2026-10-31 着手）
+
+- [x] 設計（`tool_approval_request` に待ち時間の上限を載せ、画面は受け取った時刻から数える・残り 1 分で警告・時間切れでボタンを押せなくする・決着はサーバーのまま・すべての承認カード）
+- [x] 設計のレビュー（推奨どおり）
+- [x] サーバー（待ち時間の上限を `constants/agent/approval.ts` へ移し、イベントに載せる）
+- [x] 画面（`approval-countdown.ts`・`useApprovalCountdown`・`ApprovalCard` の残り時間と時間切れ）
+- [x] UT（`approval-countdown.test.ts` 13 件）・IT（`chat-agent-approval.test.ts` に待ち時間の上限）・E2E（`command-approval.spec.ts` に 1 件と、許可のテストに残り時間。大モデルのみ）
+- [x] ドキュメント（`docs/02`・`03`・`06`・`09`・`12`・`15`、`CLAUDE.md`）
