@@ -135,6 +135,32 @@ export type Judgement =
     };
 
 /**
+ * 最上位のページが手元の開発サーバーでないときは、手元の開発サーバーへの接続を断る（#149）。
+ *
+ * 公開のページの中のスクリプト・iframe・画像から手元の開発サーバーへ接続させない。開発サーバーは CORS を
+ * すべて許可していることが多く（Vite の既定等）、公開のページが手元の内容を読んで外へ送れる。
+ * また、公開のページに書き出された手元の内容は、ページの URL では手元と分からないまま、モデルへ渡る。
+ * 最上位のページが手元の開発サーバーなら通す（そのページが公開の CDN を読むのは止めない）。
+ *
+ * @param judgement - 宛先の判定（{@link judgeDestination}）
+ * @param topIsLocal - 最上位のページ（開こうとしているページを含む）が手元の開発サーバーか
+ * @returns 手元への接続で、最上位が公開のページなら断る判定。それ以外はそのまま
+ */
+export function gateByTopPage(
+  judgement: Judgement,
+  topIsLocal: boolean
+): Judgement {
+  if (judgement.allowed && judgement.kind === 'local' && !topIsLocal) {
+    return {
+      allowed: false,
+      reason:
+        '公開のページから手元の開発サーバーへは接続しません（手元の内容を公開のページに読ませないため）',
+    };
+  }
+  return judgement;
+}
+
+/**
  * 接続の宛先を判定する（#149。`docs/18-browser-tools.md`「開いてよい URL」）。
  *
  * 名前を引き、次の順に決める。

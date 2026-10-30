@@ -24,7 +24,8 @@ const SETTLE_TIMEOUT_MS = 2_000;
  * 開く URL は、ブラウザに渡す前にも宛先を判定する（止めた理由をはっきり返すため。転送の先・ページの中のリクエストは
  * プロキシが判定する）。開いたら、ネットワークが落ち着くのを少し待ってからスナップショットを返す。
  * `access` は開く URL で決まる（手元の開発サーバーなら `local`、それ以外は `network`）。
- * 公開の URL から手元の開発サーバーへ転送されたときは、結果の `readLocal` で知らせる。
+ * 公開のページからは手元の開発サーバーへ接続させない（転送・ページの中のリクエストも。`gateByTopPage`）。
+ * 開いた後のページが手元の開発サーバーなら、結果の `readLocal` で知らせる。
  *
  * @param localOrigins - 開いてよい手元の開発サーバー（`BROWSER_LOCAL_ORIGINS`）
  * @returns `browser_navigate` のツール
@@ -72,6 +73,7 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
       }
       const { session } = opened;
       const page = await session.page();
+      session.prepareNavigation(parsed.url.href);
 
       // page.goto は signal を受けないため、停止・タイムアウトではページを閉じて読み込みを止める
       // （同じ応答の次の呼び出しでは、セッションがページを開き直す）

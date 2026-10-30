@@ -4,7 +4,12 @@ import { acquireBrowser, releaseBrowser } from './browser';
 import type { BrowserProxy } from './proxy';
 import { startProxy } from './proxy';
 import type { DestinationPolicy } from './url-policy';
-import { appPortOf, isLocalOriginUrl, judgeDestination } from './url-policy';
+import {
+  appPortOf,
+  gateByTopPage,
+  isLocalOriginUrl,
+  judgeDestination,
+} from './url-policy';
 import { BROWSER_VIEWPORT } from '@/constants/agent/browser';
 
 /** 応答ごとの文脈（`scope`）にセッションを置くキー */
@@ -26,6 +31,13 @@ export type BrowserSession = {
    * @returns ページ。まだ何も開いていない・閉じたなら `undefined`
    */
   openedPage: () => Page | undefined;
+  /**
+   * これから開くページを知らせる。最上位のページが手元の開発サーバーかを、開く前に切り替える
+   * （開くページへのリクエスト自体が、最上位のページの判定で止まらないように）
+   *
+   * @param url - 開く URL
+   */
+  prepareNavigation: (url: string) => void;
   /**
    * URL が、許可した手元の開発サーバーのものかを返す
    *
@@ -79,11 +91,14 @@ async function createSession(
   if (!acquired.ok) return acquired;
 
   const policy = policyFor(context, localOrigins);
+  const isLocalUrl = (url: string) => isLocalOriginUrl(url, localOrigins);
+  // 最上位のページが手元の開発サーバーか。公開のページから手元へ接続させないために、プロキシが読む（gateByTopPage）
+  let topIsLocal = false;
   let proxy: BrowserProxy | undefined;
   let browserContext: BrowserContext | undefined;
   try {
-    proxy = await startProxy((hostname, port) =>
-      judgeDestination(hostname, port, policy)
+    proxy = await startProxy(async (hostname, port) =>
+      gateByTopPage(await judgeDestination(hostname, port, policy), topIsLocal)
     );
     browserContext = await acquired.browser.newContext({
       // Chromium は既定でループバックへの通信をプロキシに通さないため、`<-loopback>` で外す（localhost も判定する）
@@ -123,6 +138,10 @@ async function createSession(
         // 新しいウィンドウは開かせず、ダイアログ（alert・confirm）は閉じる（読み取りだけのため。Phase C で見直す）
         page.on('popup', (popup) => void popup.close().catch(() => {}));
         page.on('dialog', (dialog) => void dialog.dismiss().catch(() => {}));
+        // ページの中のスクリプトによる移動（location.href 等）・転送の後も、最上位のページを追う
+        page.on('framenavigated', (frame) => {
+          if (frame === page.mainFrame()) topIsLocal = isLocalUrl(frame.url());
+        });
         current = page;
         return page;
       },
@@ -130,7 +149,10 @@ async function createSession(
         current && !current.isClosed() && current.url() !== 'about:blank'
           ? current
           : undefined,
-      isLocalUrl: (url) => isLocalOriginUrl(url, localOrigins),
+      prepareNavigation: (url) => {
+        topIsLocal = isLocalUrl(url);
+      },
+      isLocalUrl,
     },
   };
 }

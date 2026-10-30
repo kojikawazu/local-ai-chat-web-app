@@ -3,6 +3,7 @@ import { parseLocalOrigins } from '@/lib/agent/tools/browser/config';
 import type { DestinationPolicy } from '@/lib/agent/tools/browser/url-policy';
 import {
   appPortOf,
+  gateByTopPage,
   hostKey,
   isLocalOriginUrl,
   judgeDestination,
@@ -279,6 +280,51 @@ describe('宛先の判定（judgeDestination）', () => {
       );
       expect(!judgement.allowed && judgement.reason).toContain(
         '解決できません'
+      );
+    });
+  });
+});
+
+describe('最上位のページでの手元への接続の制限（gateByTopPage）', () => {
+  const local = {
+    allowed: true as const,
+    kind: 'local' as const,
+    addresses: ['127.0.0.1'],
+  };
+  const publicWeb = {
+    allowed: true as const,
+    kind: 'public' as const,
+    addresses: ['93.184.215.14'],
+  };
+
+  describe('正常系', () => {
+    it('最上位が手元の開発サーバーなら、手元への接続を通す', () => {
+      expect(gateByTopPage(local, true)).toEqual(local);
+    });
+
+    it('公開の Web への接続は、最上位のページに関係なく通す（手元を読んだ後の制限は別に判定する）', () => {
+      expect(gateByTopPage(publicWeb, false)).toEqual(publicWeb);
+      expect(gateByTopPage(publicWeb, true)).toEqual(publicWeb);
+    });
+  });
+
+  describe('準正常系', () => {
+    it('すでに止めた判定はそのまま返す', () => {
+      const blocked = {
+        allowed: false as const,
+        reason: 'このアプリ自身は開けません',
+      };
+      expect(gateByTopPage(blocked, true)).toEqual(blocked);
+      expect(gateByTopPage(blocked, false)).toEqual(blocked);
+    });
+  });
+
+  describe('異常系', () => {
+    it('最上位が公開のページなら、手元への接続（スクリプト・iframe・転送）を断る', () => {
+      const judgement = gateByTopPage(local, false);
+      expect(judgement.allowed).toBe(false);
+      expect(!judgement.allowed && judgement.reason).toContain(
+        '公開のページから手元の開発サーバーへは接続しません'
       );
     });
   });
