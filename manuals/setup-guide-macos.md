@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-30
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -292,6 +292,8 @@ EOF
 > **任意**: コマンド（テスト・`git status` 等）も実行させる場合は、実行してよいプログラムの名前を `LOCAL_COMMANDS` に足します（例: `LOCAL_COMMANDS=git,pnpm`）。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけで、実行のたびに画面にコマンドが出て、許可するまで実行されません。書いたプログラムは何でも実行できる前提で選んでください（`node`・`pnpm` は任意のコードを実行できます。`curl` など外へ送るものは書かないでください）。実行時間の上限は `LOCAL_COMMAND_TIMEOUT_MS`（既定 120 秒）です（`docs/16-command-execution.md`）。
 >
 > **任意**: GitHub の PR・issue を読ませ、コメント・PR の作成もさせる場合は、GitHub CLI を入れてログインし（`brew install gh` → `gh auth login`）、扱ってよいリポジトリを `GITHUB_REPOS` に `owner/name` のカンマ区切りで足します（例: `GITHUB_REPOS=your-name/your-repo`）。読むときは承認なしで、コメント・PR の作成のたびに画面に本文が出て、許可するまで送られません。トークンを `.env.local` に書く必要はありません。`gh` を `LOCAL_COMMANDS` に書く必要もなく、書くと `gh api` などまで承認 1 回で使えるため、書かないでください（`docs/17-github-tools.md`）。
+>
+> **任意**: ブラウザでページを開いて読ませる（JavaScript で描くページ・開発中のアプリの画面）場合は、`front` で `pnpm exec playwright install chromium` を実行して Chromium を入れ、`BROWSER_ENABLED=true` を足します。手元の開発サーバーを開かせるなら、そのオリジンを `BROWSER_LOCAL_ORIGINS` に足します（例: `BROWSER_LOCAL_ORIGINS=http://localhost:5173`）。ほかの手元のサービス（PostgreSQL・Ollama 等）とこのアプリ自身は開けません。読み取りだけで、クリック・入力はしません（`docs/18-browser-tools.md`）。
 
 ### データベースのマイグレーション
 

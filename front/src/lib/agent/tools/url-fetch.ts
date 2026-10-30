@@ -1,6 +1,6 @@
 import type { Tool, ToolOutput } from './types';
 import { toolError } from './output';
-import { lookup } from 'dns/promises';
+import { checkSsrf } from './network-guard';
 import {
   BodyTooLargeError,
   discardBody,
@@ -15,75 +15,6 @@ const MAX_INPUT_BYTES = 2 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15000;
 const TIMEOUT_REASON = `URL の取得がタイムアウトしました（${FETCH_TIMEOUT_MS / 1000}秒）`;
 const TOO_LARGE_REASON = 'ページが大きすぎます（2MB 超）。';
-
-// SSRF 防止: プライベート・特殊 IP アドレス範囲のブロックリスト
-// IPv4-mapped IPv6（::ffff:x.x.x.x）はホスト部を正規化してから照合する
-
-function ipToNumber(ip: string): number {
-  const parts = ip.split('.').map(Number);
-  return (
-    ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
-  );
-}
-
-function inCidr(ip: string, cidr: string): boolean {
-  const [base, bits] = cidr.split('/');
-  const mask = bits ? (~0 << (32 - Number(bits))) >>> 0 : 0xffffffff;
-  return (ipToNumber(ip) & mask) === (ipToNumber(base) & mask);
-}
-
-const IPV4_BLOCKLIST = [
-  '127.0.0.0/8', // ループバック
-  '10.0.0.0/8', // RFC 1918
-  '172.16.0.0/12', // RFC 1918
-  '192.168.0.0/16', // RFC 1918
-  '169.254.0.0/16', // リンクローカル
-  '0.0.0.0/8', // カレントネットワーク
-];
-
-function normalizeIp(raw: string): { isV4: boolean; ip: string } {
-  // IPv4-mapped IPv6 形式（::ffff:192.168.1.1）を IPv4 に正規化
-  const mapped = raw.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  if (mapped) return { isV4: true, ip: mapped[1] };
-  // 純粋な IPv4
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(raw)) return { isV4: true, ip: raw };
-  return { isV4: false, ip: raw };
-}
-
-function isBlockedIpv6(ip: string): boolean {
-  if (ip === '::1') return true;
-  // fc00::/7: 先頭 7 ビットが 1111110 → 先頭バイトが fc または fd
-  if (/^f[cd]/i.test(ip)) return true;
-  // fe80::/10: 先頭 10 ビットが 1111111010 → fe80〜febf
-  if (/^fe[89ab]/i.test(ip)) return true;
-  return false;
-}
-
-async function checkSsrf(hostname: string): Promise<void> {
-  let addresses: string[];
-  try {
-    const result = await lookup(hostname, { all: true });
-    addresses = result.map((r) => r.address);
-  } catch {
-    throw new Error(`ホスト名 "${hostname}" を解決できません`);
-  }
-
-  for (const raw of addresses) {
-    const { isV4, ip } = normalizeIp(raw);
-    if (isV4) {
-      for (const cidr of IPV4_BLOCKLIST) {
-        if (inCidr(ip, cidr)) {
-          throw new Error(`アクセスが禁止されているアドレス範囲です: ${ip}`);
-        }
-      }
-    } else {
-      // isBlockedIpv6() で ::1 / fc00::/7 / fe80::/10 を全てカバーしている
-      if (isBlockedIpv6(ip)) {
-        throw new Error(`アクセスが禁止されているアドレス範囲です: ${ip}`);
-      }
-    }
-  }
-}
 
 // HTML タグを除去してプレーンテキストを抽出する
 function stripHtml(html: string): string {

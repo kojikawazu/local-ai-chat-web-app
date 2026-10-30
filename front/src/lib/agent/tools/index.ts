@@ -1,4 +1,9 @@
-import type { Tool, OllamaToolDefinition, ToolExecution } from './types';
+import type {
+  Tool,
+  OllamaToolDefinition,
+  ToolContext,
+  ToolExecution,
+} from './types';
 
 const toolRegistry = new Map<string, Tool>();
 
@@ -24,17 +29,33 @@ export function getTool(name: string): Tool | undefined {
 /**
  * 登録済み全ツールの定義を Ollama API 向け形式に変換して返す。
  *
+ * @param options - `excludeVision` が true なら、結果を画像で渡すツール（`requiresVision`。#149）を除く
  * @returns Ollama の function calling に渡せるツール定義の配列
  */
-export function getAllToolDefinitions(): OllamaToolDefinition[] {
-  return Array.from(toolRegistry.values()).map((tool) => ({
-    type: 'function' as const,
-    function: {
-      name: tool.definition.name,
-      description: tool.definition.description,
-      parameters: tool.definition.parameters,
-    },
-  }));
+export function getAllToolDefinitions(
+  options: { excludeVision?: boolean } = {}
+): OllamaToolDefinition[] {
+  return Array.from(toolRegistry.values())
+    .filter((tool) => !(options.excludeVision && tool.requiresVision))
+    .map((tool) => ({
+      type: 'function' as const,
+      function: {
+        name: tool.definition.name,
+        description: tool.definition.description,
+        parameters: tool.definition.parameters,
+      },
+    }));
+}
+
+/**
+ * 結果を画像で渡すツール（`requiresVision`）が登録されているかを返す（#149）。
+ *
+ * 無ければ、エージェントループはモデルの対応機能を Ollama に問い合わせずに済む。
+ *
+ * @returns 1 つでもあれば true
+ */
+export function hasVisionTools(): boolean {
+  return Array.from(toolRegistry.values()).some((tool) => tool.requiresVision);
 }
 
 /**
@@ -43,17 +64,19 @@ export function getAllToolDefinitions(): OllamaToolDefinition[] {
  * @param name - 実行するツール名
  * @param args - ツールへ渡す引数（キー→値のマップ）
  * @param signal - ツールの実処理（fetch 等）を中断する signal
+ * @param context - 応答ごとの文脈（{@link ToolContext}。#149）
  * @returns ツールの実行結果（モデルへ返す文章・成否・要約と、接続先ごと使えないかの印）
  * @throws {Error} 指定名のツールが未登録の場合
  */
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  context: ToolContext
 ): Promise<ToolExecution> {
   const tool = toolRegistry.get(name);
   if (!tool) {
     throw new Error(`Unknown tool: "${name}"`);
   }
-  return tool.execute(args, signal);
+  return tool.execute(args, signal, context);
 }

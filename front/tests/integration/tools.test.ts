@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
  * `LOCAL_FILE_ROOTS` を設定していないときは、ローカルのファイルのツールを登録しない（既定では使わない）ことを確かめる。
  * `LOCAL_COMMANDS` があっても、作業フォルダにできる `LOCAL_FILE_WRITE_ROOTS` が無ければ `run_command` を登録しないことも確かめる（#148 Phase B）。
  * `GITHUB_REPOS` が無い・形が合わない値だけなら、GitHub のツールを登録しないことも確かめる（#148 Phase C）。
+ * `BROWSER_ENABLED` が `true` でなければ、`BROWSER_LOCAL_ORIGINS` があってもブラウザのツールを登録しないことも確かめる（#149）。
  * 設定したときに出ることは chat-agent-local-files.test.ts で確かめる（registry は初めて使うときに環境変数を読むため、
  * 設定ごとにファイルを分けてモジュールを読み込み直す）。DB・Ollama は使わない。
  */
@@ -17,6 +18,9 @@ beforeAll(async () => {
   vi.stubEnv('LOCAL_COMMANDS', 'node');
   // owner/name の形でない値だけなら、外して登録しない
   vi.stubEnv('GITHUB_REPOS', 'octo-org/*');
+  // true 以外は使わない（手元のサーバーを書いても登録しない）
+  vi.stubEnv('BROWSER_ENABLED', 'yes');
+  vi.stubEnv('BROWSER_LOCAL_ORIGINS', 'http://localhost:5173');
   ({ GET } = await import('@/app/api/tools/route'));
 });
 
@@ -69,6 +73,11 @@ describe('GET /api/tools', () => {
     it('GITHUB_REPOS に使える値が無ければ、GitHub のツールは出ない', async () => {
       const names = await toolNames();
       expect(names.filter((name) => name.startsWith('github_'))).toEqual([]);
+    });
+
+    it('BROWSER_ENABLED が true でなければ、ブラウザのツールは出ない', async () => {
+      const names = await toolNames();
+      expect(names.filter((name) => name.startsWith('browser_'))).toEqual([]);
     });
   });
 

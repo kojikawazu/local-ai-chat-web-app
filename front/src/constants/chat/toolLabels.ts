@@ -18,4 +18,7 @@ export const TOOL_LABELS: Record<string, string> = {
   github_pr_diff: 'PR の差分',
   github_comment: 'GitHub にコメント',
   github_create_pr: 'PR を作成',
+  browser_navigate: 'ページを開く',
+  browser_snapshot: 'ページを読む',
+  browser_screenshot: 'スクリーンショット',
 };

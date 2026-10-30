@@ -157,7 +157,13 @@ export async function POST(request: NextRequest) {
 
   // エージェントモード: NDJSON イベントストリームを返す
   if (enableTools) {
-    const agentStream = runAgentLoop(messages, model, prompt, request.signal);
+    const agentStream = runAgentLoop(
+      messages,
+      model,
+      prompt,
+      request.signal,
+      request.nextUrl.origin
+    );
     return new Response(agentStream, {
       headers: {
         'Content-Type': 'application/x-ndjson',
