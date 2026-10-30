@@ -393,7 +393,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）も）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
   }[];
@@ -491,7 +491,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ### POST /api/agent/approvals/[id]
 
-エージェントのツールの実行前の承認に、許可か拒否かを渡す（#148 Phase A2。`docs/15-tool-approval.md`）。ファイルの書き込み・コマンドの実行（#148 Phase B。`docs/16-command-execution.md`）・GitHub へのコメントと PR の作成（#148 Phase C。`docs/17-github-tools.md`）で同じ API を使う。`[id]` は `/api/chat` のストリームの `tool_approval_request` の `approvalId`。
+エージェントのツールの実行前の承認に、許可か拒否かを渡す（#148 Phase A2。`docs/15-tool-approval.md`）。ファイルの書き込み・コマンドの実行（#148 Phase B。`docs/16-command-execution.md`）・GitHub へのコメントと PR の作成（#148 Phase C。`docs/17-github-tools.md`）・ブラウザの操作（#149 Phase C。`docs/18-browser-tools.md`。`preview` の `action` は `browser-action`）で同じ API を使う。`[id]` は `/api/chat` のストリームの `tool_approval_request` の `approvalId`。
 
 **リクエスト**
 

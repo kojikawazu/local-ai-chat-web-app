@@ -107,7 +107,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `LOCAL_COMMANDS` | エージェントが実行してよいプログラムの名前（カンマ区切り。実行前に承認が要る。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけ。シェル・`env`・`sudo` 等は書いても使わない） | 未設定（コマンドの実行のツールを使わない） |
 | `LOCAL_COMMAND_TIMEOUT_MS` | コマンドの実行時間の上限（ms。上限 600000） | `120000` |
 | `GITHUB_REPOS` | エージェントの GitHub のツールで扱ってよいリポジトリ（`owner/name` のカンマ区切り。読むツールは承認なし、コメント・PR の作成は実行前に承認が要る。認証は `gh auth login`） | 未設定（GitHub のツールを使わない） |
-| `BROWSER_ENABLED` | `true` でエージェントのブラウザのツール（ページを開く・読む・スクリーンショット）を使う（要 `pnpm exec playwright install chromium`） | 未設定（ブラウザのツールを使わない） |
+| `BROWSER_ENABLED` | `true` でエージェントのブラウザのツール（ページを開く・読む・スクリーンショット・クリック・入力・選択。操作は実行前に承認が要る）を使う（要 `pnpm exec playwright install chromium`） | 未設定（ブラウザのツールを使わない） |
 | `BROWSER_LOCAL_ORIGINS` | ブラウザのツールで開いてよい手元の開発サーバーのオリジン（`http://localhost:5173` の形・カンマ区切り。このアプリ自身は書いても開けない） | 未設定（手元のサーバーは開けない） |
 
 ## 開発手法
@@ -199,7 +199,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
-      - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
+      - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）

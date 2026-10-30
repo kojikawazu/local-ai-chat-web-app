@@ -174,7 +174,7 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |

@@ -9,14 +9,13 @@ import {
 } from './url-policy';
 import {
   BROWSER_BLOCKED_HEADER,
+  BROWSER_EXCLUSIVE,
   BROWSER_NO_CONTEXT_REASON,
+  BROWSER_SETTLE_TIMEOUT_MS,
 } from '@/constants/agent/browser';
 
 /** ページを開くのを待つ時間（ミリ秒）。`url_fetch` と同じ。ツール全般の上限（既定 30 秒）の中に収める */
 const NAVIGATION_TIMEOUT_MS = 15_000;
-
-/** 開いた後、ネットワークが落ち着くのを待つ時間（ミリ秒）。SPA の初回の描画を待つ。ポーリングするページで時間を使い切らない */
-const SETTLE_TIMEOUT_MS = 2_000;
 
 /**
  * ページを開き、アクセシビリティツリーで読むツールを作る（#149。`docs/18-browser-tools.md`）。
@@ -32,12 +31,14 @@ const SETTLE_TIMEOUT_MS = 2_000;
  */
 export function createBrowserNavigateTool(localOrigins: string[]): Tool {
   return {
+    exclusive: BROWSER_EXCLUSIVE,
     access: (args) =>
       isLocalOriginUrl(args.url, localOrigins) ? 'local' : 'network',
     definition: {
       name: 'browser_navigate',
       description:
         'ブラウザで URL を開き、ページの内容（アクセシビリティツリー）を返す。JavaScript で描くページも読める。' +
+        '内容の [ref=e12] は要素の参照で、browser_click・browser_type・browser_select で要素を指すのに使う。' +
         '長いページは先頭だけを返すので、続きは browser_snapshot の offset で読む。' +
         (localOrigins.length > 0
           ? `手元の開発サーバー（${localOrigins.join(', ')}）も開ける。`
@@ -105,7 +106,9 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
           );
         }
         await page
-          .waitForLoadState('networkidle', { timeout: SETTLE_TIMEOUT_MS })
+          .waitForLoadState('networkidle', {
+            timeout: BROWSER_SETTLE_TIMEOUT_MS,
+          })
           .catch(() => {});
 
         const url = page.url();

@@ -2,7 +2,7 @@
 
 > 最終更新: 2026-10-30
 
-エージェントがファイルを作成・編集する前に、利用者の承認を挟むための設計（#148 の Phase A2）。承認の仕組みは、この後のコマンドの実行（Phase B）・ブラウザの操作（#149）でも使い回す前提で作る（Phase B では見せる内容の `ApprovalPreview` を `action` の union にし、`run` を足した。[16-command-execution.md](./16-command-execution.md)。Phase C で GitHub への書き込みの `github-comment`・`github-create-pr` を足した。[17-github-tools.md](./17-github-tools.md)）。読み取りのツール（Phase A）は [14-local-file-tools.md](./14-local-file-tools.md)。
+エージェントがファイルを作成・編集する前に、利用者の承認を挟むための設計（#148 の Phase A2）。承認の仕組みは、この後のコマンドの実行（Phase B）・ブラウザの操作（#149）でも使い回す前提で作る（Phase B では見せる内容の `ApprovalPreview` を `action` の union にし、`run` を足した。[16-command-execution.md](./16-command-execution.md)。Phase C で GitHub への書き込みの `github-comment`・`github-create-pr` を足した。[17-github-tools.md](./17-github-tools.md)。#149 Phase C でブラウザの操作の `browser-action` を足し、`prepare` に応答ごとの文脈を渡すようにした。[18-browser-tools.md](./18-browser-tools.md)）。読み取りのツール（Phase A）は [14-local-file-tools.md](./14-local-file-tools.md)。
 
 ## 目次
 

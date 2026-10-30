@@ -3,7 +3,9 @@ import { toolError } from '../output';
 import { getOpenedPage } from './session';
 import { formatPageResult, parseOffset, takeSnapshot } from './snapshot';
 import {
+  BROWSER_EXCLUSIVE,
   BROWSER_NO_CONTEXT_REASON,
+  BROWSER_NOT_OPENED_REASON,
   MAX_SNAPSHOT_CHARS,
 } from '@/constants/agent/browser';
 
@@ -17,6 +19,7 @@ import {
  */
 export function createBrowserSnapshotTool(): Tool {
   return {
+    exclusive: BROWSER_EXCLUSIVE,
     definition: {
       name: 'browser_snapshot',
       description:
@@ -40,7 +43,7 @@ export function createBrowserSnapshotTool(): Tool {
       if (!offset.ok) return toolError(offset.reason);
       const opened = await getOpenedPage(context);
       if (!opened) {
-        return toolError('先に browser_navigate でページを開いてください');
+        return toolError(BROWSER_NOT_OPENED_REASON);
       }
       const { page, session } = opened;
       try {
