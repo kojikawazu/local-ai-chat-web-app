@@ -27,7 +27,7 @@ model Message {
   attachments    Attachment[]
 }
 
-// メッセージに添付した画像（#6）。user メッセージだけが持つ
+// メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）
 model Attachment {
   id        String   @id @default(uuid())
   messageId String

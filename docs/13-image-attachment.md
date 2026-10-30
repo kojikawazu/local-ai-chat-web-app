@@ -1,6 +1,6 @@
 # 画像添付（マルチモーダル）設計書
 
-> 最終更新: 2026-10-26
+> 最終更新: 2026-10-30
 
 チャットに画像を添付し、画像に対応したモデル（既定の `qwen3.8:27b` 等）に画像を渡して応答を得るための設計（フェーズ13 / #6）。
 
@@ -149,7 +149,7 @@ model Attachment {
 
 - Conversation → Message → Attachment の順でカスケード削除される。
 - `position` を持つのは、同じトランザクションで作った行は `createdAt` が同じになり、並び順を決められないため。
-- 添付を持てるのは user メッセージだけ（保存 API で検証する）。
+- 添付を持てるのは user メッセージだけ（保存 API で検証する）。ただし #200 で、assistant のメッセージにもブラウザのツールが撮った画面を同じ表に保存するようにした（1 回の応答で 20 枚まで。`metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない・LLM へも渡さない。`docs/18-browser-tools.md`「画面をチャットに出す」）。
 
 ## API
 
@@ -288,7 +288,7 @@ model Attachment {
 | 層 | 対象 |
 |---|---|
 | UT | 縮小の寸法・出力形式の選択・ブラウザの上限の判定、マジックナンバーの判定、保存・`/api/chat` のボディの検証（`attachments`・`imageIds`）、LLM へ渡す画像の選び方（新しい順・合計の上限・省略の注記・非対応モデル） |
-| IT | 保存 API（画像付きの保存・role が assistant なら 400・形式違い / 上限超過で 400・409）、メッセージ一覧の `attachments`、`GET /api/attachments/[id]`（200 と `Content-Type`・400・404・会話の削除でカスケード）、`/api/chat`（Ollama へ `images` が渡る・非対応モデルで 400・存在しない ID で 400・履歴の画像の省略）、`/api/models` の `visionModels` |
+| IT | 保存 API（画像付きの保存・assistant はツールの画面を 20 枚まで（#200）・形式違い / 上限超過で 400・409）、メッセージ一覧の `attachments`、`GET /api/attachments/[id]`（200 と `Content-Type`・400・404・会話の削除でカスケード）、`/api/chat`（Ollama へ `images` が渡る・非対応モデルで 400・存在しない ID で 400・履歴の画像の省略）、`/api/models` の `visionModels` |
 | E2E | `image-attachment.spec.ts`: ファイル選択での添付とプレビュー・削除・形式違いと枚数超過の表示・非対応モデルの案内と送信ボタンの無効化・保存済みの画像の復元表示と拡大（API で投入）。画像を送って応答を得るテストは画像に対応したモデルのときだけ実行する |
 
 - CI の E2E のモデル `qwen2.5:0.5b` は画像に対応していない。応答を得るテストは `IS_LIGHT_MODEL` と同じ考え方で、モデルの能力（`visionModels`）で判定してスキップする。それ以外（添付・プレビュー・検証・非対応の案内・復元表示）は CI で走る。

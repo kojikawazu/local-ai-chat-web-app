@@ -1,4 +1,8 @@
-import type { ApprovalPreview, ToolCallInfo } from '@/types/agent/tool-call';
+import type {
+  ApprovalPreview,
+  ToolCallInfo,
+  ToolScreenshot,
+} from '@/types/agent/tool-call';
 
 /**
  * Ollama API の function calling へ渡すツール定義。
@@ -86,6 +90,11 @@ export type ToolExecution = ToolOutput & {
    * 開発サーバーへ転送された等）に、実行の後でループへ知らせる。以降は外部と通信するツールを止める
    */
   readLocal?: boolean;
+  /**
+   * 利用者へ見せる画面のスクリーンショット（中身付き。#200）。ループが `tool_call_result` のイベントに載せ、
+   * 記録（`done`・DB）には中身を外して入れる。モデルへは渡さない（モデルへ渡す画像は `images`）
+   */
+  screenshots?: ToolScreenshot[];
 };
 
 /**
@@ -118,7 +127,7 @@ export type ToolContext = {
  * 各バリアントの意味:
  * - `text_delta`: LLM 応答テキストの増分。逐次的に画面へ追記する。
  * - `tool_call_start`: ツール実行の開始通知。どのツールをどの引数で呼ぶかと、その時点の本文の文字数（`contentOffset`。#186）を含む。
- * - `tool_call_result`: ツール実行の完了通知。結果文字列・エラー有無・要約を含む。
+ * - `tool_call_result`: ツール実行の完了通知。結果文字列・エラー有無・要約を含む。ブラウザのツールは撮った画面を中身付きで含む（#200）。
  * - `done`: エージェントループ完了。ツール呼び出し履歴・ラウンド数・総所要時間を含みうる。
  * - `error`: 処理中に発生したエラー内容。
  * - `thinking`: LLM の思考過程テキスト（Phase C で追加）。
@@ -134,7 +143,7 @@ export type AgentStreamEvent =
       contentOffset: number;
     }
   | ({ type: 'tool_call_result'; name: string } & ToolOutput &
-      Pick<ToolCallInfo, 'approval'>)
+      Pick<ToolCallInfo, 'approval' | 'screenshots'>)
   | {
       type: 'done';
       metadata?: {
@@ -206,6 +215,10 @@ export type PreparedAction =
       ok: true;
       /** 利用者へ見せる内容 */
       preview: ApprovalPreview;
+      /**
+       * 準備で撮った画面（中身付き。#200）。承認の結果（許可・拒否・時間切れ）にかかわらず、ループが結果に入れる
+       */
+      screenshots?: ToolScreenshot[];
       /**
        * 許可されたら行う処理。準備で作った内容をそのまま実行する（見せた内容と違うことはしない）
        *

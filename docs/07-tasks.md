@@ -1099,3 +1099,17 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] `browser_click`・`browser_type`・`browser_select` と承認カード（`browser-action`）。新しいウィンドウは `popup` のイベントが遅いため最初の読み込みのリクエストで記録し、操作の後は `networkidle` ではなくリクエストを数えて落ち着くのを待つ（`waitForQuiet`）
 - [x] UT（`browser-actions.test.ts` 22 件）・IT（`chat-agent-browser-actions.test.ts` 16 件。実際の Chromium と承認の API）・E2E（`browser-tools.spec.ts` に 2 件。承認カードの許可と拒否は大モデルのみ。確認用のページに「数える」ボタンを足した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`15`・`18`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/security.md`）
+
+## フェーズ46: ブラウザの操作の画面をチャットに出す（#149）
+
+ブラウザのツールが開いた・操作した画面のスクリーンショットを、承認カードとツールの結果に出し、会話に保存する。設計は [18-browser-tools.md](./18-browser-tools.md)「画面をチャットに出す」。 — #149・サブ issue #200（2026-10-30 着手）
+
+- [x] 前提の調査（JPEG は PNG の 6 割程度。要素の位置は見えている範囲の px で、画面の外の要素はスクロールの後に範囲に入る）
+- [x] 設計（`docs/18-browser-tools.md`。操作の前・後と開いた後を撮る・枠は位置を別に持って画面で描く・モデルへは渡さない・JPEG・今の添付画像に assistant の画像として保存・1 回の応答で 20 枚まで）
+- [x] 設計のレビュー（推奨どおり）
+- [x] 撮る（`capture.ts`）・操作・開く・スクリーンショットのツールの結果と承認カードに入れる・ループがイベントへ載せ、記録からは中身を外す
+- [x] 保存（メッセージの保存・置き換えの API で assistant の画像。置き換えでは旧応答の画像を消す）・`metadata` の検証・画面で持って保存する（`done` の記録に中身を戻す）
+- [x] 表示（`ToolScreenshots`・`ElementBoxOverlay`・承認カード・ツールの結果・拡大）。枠は SVG を画像と同じ収め方で重ね、位置を割合に直さずに済ませた
+- [x] UT（`browser-screenshots.test.ts` 16 件・`request-body.test.ts` に 3 件）・IT（`chat-agent-browser-screenshots.test.ts` 7 件・`attachments.test.ts`・`message-replace.test.ts` に 4 件）・E2E（`browser-tools.spec.ts` に 3 件。API で保存した会話を開く形で CI でも動く。大モデルの承認のテストに承認カードと結果の画面を足した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`05`・`06`・`09`・`10`・`12`・`13`・`18`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,security}.md`）
+- [x] 動作確認の指摘で直した: 画面が小さく読めない（高さ 120px のサムネイル → 欄の幅いっぱいに縦に並べる）。新しいウィンドウを開かずに閉じるのは分かりにくい（開いたまま操作の対象に切り替え、元のページは閉じる。`session.ts` の `watchPage`）

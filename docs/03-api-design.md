@@ -262,7 +262,7 @@
     role: 'user' | 'assistant';
     content: string;
     createdAt: string;
-    attachments: {            // 添付画像（#6）。並び順。中身は含めない（GET /api/attachments/[id] で取得）
+    attachments: {            // 添付画像（#6）。assistant はブラウザのツールが撮った画面（#200。metadata.toolCalls[].screenshots の ID で参照する）。並び順。中身は含めない（GET /api/attachments/[id] で取得）
       id: string;
       mimeType: 'image/png' | 'image/jpeg';
       width: number;
@@ -293,8 +293,8 @@
   role: 'user' | 'assistant';
   content: string;                          // user は最大10,000文字、assistant は最大100,000文字
   metadata?: Record<string, unknown> | null; // ツール呼び出し情報・思考過程等（任意。JSONオブジェクトのみ）
-  attachments?: {                           // 添付画像（任意。user のときだけ。最大 4 枚。#6）
-    id: string;                             // クライアントが採番した添付 ID（UUID。/api/chat の imageIds で参照する）
+  attachments?: {                           // 画像（任意）。user は添付画像（最大 4 枚。#6）、assistant はブラウザのツールが撮った画面（最大 20 枚。#200）
+    id: string;                             // 添付 ID（UUID）。user はクライアントが採番し /api/chat の imageIds で参照する。assistant はサーバーが撮ったときに採番した ID
     data: string;                           // data: の接頭辞なしの Base64。復号後 5MB まで。中身が PNG / JPEG であること
     width: number;                          // 1〜1,280 の整数（表示の枠の確保にだけ使う）
     height: number;
@@ -318,7 +318,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 保存成功 |
-| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・id が UUID 形式でない・attachments の不正（assistant の添付・枚数・ID・寸法・Base64・5MB 超・PNG / JPEG でない）） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・role/content 欠落・role 不正・content が文字列でない・content が上限超過（user 10,000 / assistant 100,000 文字）・metadata が非オブジェクト・id が UUID 形式でない・attachments の不正（role ごとの枚数（user 4 / assistant 20）・ID・寸法・Base64・5MB 超・PNG / JPEG でない）） |
 | 404 | 会話が見つからない |
 | 409 | 同じ `id` のメッセージ（または添付）が既に存在する |
 | 500 | サーバー内部エラー |
@@ -343,6 +343,12 @@
 {
   content: string;                          // 空でない文字列。最大100,000文字（assistant の上限）
   metadata?: Record<string, unknown> | null; // 置き換え後の metadata（任意。省略時は旧応答の metadata を消す）
+  attachments?: {                           // 置き換え後の応答の画面（任意。ブラウザのツールが撮った画面。最大 20 枚。形は POST と同じ。#200）
+    id: string;
+    data: string;
+    width: number;
+    height: number;
+  }[] | null;
 }
 ```
 
@@ -351,11 +357,11 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 置き換え成功 |
-| 400 | リクエスト不正（会話 ID・メッセージ ID が UUID 形式でない・JSON不正・ボディが非オブジェクト・content が空または文字列でない・content が上限超過・metadata が非オブジェクト） |
+| 400 | リクエスト不正（会話 ID・メッセージ ID が UUID 形式でない・JSON不正・ボディが非オブジェクト・content が空または文字列でない・content が上限超過・metadata が非オブジェクト・attachments の不正） |
 | 404 | その会話に属する assistant の応答が見つからない（user のメッセージ・別の会話のメッセージも 404） |
 | 500 | サーバー内部エラー |
 
-本文・metadata とあわせて `createdAt` を現在時刻にする（表示する時刻を再生成した時刻にするため。再生成できるのは最後の応答だけなので、並び順は変わらない）。会話の `updatedAt` の更新と同一トランザクションで行う。
+本文・metadata とあわせて `createdAt` を現在時刻にする（表示する時刻を再生成した時刻にするため。再生成できるのは最後の応答だけなので、並び順は変わらない）。会話の `updatedAt` の更新と同一トランザクションで行う。旧応答の画面（添付）は同じトランザクションで消し、`attachments` に入れ替える（#200）。
 
 クライアントは生成し終えてから置き換える。生成に失敗した場合・本文が出る前に停止した場合は呼ばず、旧応答の表示に戻す。
 

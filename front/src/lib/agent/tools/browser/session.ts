@@ -29,7 +29,7 @@ export type BrowserSession = {
   /** 宛先を判定するプロキシ（止めた接続の記録を持つ） */
   proxy: BrowserProxy;
   /**
-   * ページで起きたことの記録（閉じたダイアログ・開かずに閉じた新しいウィンドウ）。古い順に足していく。
+   * ページで起きたことの記録（閉じたダイアログ・開いた新しいウィンドウ）。古い順に足していく。
    * 操作のツール（#149 Phase C）が、操作の間に増えた分を結果に書く
    */
   notices: string[];
@@ -163,11 +163,11 @@ async function createSession(
   let current: Page | undefined;
   const notices: string[] = [];
   // 新しいウィンドウは、最初のページの読み込みのリクエストで記録する。popup のイベントは読み込みの応答の後まで来ず、
-  // 操作の後に落ち着くのを待つ間に間に合わないため（docs/18-browser-tools.md「Phase C の前提の調査」）。転送で続くリクエストは記録しない
+  // 記録の文言を決めるときに URL が分からないことがあるため（docs/18-browser-tools.md「Phase C の前提の調査」）。転送で続くリクエストは記録しない
   const noticedPopups = new WeakSet<Page>();
   const noticePopup = (url: string) =>
     notices.push(
-      `新しいウィンドウ（${url}）は開かずに閉じました。開くなら browser_navigate を使ってください`
+      `新しいウィンドウ（${url}）を開きました。元のページは閉じ、以降はこのウィンドウを操作します`
     );
   // 進行中のリクエストの数と、最後に始まった・終わった時刻（waitForQuiet が読む）
   let inflight = 0;
@@ -197,6 +197,40 @@ async function createSession(
     noticedPopups.add(page);
     noticePopup(request.url());
   });
+  /**
+   * ページに、ダイアログ・新しいウィンドウ・ページの中の移動の扱いを付ける（最初のページと、開いた新しいウィンドウに付ける）。
+   *
+   * @param page - 扱いを付けるページ
+   */
+  const watchPage = (page: Page) => {
+    // ダイアログ（alert・confirm・prompt）は閉じる（confirm はキャンセルになる。確かめる操作を確かめずに進めない）
+    page.on('dialog', (dialog) => {
+      notices.push(
+        `ダイアログ（${dialog.type()}）「${dialog.message()}」を${dialog.type() === 'alert' ? '閉じました' : 'キャンセルしました'}`
+      );
+      void dialog.dismiss().catch(() => {});
+    });
+    // 新しいウィンドウ（target="_blank"・window.open）は開いたままにし、以降の操作の対象にする（元のページは閉じる）。
+    // 操作するページは 1 つに保つ（どのページへの操作かを曖昧にしない。docs/18-browser-tools.md「新しいウィンドウ」）。
+    // 新しいウィンドウの読み込みも、ほかの通信と同じくプロキシが宛先を判定する（開く前のページを最上位として判定する）
+    page.on('popup', (popup) => {
+      if (popup.isClosed()) return;
+      watchPage(popup);
+      const previous = current;
+      current = popup;
+      topIsLocal = isLocalUrl(popup.url());
+      if (previous && previous !== popup) {
+        void previous.close().catch(() => {});
+      }
+    });
+    // ページの中のスクリプトによる移動（location.href 等）・転送の後も、最上位のページを追う
+    page.on('framenavigated', (frame) => {
+      if (page === current && frame === page.mainFrame()) {
+        topIsLocal = isLocalUrl(frame.url());
+      }
+    });
+  };
+
   return {
     ok: true,
     session: {
@@ -218,19 +252,7 @@ async function createSession(
       async page() {
         if (current && !current.isClosed()) return current;
         const page = await openedContext.newPage();
-        // 新しいウィンドウは開かせず（記録は上のリクエストで）、ダイアログ（alert・confirm・prompt）は閉じる（confirm はキャンセルになる）。
-        // ページは 1 つに保ち、確かめる操作を確かめずに進めない（docs/18-browser-tools.md「Phase C の決めること」）
-        page.on('popup', (popup) => void popup.close().catch(() => {}));
-        page.on('dialog', (dialog) => {
-          notices.push(
-            `ダイアログ（${dialog.type()}）「${dialog.message()}」を${dialog.type() === 'alert' ? '閉じました' : 'キャンセルしました'}`
-          );
-          void dialog.dismiss().catch(() => {});
-        });
-        // ページの中のスクリプトによる移動（location.href 等）・転送の後も、最上位のページを追う
-        page.on('framenavigated', (frame) => {
-          if (frame === page.mainFrame()) topIsLocal = isLocalUrl(frame.url());
-        });
+        watchPage(page);
         current = page;
         return page;
       },

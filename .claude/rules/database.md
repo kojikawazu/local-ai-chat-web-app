@@ -41,7 +41,7 @@ model Message {
   attachments    Attachment[]
 }
 
-// メッセージに添付した画像（#6）。user メッセージだけが持つ
+// メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）
 model Attachment {
   id        String   @id @default(uuid())
   messageId String
@@ -58,7 +58,7 @@ model Attachment {
 }
 ```
 
-- 添付画像は DB（`bytea`）に置く（ファイルに置かない）。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
+- 添付画像は DB（`bytea`）に置く（ファイルに置かない）。assistant の画像（ブラウザのツールの画面。#200）は `metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
 
 ## Prisma クライアント
 

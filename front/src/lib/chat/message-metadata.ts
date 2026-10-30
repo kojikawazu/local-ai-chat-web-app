@@ -1,5 +1,10 @@
-import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type {
+  ScreenshotBox,
+  ToolCallInfo,
+  ToolScreenshot,
+} from '@/types/agent/tool-call';
 import type { Message } from '@/types/chat/message';
+import { isValidUUID } from '@/lib/shared/validation';
 
 /** メッセージに付く metadata（`null` を除いた形）。 */
 type MessageMetadata = NonNullable<Message['metadata']>;
@@ -35,12 +40,68 @@ function isPositiveInteger(value: unknown): value is number {
 }
 
 /**
+ * 保存済みのスクリーンショットの、要素の位置を検証する（#200）。
+ *
+ * @param value - 保存済みの位置（外部入力）
+ * @returns 左上が 0 以上・幅と高さが 0 より大きい有限な数なら位置、そうでなければ `undefined`
+ */
+function parseBox(value: unknown): ScreenshotBox | undefined {
+  if (!isRecord(value)) return undefined;
+  const { x, y, width, height } = value;
+  if (
+    !isNonNegativeNumber(x) ||
+    !isNonNegativeNumber(y) ||
+    !isNonNegativeNumber(width) ||
+    !isNonNegativeNumber(height) ||
+    width === 0 ||
+    height === 0
+  ) {
+    return undefined;
+  }
+  return { x, y, width, height };
+}
+
+/**
+ * 保存済みのスクリーンショット 1 枚を検証して {@link ToolScreenshot} に戻す（#200）。
+ *
+ * 中身（`data`）は保存しないため、あっても読まない（画像は添付画像の取得 API で表示する）。
+ * 位置（`box`）は形が合うときだけ含める（枠を出せなくても、画像は出す）。
+ *
+ * @param value - 保存済みのスクリーンショット（外部入力）
+ * @returns 復元したスクリーンショット。ID・種類・形式・大きさのどれかが不正なら `null`
+ */
+function parseScreenshot(value: unknown): ToolScreenshot | null {
+  if (!isRecord(value)) return null;
+  const { id, kind, mimeType, width, height, box } = value;
+  if (
+    typeof id !== 'string' ||
+    !isValidUUID(id) ||
+    (kind !== 'before' && kind !== 'after') ||
+    (mimeType !== 'image/jpeg' && mimeType !== 'image/png') ||
+    !isPositiveInteger(width) ||
+    !isPositiveInteger(height)
+  ) {
+    return null;
+  }
+  const parsedBox = parseBox(box);
+  return {
+    id,
+    kind,
+    mimeType,
+    width,
+    height,
+    ...(parsedBox && { box: parsedBox }),
+  };
+}
+
+/**
  * 保存済みのツール呼び出し 1 件を検証して {@link ToolCallInfo} に戻す。
  *
  * ツール名と結果が文字列なら有効とし、欠けた項目は既定値で補う（引数 `{}`・成功・所要時間 0）。
  * 項目が揃っていない古いデータでも、表示に必要な名前と結果があれば復元するため。
  * 要約（`summary`）と空の結果（`isEmpty`）は型が合うときだけ含める（#150 より前のデータは持たない）。
  * 本文の位置（`contentOffset`）も 0 以上の整数のときだけ含める（#186 より前のデータは持たない）。
+ * スクリーンショット（`screenshots`。#200）は 1 枚ずつ検証し、形の合わないものを捨てる。
  *
  * @param value - 保存済みのツール呼び出し（外部入力）
  * @returns 復元したツール呼び出し。名前か結果が文字列でなければ `null`
@@ -56,8 +117,14 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
     isEmpty,
     durationMs,
     contentOffset,
+    screenshots,
   } = value;
   if (typeof name !== 'string' || typeof result !== 'string') return null;
+  const parsedScreenshots = Array.isArray(screenshots)
+    ? screenshots
+        .map(parseScreenshot)
+        .filter((shot): shot is ToolScreenshot => shot !== null)
+    : [];
   return {
     name,
     result,
@@ -68,6 +135,7 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
     durationMs: isNonNegativeNumber(durationMs) ? durationMs : 0,
     ...(Number.isSafeInteger(contentOffset) &&
       isNonNegativeNumber(contentOffset) && { contentOffset }),
+    ...(parsedScreenshots.length > 0 && { screenshots: parsedScreenshots }),
   };
 }
 

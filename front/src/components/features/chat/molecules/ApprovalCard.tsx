@@ -13,6 +13,8 @@ import type {
   ToolApprovalRequest,
 } from '@/types/agent/tool-call';
 import Button from '@/components/common/atoms/Button';
+import { TOOL_LABELS } from '@/constants/chat/toolLabels';
+import ToolScreenshots from './ToolScreenshots';
 
 /** 差分を表示する最大の行数。超えた分は「ほか N 行」と書く（承認は全体に対して行う） */
 const MAX_DIFF_LINES = 400;
@@ -254,6 +256,7 @@ function GitHubCreatePrPreview({
  * ブラウザの操作の、ページ・要素・入れる文字や選ぶ項目（#149 Phase C。`docs/18-browser-tools.md`「Phase C: 操作のツール」）。
  *
  * 要素は、モデルの説明ではなく参照から引いた実際の役割と名前を出す。入れる文字は Markdown として描かず、そのまま出す。
+ * 操作の前の画面があれば、操作する要素を枠で囲んで先頭に出す（#200。画面のどこを操作するかを見せる）。
  *
  * @param props - 承認で見せる内容を持つ props
  * @param props.preview - ブラウザの操作の内容
@@ -265,6 +268,12 @@ function BrowserActionPreview({
 }) {
   return (
     <>
+      {preview.screenshot && (
+        <ToolScreenshots
+          screenshots={[preview.screenshot]}
+          label={TOOL_LABELS[`browser_${preview.operation}`]}
+        />
+      )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-nord-4/60">ページ</dt>
         <dd className="text-nord-4/80 break-all">

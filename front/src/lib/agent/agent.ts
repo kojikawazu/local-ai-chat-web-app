@@ -8,7 +8,11 @@ import {
   hasVisionTools,
 } from './tools/index';
 import { waitForApproval } from './approvals';
-import type { ToolApproval, ToolCallInfo } from '@/types/agent/tool-call';
+import type {
+  ToolApproval,
+  ToolCallInfo,
+  ToolScreenshot,
+} from '@/types/agent/tool-call';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
@@ -231,6 +235,32 @@ async function runTool(
 }
 
 /**
+ * スクリーンショットがあるときだけ、結果に足す `screenshots` を作る（#200。空の配列を記録に残さない）。
+ *
+ * @param screenshots - 撮った画面
+ * @returns 1 枚以上あれば `{ screenshots }`、無ければ空のオブジェクト
+ */
+function withScreenshots(
+  screenshots: ToolScreenshot[]
+): Pick<ToolExecution, 'screenshots'> {
+  return screenshots.length > 0 ? { screenshots } : {};
+}
+
+/**
+ * 記録（`done`・DB）に入れるため、スクリーンショットから中身を外す（#200）。中身はイベントだけが運び、画面が添付画像として保存する。
+ *
+ * @param screenshots - 中身付きのスクリーンショット
+ * @returns 中身を外したスクリーンショット。無ければ `undefined`
+ */
+export function stripScreenshotData(
+  screenshots: ToolScreenshot[] | undefined
+): ToolScreenshot[] | undefined {
+  // data は分割代入で外す（記録には中身を入れない）
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return screenshots?.map(({ data, ...shot }) => shot);
+}
+
+/**
  * 承認されずに書き込み等を行わなかったことを表す結果（#148 Phase A2）。
  *
  * @param decision - 承認の結果（拒否か時間切れ）
@@ -315,6 +345,8 @@ async function runWithApproval(
     return { ...prepared.value.output, durationMs: prepared.durationMs };
   }
 
+  // 準備で撮った画面（操作の前。#200）は、承認の結果にかかわらず結果に入れる
+  const prepShots = prepared.value.screenshots ?? [];
   const approvalId = crypto.randomUUID();
   send({
     type: 'tool_approval_request',
@@ -329,6 +361,7 @@ async function runWithApproval(
   if (decision !== 'approved') {
     return {
       ...declinedOutput(decision),
+      ...withScreenshots(prepShots),
       durationMs: prepared.durationMs,
       approval: decision,
     };
@@ -338,8 +371,18 @@ async function runWithApproval(
   const ran = await withToolTimeout(name, run, loopSignal, tool.runTimeoutMs);
   const durationMs = prepared.durationMs + ran.durationMs;
   return ran.ok
-    ? { ...ran.value, durationMs, approval: 'approved' }
-    : { ...failedOutput(ran.message), durationMs, approval: 'approved' };
+    ? {
+        ...ran.value,
+        ...withScreenshots([...prepShots, ...(ran.value.screenshots ?? [])]),
+        durationMs,
+        approval: 'approved',
+      }
+    : {
+        ...failedOutput(ran.message),
+        ...withScreenshots(prepShots),
+        durationMs,
+        approval: 'approved',
+      };
 }
 
 // Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
@@ -674,12 +717,14 @@ export function runAgentLoop(
                 }
                 const skipReason = unavailableTools.get(name);
                 const access = resolveAccess(tool, args);
-                // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない
+                // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない。
+                // screenshots（#200）は中身付きでイベントに載せ、記録には中身を外して入れる
                 const {
                   durationMs,
                   unavailable,
                   images,
                   readLocal,
+                  screenshots,
                   ...output
                 } =
                   skipReason !== undefined
@@ -705,12 +750,20 @@ export function runAgentLoop(
                 }
 
                 // 実行結果イベント
-                send({ type: 'tool_call_result', name, ...output });
+                send({
+                  type: 'tool_call_result',
+                  name,
+                  ...output,
+                  ...(screenshots && { screenshots }),
+                });
 
                 toolCallRecords.push({
                   name,
                   arguments: args,
                   ...output,
+                  ...(screenshots && {
+                    screenshots: stripScreenshotData(screenshots),
+                  }),
                   durationMs,
                   contentOffset,
                 });

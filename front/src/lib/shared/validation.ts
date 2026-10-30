@@ -83,6 +83,13 @@ export const MAX_DIAGRAM_SOURCE_LENGTH = 50_000;
  */
 export const MAX_IMAGES_PER_MESSAGE = 4;
 /**
+ * 1 回の応答（assistant のメッセージ）で、ブラウザのツールが撮って保存するスクリーンショットの最大枚数（#200）。
+ *
+ * 操作 1 回で 2 枚（前・後）のため、操作 10 回分。サーバーはこれを超えたら撮らず、保存 API もこれを超える添付を断る。
+ * JPEG（品質 70）は 1 枚 数十〜数百 KB のため、保存のボディは数 MB に収まる（`docs/18-browser-tools.md`「画面の表示の上限値」）。
+ */
+export const MAX_TOOL_SCREENSHOTS_PER_MESSAGE = 20;
+/**
  * `/api/chat` の 1 回の送信で LLM へ渡す画像の最大枚数（送信する質問と履歴の合計。#6）。
  *
  * システムプロンプトの先頭に分単位の日時が入り、送信のたびに Ollama のプロンプトのキャッシュが外れるため、

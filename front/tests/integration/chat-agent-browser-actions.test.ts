@@ -333,6 +333,8 @@ describe('正常系', () => {
       title: '操作の確認',
       local: true,
       element: 'button "押す"',
+      // 操作の前の画面（#200）の中身は chat-agent-browser-screenshots.test.ts で確かめる
+      screenshot: expect.objectContaining({ kind: 'before' }),
     });
     const [clicked] = resultsOf(events, 'browser_click');
     expect(clicked).toMatchObject({
@@ -514,18 +516,23 @@ describe('準正常系', () => {
     expect(hits).not.toContain('/deleted');
   });
 
-  it('新しいウィンドウは開かずに閉じ、開こうとした URL を結果に書く', async () => {
+  it('新しいウィンドウは開いたままにし、以降はそのウィンドウを操作する（開いた URL を結果に書く）', async () => {
     const events = await runAgent([
       [navigate()],
       act('browser_click', 'link "別のウィンドウ"'),
+      [{ name: 'browser_snapshot', arguments: {} }],
     ]);
     const [clicked] = resultsOf(events, 'browser_click');
     expect(clicked.isError).toBe(false);
     expect(clicked.result).toContain(
-      `新しいウィンドウ（${origin}/other）は開かずに閉じました`
+      `新しいウィンドウ（${origin}/other）を開きました`
     );
-    // 元のページのまま
-    expect(clicked.result).toContain(`URL: ${origin}/`);
+    // 操作の後のページは、新しいウィンドウ
+    expect(clicked.result).toContain(`URL: ${origin}/other`);
+    expect(clicked.result).toContain('別のページ');
+    // 続く読み直しも、新しいウィンドウを読む
+    const [snapshot] = resultsOf(events, 'browser_snapshot');
+    expect(snapshot.result).toContain(`URL: ${origin}/other`);
   });
 
   it('まだページを開いていなければ、承認を求めずに失敗する', async () => {

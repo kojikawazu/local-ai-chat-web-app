@@ -207,9 +207,9 @@ describe('機能名', () => {
 - 異常系: 存在しない PR は、`gh` のエラーが ❌ で出る（同上）
 
 **ブラウザのツール（`browser-tools.spec.ts`、#149）**（dev サーバーには `playwright.config.ts` が `BROWSER_ENABLED` と、確認用のページを配るサーバー（`127.0.0.1:3101`。2 つ目の `webServer`）のオリジンを `BROWSER_LOCAL_ORIGINS` として渡す。公開の Web には触れない）
-- 正常系: `GET /api/tools` にブラウザの 6 つのツールが出る。確認用のページを開かせると、JavaScript で描いた合言葉を答え、結果がページのタイトルとともに ✅ で出る（**ツール呼び出しが要るため軽量モデルではスキップ**）。「数える」ボタンを押させると、承認カードに参照から引いた実際の要素（`button "数える"`）が出て、許可すると押した後の回数を答える（同上。#149 Phase C）
-- 準正常系: 許可していない手元のサーバー（PostgreSQL の 5499）は開かず、`BROWSER_LOCAL_ORIGINS` の書き方が ❌ で出る（同上）。ボタンを押す前の承認カードで拒否すると、「拒否されました」が ❌ で出る（同上。#149 Phase C）
-- 異常系: 名前を引けないホスト（`.invalid`）は ❌ で出る（同上）。`file:` の URL はモデルが呼ぶのを断るため、IT で確かめる
+- 正常系: `GET /api/tools` にブラウザの 6 つのツールが出る。確認用のページを開かせると、JavaScript で描いた合言葉を答え、結果がページのタイトルとともに ✅ で出る（**ツール呼び出しが要るため軽量モデルではスキップ**）。「数える」ボタンを押させると、承認カードに参照から引いた実際の要素（`button "数える"`）が出て、許可すると押した後の回数を答える（同上。#149 Phase C）。承認カードに要素の枠付きの操作の前の画面が出て、許可すると結果の下に操作の後の画面が出る（同上。#200）。API で保存した、画面付きの応答を開くと、結果の下に操作の前と後の画面が出て、前の画面に要素の枠が出る。押すと拡大し、拡大でも枠が出る（#200。モデルに依存せず CI でも動く）
+- 準正常系: ページを開いただけの結果の画面には、前・後の見出しを付けない（#200。CI でも動く）。許可していない手元のサーバー（PostgreSQL の 5499）は開かず、`BROWSER_LOCAL_ORIGINS` の書き方が ❌ で出る（同上）。ボタンを押す前の承認カードで拒否すると、「拒否されました」が ❌ で出る（同上。#149 Phase C）
+- 異常系: 保存した記録の画面の形が合わない（ID が UUID でない・形式が画像でない）ときは、画面を出さずに結果だけを ✅ で出す（#200。CI でも動く）。名前を引けないホスト（`.invalid`）は ❌ で出る（同上）。`file:` の URL はモデルが呼ぶのを断るため、IT で確かめる
 
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
@@ -435,6 +435,7 @@ front/tests/
 │   ├── network-guard.test.ts     # プライベートのアドレスの判定（IPv4-mapped の 10 進・16 進・省略しない形・未指定・NAT64・IPv4-compatible ですり抜けない・自機の判定。url_fetch とブラウザのツールで共有。#196）
 │   ├── browser-tools.test.ts     # ブラウザのツールの純関数（BROWSER_LOCAL_ORIGINS の解釈・開く URL・宛先の判定（アプリ自身・許可した開発サーバー・プライベート・手元を読んだ後。名前の解決は差し替え）・スナップショットの切り詰めと offset・呼び出しごとの access・画像を読めないモデル。#149）
 │   ├── browser-actions.test.ts   # ブラウザの操作のツールの純関数（参照の形・スナップショットから参照の行を探す・要素の行の役割と名前・submit・選ぶ項目・要約・起きたことの前置き・順に実行する組・ページに触れる前の引数の確かめ。#149 Phase C）
+│   ├── browser-screenshots.test.ts # 操作の画面の純関数（要素の位置を画像に収める・応答ごとの枚数の上限・記録から中身を外す／戻す・保存の添付・表示の URL・保存済みの記録の検証。#200）
 │   ├── local-commands.test.ts    # コマンドの解釈（クォート・シェルの記号を断る・上限）・クォートし直し・許可リスト（シェル等を外す）・渡す環境変数・出力の先頭と末尾と制御文字・結果の文章（#148 Phase B）
 │   ├── local-files.test.ts       # ローカルのファイルのツールの純関数（LOCAL_FILE_ROOTS の解釈・包含の判定・秘匿ファイルの名前・行の切り出し・ワイルドカード・結果の文章・持ち出しの判定。#148）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
@@ -449,7 +450,7 @@ front/tests/
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
 │   ├── conversation-update.test.ts # 会話の役割の変更（保存・外す・他フィールドは変えない・400/404/500）
 │   ├── messages.test.ts          # メッセージ保存/取得・バリデーション・role 別上限・トランザクション・クライアント採番の id（重複は 409）
-│   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・ロールバック
+│   ├── message-replace.test.ts   # 応答の置き換え（再生成）・対象の制限（同じ会話の assistant のみ）・metadata の消去・旧応答の画面の入れ替え（#200）・ロールバック
 │   ├── chat.test.ts              # /api/chat（Ollama fetchスタブ・502契約・400）
 │   ├── chat-agent.test.ts        # /api/chat エージェント経路（url_fetch / web_search のサイズ超過・タイムアウト中断・SSRF・リトライ停止・SearXNG の未起動 / 403 / 応答しない検索エンジン・失敗の isError と要約・0 件の空の結果・接続先ごと使えないツールを同じ応答で再び実行しない・ツールの本文の位置 contentOffset とラウンドの区切りの空行）
 │   ├── chat-agent-local-files.test.ts # /api/chat エージェント経路のローカルのファイルのツール（読んだ後の url_fetch・web_search を実行しない・読む前・失敗後は止めない）と GET /api/tools への登録（#148）
@@ -461,11 +462,12 @@ front/tests/
 │   ├── chat-agent-command.test.ts # /api/chat のコマンドの承認の流れ（許可で実行・拒否で実行しない・実行中の停止でプロセスを止める・実行の後は外部と通信するツールを止める）と GET /api/tools
 │   ├── chat-agent-github.test.ts # /api/chat の GitHub のツール（偽の gh。読むツールは承認なしで決まった引数・一時フォルダ・絞った環境変数・コメントと PR の作成の承認カードと --flag=… の引数・拒否で送らない・検証で断ったら gh を呼ばない・既存の PR・gh の失敗・未ログインで再び実行しない・gh が無い・読んだ後は外部と通信するツールを止める）と GET /api/tools（#148 Phase C）
 │   ├── chat-agent-browser.test.ts # /api/chat のブラウザのツール（実際の Chromium と手元の HTTP サーバー。JavaScript で描いた内容・localhost の書き方で 127.0.0.1 だけのサーバー・offset の続き・スクリーンショットの画像はツールのメッセージにだけ・転送とその連鎖・ページの中の fetch と WebSocket を止める・画像を読めないモデル・手元のページの後の外部のツール・アプリ自身・file:・停止でセッションを返す。#149）
-│   ├── chat-agent-browser-actions.test.ts # /api/chat のブラウザの操作（実際の Chromium と承認の API。参照付きのスナップショット・承認カードの実際の要素・クリック・入力と submit・選択・並べた 2 つの操作は順に承認・拒否・承認の間に変わった要素・見つからない参照・パスワード欄・入れられない要素と選べない項目・confirm のキャンセル・新しいウィンドウ・開く前・無効のボタン・承認を待つ間の停止。#149 Phase C）
+│   ├── chat-agent-browser-actions.test.ts # /api/chat のブラウザの操作（実際の Chromium と承認の API。参照付きのスナップショット・承認カードの実際の要素・クリック・入力と submit・選択・並べた 2 つの操作は順に承認・拒否・承認の間に変わった要素・見つからない参照・パスワード欄・入れられない要素と選べない項目・confirm のキャンセル・新しいウィンドウは開いたまま操作の対象にする（#200）・開く前・無効のボタン・承認を待つ間の停止。#149 Phase C）
+│   ├── chat-agent-browser-screenshots.test.ts # /api/chat の操作の画面（承認の依頼の操作の前の画面と要素の位置・画面の外の要素・結果の前と後・done の記録に中身が無い・browser_screenshot はモデルへ渡した PNG と同じ・拒否は前だけ・応答ごとの 20 枚の上限・承認の間に変わった要素。#200）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
-│   ├── attachments.test.ts       # 添付画像の保存（形式の判定・トランザクション・409）・メッセージ一覧の attachments・GET /api/attachments/[id]（ヘッダー・cascade・400/404）
+│   ├── attachments.test.ts       # 添付画像の保存（形式の判定・トランザクション・409・assistant のツールの画面は 20 枚まで。#200）・メッセージ一覧の attachments・GET /api/attachments/[id]（ヘッダー・cascade・400/404）
 │   ├── models.test.ts            # /api/models（Ollama fetchスタブ・502契約・visionModels）
 │   ├── plantuml.test.ts          # /api/diagrams/plantuml（PlantUML fetchスタブ・SVG の中継・PlantUML の 400→400 と理由・入力の 400・接続失敗/時間切れ/500→502・切断→499）
 │   └── generate-title.test.ts    # タイトル自動生成（モデル解決の正準性・切り詰め・500契約）
