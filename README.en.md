@@ -91,7 +91,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 | `LOCAL_COMMANDS` | Program names (comma-separated) the agent may run, each run approved by you first; the working folder must be inside `LOCAL_FILE_WRITE_ROOTS` (shells, `env`, `sudo`, etc. are ignored) | unset (command tool disabled) |
 | `LOCAL_COMMAND_TIMEOUT_MS` | Time limit for a command (ms, max 600000) | `120000` |
 | `GITHUB_REPOS` | Repositories (`owner/name`, comma-separated) the agent's GitHub tools may use; reading needs no approval, commenting / creating a PR is approved by you first (signs in with `gh auth login`) | unset (GitHub tools disabled) |
-| `BROWSER_ENABLED` | Set to `true` to let the agent open web pages in a browser, read them as an accessibility tree / screenshot, and click / type / select (each operation needs your approval) (requires `pnpm exec playwright install chromium`) | unset (browser tools disabled) |
+| `BROWSER_ENABLED` | Set to `true` to let the agent open web pages in a browser, read them as an accessibility tree / screenshot, and click / type / select (each operation needs your approval; screenshots of the page before and after each operation are shown in the chat) (requires `pnpm exec playwright install chromium`) | unset (browser tools disabled) |
 | `BROWSER_LOCAL_ORIGINS` | Local dev-server origins (`http://localhost:5173` form, comma-separated) the browser tools may open; this app itself is never opened | unset (local servers cannot be opened) |
 
 ## Commands

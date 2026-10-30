@@ -2,6 +2,7 @@ import type { Tool } from '../types';
 import { toolError, toolUnavailable } from '../output';
 import { getSession, policyFor } from './session';
 import { formatPageResult, takeSnapshot } from './snapshot';
+import { captureScreen } from './capture';
 import {
   isLocalOriginUrl,
   judgeDestination,
@@ -25,6 +26,7 @@ const NAVIGATION_TIMEOUT_MS = 15_000;
  * `access` は開く URL で決まる（手元の開発サーバーなら `local`、それ以外は `network`）。
  * 公開のページからは手元の開発サーバーへ接続させない（転送・ページの中のリクエストも。`gateByTopPage`）。
  * 開いた後のページが手元の開発サーバーなら、結果の `readLocal` で知らせる。
+ * 開いた画面のスクリーンショットを、利用者へ見せるために結果の `screenshots` に入れる（#200。モデルへは渡さない）。
  *
  * @param localOrigins - 開いてよい手元の開発サーバー（`BROWSER_LOCAL_ORIGINS`）
  * @returns `browser_navigate` のツール
@@ -120,8 +122,11 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
           snapshot: await takeSnapshot(page),
           offset: 0,
         });
+        // 開いた画面を利用者へ見せる（#200。モデルへは渡さない）
+        const shown = await captureScreen(page, context, 'after');
         return {
           ...output,
+          ...(shown && { screenshots: [shown] }),
           summary: output.isError
             ? output.summary
             : `${title || '（タイトルなし）'}（${new URL(url).host}）`,

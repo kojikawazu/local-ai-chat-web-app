@@ -333,7 +333,7 @@ Content-Type: application/x-ndjson
 |------|-----------|------|-------|
 | `text_delta` | `content: string` | テキスト差分（1チャンク分） | A |
 | `tool_call_start` | `name: string`, `arguments: object`, `contentOffset: number` | ツール呼び出し開始。`contentOffset` はその時点で送った本文の文字数（#186） | A |
-| `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean`, `approval?: 'approved' \| 'rejected' \| 'expired'` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150。`approval` は承認が要るツールの承認の結果。#148 Phase A2） | A |
+| `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean`, `approval?: 'approved' \| 'rejected' \| 'expired'`, `screenshots?: ToolScreenshot[]` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150。`approval` は承認が要るツールの承認の結果。#148 Phase A2。`screenshots` はブラウザのツールが撮った画面で、中身（`data`）付き。`done` の `toolCalls` は中身を外して載せる。#200） | A |
 | `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview` | 承認が要るツールの実行前に、見せる内容を送って利用者の許可を待つ。`preview` は `action` で形が決まる（`create` / `overwrite` / `edit` はファイルの差分、`run` はコマンド・実行ファイル・作業フォルダ・時間の上限、`github-comment`・`github-create-pr` はリポジトリと公開か・送る本文）（#148 Phase A2・B・C。`docs/15-tool-approval.md`・`docs/16-command-execution.md`・`docs/17-github-tools.md`） | A2 |
 | `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
 | `error` | `message: string` | エラー発生 | A |
@@ -577,6 +577,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
   - **操作のツール（#149 Phase C）**: `browser_click`・`browser_type`・`browser_select` は `prepare` を持ち、承認カードに参照から引いた実際の要素を出してから操作する。`prepare` にも応答ごとの文脈を渡す（3 つ目の引数）。準備・実行ともにページ全体のスナップショットを取り直して参照の行を探し、承認の間に要素が変わっていたら操作しない。操作の後のスナップショットを返す。
   - **順に実行する組（`exclusive`）**: 同じ組のツールは、同じ応答の中で 1 つずつ、呼ばれた順に実行する（`createInOrderQueue`。前の呼び出しの準備・承認・実行・結果の送信が終わってから次に入る）。6 つのブラウザのツールは `browser` の組で、モデルが 1 回の応答で並べて呼んだ操作も、前の操作の後のページで次の準備をする。止めるかの判定（使えない・手元を読んだ後）も、前の結果を見てから行う。組を持たないツールは今までどおり並べて実行する。
   - **画像のツール**: `requiresVision` のツール（`browser_screenshot`）は、ループの最初にモデルの対応機能（`supportsVision`）を確かめ、画像を読めなければツールの一覧から外す（呼ばれても実行しない）。結果の `images` は `role: 'tool'` のメッセージの `images` に入れ、画面・DB へは送らない。画像を渡せないのに「撮った」とだけ返すと、モデルは見たふりをして答えるため（`docs/18-browser-tools.md`「前提の調査」）。
+  - **利用者へ見せる画面（#200）**: 結果の `screenshots`（`images` とは別。モデルへは渡さない）は、ループが `tool_call_result` に中身付きで載せ、記録（`done`・DB の `toolCalls`）には中身を外して入れる。`prepare` の結果の `screenshots`（操作の前の画面）は、承認の結果にかかわらず結果に入れる。画面（`useChat`）は中身を ID ごとに持ち、応答の保存で assistant の添付画像として送る。撮るのは操作の前（要素の位置付き）・操作の後・`browser_navigate` の後・`browser_screenshot`（モデルへ渡した PNG）で、1 回の応答で 20 枚まで（`browser/capture.ts`。`docs/18-browser-tools.md`「画面をチャットに出す」）。
 
 ---
 

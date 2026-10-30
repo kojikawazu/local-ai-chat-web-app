@@ -5,6 +5,7 @@ import { LoaderCircle } from 'lucide-react';
 import type { ToolCallInfo, ToolCallStatus } from '@/types/agent/tool-call';
 import { TOOL_LABELS } from '@/constants/chat/toolLabels';
 import { WebSearchResult } from '@/components/features/chat/molecules/WebSearchResult';
+import ToolScreenshots from '@/components/features/chat/molecules/ToolScreenshots';
 
 /** {@link ToolCallResult} の props。 */
 type ToolCallResultProps = {
@@ -27,6 +28,7 @@ const STATUS_LABELS: Record<ToolCallStatus, string> = {
  * web_search かつ成功時は {@link WebSearchResult} でリンク付き表示に切り替える。
  * 結果が届く前（`status` あり）は、成否のアイコンの代わりに実行中のスピナー・承認待ちの ⏳ と状態を出し、
  * 展開しても結果の欄は出さない（#192。許可していないのに ✅ に見えないように）。
+ * ブラウザのツールが撮った画面（#200）は、折りたたみの外（見出しの下）に並べ、開かなくても見えるようにする。
  *
  * @param props - 表示するツール呼び出し情報を持つ props
  */
@@ -84,6 +86,12 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
           {isExpanded ? '▲' : '▼'}
         </span>
       </button>
+
+      {toolCall.screenshots && toolCall.screenshots.length > 0 && (
+        <div className="border-t border-[var(--color-nord-3)] px-3 py-2">
+          <ToolScreenshots screenshots={toolCall.screenshots} label={label} />
+        </div>
+      )}
 
       {isExpanded && (
         <div className="border-t border-[var(--color-nord-3)] px-3 py-2 space-y-2">

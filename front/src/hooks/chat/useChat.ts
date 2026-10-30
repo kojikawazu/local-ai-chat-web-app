@@ -21,6 +21,11 @@ import {
   updateToolCallStatus,
 } from '@/lib/chat/tool-call-progress';
 import {
+  restoreScreenshotData,
+  screenshotAttachments,
+  withoutScreenshotData,
+} from '@/lib/chat/tool-screenshots';
+import {
   buildMessageMetadata,
   parseMessageMetadata,
 } from '@/lib/chat/message-metadata';
@@ -73,7 +78,9 @@ type PendingSave = {
   onSaved?: () => void;
   /** 再生成した応答なら true。新規保存（POST）ではなく、同じ ID の旧応答の置き換え（PUT）で保存する */
   replace?: boolean;
-  /** user メッセージに添付した画像（#6）。再試行でも同じ ID・中身を送り直す */
+  /**
+   * 画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）。再試行でも同じ ID・中身を送り直す
+   */
   attachments?: Pick<PreparedImage, 'id' | 'data' | 'width' | 'height'>[];
 };
 
@@ -102,7 +109,7 @@ async function saveMessage(
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, metadata }),
+          body: JSON.stringify({ content, metadata, attachments }),
         }
       )
     : await fetch(`/api/conversations/${conversationId}/messages`, {
@@ -315,15 +322,18 @@ export function useChat({
             ...rest,
             metadata: parseMessageMetadata(msg.metadata),
             createdAt: new Date(msg.createdAt),
-            // 画像の中身は一覧に含まれないため、取得 API の URL で表示する（#6）
-            ...(attachments.length > 0 && {
-              images: attachments.map(({ id, width, height }) => ({
-                id,
-                src: `/api/attachments/${id}`,
-                width,
-                height,
-              })),
-            }),
+            // 画像の中身は一覧に含まれないため、取得 API の URL で表示する（#6）。
+            // assistant の画像はツールのスクリーンショット（#200）で、記録（metadata）から ID で表示するため、添付画像にしない
+            // （会話の履歴の imageIds に入れると、/api/chat が assistant の画像として断る）
+            ...(msg.role === 'user' &&
+              attachments.length > 0 && {
+                images: attachments.map(({ id, width, height }) => ({
+                  id,
+                  src: `/api/attachments/${id}`,
+                  width,
+                  height,
+                })),
+              }),
           };
         }
       );
@@ -390,6 +400,8 @@ export function useChat({
       let agentRounds: number | undefined;
       let agentDurationMs: number | undefined;
       const toolCallRecords: ToolCallInfo[] = [];
+      // tool_call_result で届いたスクリーンショットの中身（ID → Base64。#200）。done の記録（中身なし）に戻し、保存で送る
+      const screenshotData = new Map<string, string>();
       // tool_call_start で受け取った arguments と本文の位置（contentOffset。#186）を tool_call_result まで保持する
       // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
       const pendingToolArgs = new Map<
@@ -419,9 +431,10 @@ export function useChat({
           conversationId: activeConversationId,
           role: 'assistant',
           content: fullAiContent,
-          // 表示中の metadata と同じ内容を保存する。ツールを使わず思考だけした応答も残す（#94）
+          // 表示中の metadata と同じ内容を保存する。ツールを使わず思考だけした応答も残す（#94）。
+          // スクリーンショットの中身は metadata から外し、添付画像として送る（#200）
           metadata: buildMessageMetadata({
-            toolCalls: toolCallRecords,
+            toolCalls: withoutScreenshotData(toolCallRecords),
             thinkingText,
             agentRounds,
             agentDurationMs,
@@ -429,6 +442,7 @@ export function useChat({
           }),
           onSaved: generateTitle,
           replace: replacing !== undefined,
+          attachments: screenshotAttachments(toolCallRecords),
         });
         if (saved) generateTitle?.();
       };
@@ -582,7 +596,13 @@ export function useChat({
                     durationMs: 0,
                     contentOffset: started?.contentOffset,
                     approval: event.approval,
+                    ...(event.screenshots && {
+                      screenshots: event.screenshots,
+                    }),
                   };
+                  for (const shot of event.screenshots ?? []) {
+                    if (shot.data) screenshotData.set(shot.id, shot.data);
+                  }
                   toolCallRecords.push(record);
                   // 仮の記録を結果で置き換え、実行中・承認待ちの表示をやめる（#192）
                   updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
@@ -592,13 +612,22 @@ export function useChat({
                       summary: event.summary,
                       isEmpty: event.isEmpty,
                       approval: event.approval,
+                      ...(event.screenshots && {
+                        screenshots: event.screenshots,
+                      }),
                     })
                   );
                 } else if (event.type === 'done') {
                   // done イベントで metadata（toolCalls・統計）を最終確定
                   if (event.metadata?.toolCalls) {
                     toolCallRecords.length = 0;
-                    toolCallRecords.push(...event.metadata.toolCalls);
+                    // done の記録はスクリーンショットの中身を持たないため、届いた中身を戻す（表示と保存に使う。#200）
+                    toolCallRecords.push(
+                      ...restoreScreenshotData(
+                        event.metadata.toolCalls,
+                        screenshotData
+                      )
+                    );
                   }
                   agentRounds = event.metadata?.agentRounds;
                   agentDurationMs = event.metadata?.agentDurationMs;

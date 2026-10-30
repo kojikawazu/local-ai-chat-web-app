@@ -101,6 +101,46 @@ export type GitHubCreatePrApprovalPreview = {
 };
 
 /**
+ * スクリーンショットの中の、操作する要素の位置（#200）。画像の左上からの px（表示の倍率は 1 のため、画像の画素と一致する）
+ */
+export type ScreenshotBox = {
+  /** 左端 */
+  x: number;
+  /** 上端 */
+  y: number;
+  /** 幅 */
+  width: number;
+  /** 高さ */
+  height: number;
+};
+
+/**
+ * ブラウザのツールが撮った画面のスクリーンショット（#200。`docs/18-browser-tools.md`「画面をチャットに出す」）。
+ *
+ * 記録（`ToolCallInfo.screenshots`）に入れて保存する。画像の中身は添付画像（`Attachment`）として、
+ * 応答の保存のときに画面が送る（この ID で保存し、`/api/attachments/[id]` で取得する）。
+ */
+export type ToolScreenshot = {
+  /** 添付画像の ID（サーバーが撮ったときに採番する UUID） */
+  id: string;
+  /** `before` は操作の前（承認カードの画像）、`after` は操作・ページを開いた後 */
+  kind: 'before' | 'after';
+  /** 形式。操作・ページを開いた後は JPEG、`browser_screenshot` はモデルへ渡した PNG */
+  mimeType: 'image/jpeg' | 'image/png';
+  /** 画像の幅（px） */
+  width: number;
+  /** 画像の高さ（px） */
+  height: number;
+  /** 操作する要素の位置（`before` だけ。要素が画面に見えなければ省く） */
+  box?: ScreenshotBox;
+  /**
+   * 画像の中身（`data:` の接頭辞なしの Base64）。ストリームのイベントと、生成中・保存前の画面の記録だけが持つ。
+   * 保存する記録（`metadata`）・`done` の記録には入れない（中身は添付画像として別に保存する）
+   */
+  data?: string;
+};
+
+/**
  * ブラウザの操作の種類（#149 Phase C）。`click` はクリック、`type` は文字の入力、`select` は選択欄で選ぶ
  */
 export type BrowserOperation = 'click' | 'type' | 'select';
@@ -128,6 +168,10 @@ export type BrowserActionApprovalPreview = {
   value?: string;
   /** 入れた後に Enter を押すか（`type` だけ） */
   submit?: boolean;
+  /**
+   * 操作の前の画面（操作する要素の位置付き。#200）。中身（`data`）を持つ。撮れなかった・1 回の応答の上限を超えたら省く
+   */
+  screenshot?: ToolScreenshot;
 };
 
 /**
@@ -186,6 +230,8 @@ export type ToolCallInfo = {
   contentOffset?: number;
   /** 実行前に承認を求めたツールなら、その結果（{@link ToolApproval}）。承認の要らないツールは持たない */
   approval?: ToolApproval;
+  /** ブラウザのツールが撮った画面（#200）。撮っていないツールは持たない */
+  screenshots?: ToolScreenshot[];
   /**
    * 結果が届く前なら、その状態（{@link ToolCallStatus}）。生成中の画面の仮の記録だけが持ち、結果が届いたら消す。
    * 保存する記録（サーバーから届いた結果）は持たない

@@ -18,6 +18,7 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
+  MAX_TOOL_SCREENSHOTS_PER_MESSAGE,
 } from '@/lib/shared/validation';
 
 /**
@@ -87,13 +88,18 @@ export type SaveMessageBody = {
   content: string;
   /** ツール呼び出し情報・思考過程等。未指定なら保存しない */
   metadata?: Prisma.InputJsonObject;
-  /** 添付画像（#6）。添付が無ければ空配列。user のときだけ持てる */
+  /**
+   * 添付画像（#6）。添付が無ければ空配列。user は添付した画像、assistant はブラウザのツールが撮った画面（#200）
+   */
   attachments: AttachmentInput[];
 };
 
 /** 保存する添付画像 1 枚（検証・復号済み）。 */
 export type AttachmentInput = {
-  /** クライアントが採番した添付の ID（UUID）。`/api/chat` の `imageIds` で参照する */
+  /**
+   * 添付の ID（UUID）。user の添付はクライアントが採番し、`/api/chat` の `imageIds` で参照する。
+   * assistant の画面はサーバーが撮ったときに採番し、`metadata.toolCalls[].screenshots` で参照する（#200）
+   */
   id: string;
   /** 復号した画像のバイト列 */
   data: Uint8Array<ArrayBuffer>;
@@ -111,6 +117,8 @@ export type ReplaceMessageBody = {
   content: string;
   /** 置き換え後の metadata。未指定なら旧応答の metadata を消す */
   metadata?: Prisma.InputJsonObject;
+  /** 置き換え後の応答の画面（#200）。旧応答の画像は消して、これに入れ替える。無ければ空配列 */
+  attachments: AttachmentInput[];
 };
 
 /** `POST /api/conversations/[id]/generate-title` の検証済みボディ。 */
@@ -268,17 +276,21 @@ function isImageDimension(value: unknown): value is number {
  * 上限を超える文字列は復号する前に弾く。
  *
  * @param value - `attachments` の値
+ * @param maxCount - 枚数の上限（user は {@link MAX_IMAGES_PER_MESSAGE}、assistant は {@link MAX_TOOL_SCREENSHOTS_PER_MESSAGE}）
  * @returns 検証・復号済みの添付（未指定なら空配列）。配列でない・枚数超過・要素の形や ID・寸法の不正・ID の重複・Base64 の不正・上限超過・PNG / JPEG でないなら失敗
  */
-function parseAttachments(value: unknown): ParseResult<AttachmentInput[]> {
+function parseAttachments(
+  value: unknown,
+  maxCount: number
+): ParseResult<AttachmentInput[]> {
   if (value == null) return { ok: true, value: [] };
   if (!Array.isArray(value)) {
     return { ok: false, error: 'attachmentsは配列で指定してください' };
   }
-  if (value.length > MAX_IMAGES_PER_MESSAGE) {
+  if (value.length > maxCount) {
     return {
       ok: false,
-      error: `画像は1メッセージにつき${MAX_IMAGES_PER_MESSAGE}枚までです`,
+      error: `画像は1メッセージにつき${maxCount}枚までです`,
     };
   }
 
@@ -552,10 +564,11 @@ export function parseApprovalBody(body: unknown): ParseResult<ApprovalBody> {
  * `POST /api/conversations/[id]/messages` のボディを検証する。
  *
  * `metadata` は指定されたのにオブジェクトでない場合、黙って捨てずに失敗にする。
- * `attachments`（添付画像。#6）は user のときだけ指定できる。
+ * `attachments` は、user は添付画像（#6。{@link MAX_IMAGES_PER_MESSAGE} 枚まで）、assistant はブラウザのツールが撮った画面
+ * （#200。{@link MAX_TOOL_SCREENSHOTS_PER_MESSAGE} 枚まで）。
  *
  * @param body - {@link readJsonBody} で読み取った値
- * @returns 検証済みのボディ。オブジェクトでない・`id` が UUID 形式でない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過・`attachments` の不正（assistant の添付を含む）なら失敗
+ * @returns 検証済みのボディ。オブジェクトでない・`id` が UUID 形式でない・`role`/`content` の欠落・型や role の不正・`metadata` が非オブジェクト・本文の上限超過・`attachments` の不正（role ごとの枚数の超過を含む）なら失敗
  */
 export function parseSaveMessageBody(
   body: unknown
@@ -593,13 +606,10 @@ export function parseSaveMessageBody(
     };
   }
 
-  if (role === 'assistant' && attachments != null) {
-    return {
-      ok: false,
-      error: 'attachmentsはuserのメッセージにだけ指定できます',
-    };
-  }
-  const parsedAttachments = parseAttachments(attachments);
+  const parsedAttachments = parseAttachments(
+    attachments,
+    role === 'user' ? MAX_IMAGES_PER_MESSAGE : MAX_TOOL_SCREENSHOTS_PER_MESSAGE
+  );
   if (!parsedAttachments.ok) return parsedAttachments;
 
   return {
@@ -618,17 +628,17 @@ export function parseSaveMessageBody(
  * `PUT /api/conversations/[id]/messages/[messageId]` のボディを検証する。
  *
  * 置き換えられるのは assistant の応答だけのため、`role` は受け取らず、本文の上限も
- * assistant の上限（{@link MAX_ASSISTANT_MESSAGE_LENGTH}）を使う。
+ * assistant の上限（{@link MAX_ASSISTANT_MESSAGE_LENGTH}）を使う。`attachments` はブラウザのツールが撮った画面（#200）。
  *
  * @param body - {@link readJsonBody} で読み取った値
- * @returns 検証済みのボディ。オブジェクトでない・`content` が空または文字列でない・`metadata` が非オブジェクト・本文の上限超過なら失敗
+ * @returns 検証済みのボディ。オブジェクトでない・`content` が空または文字列でない・`metadata` が非オブジェクト・本文の上限超過・`attachments` の不正なら失敗
  */
 export function parseReplaceMessageBody(
   body: unknown
 ): ParseResult<ReplaceMessageBody> {
   if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
 
-  const { content, metadata } = body;
+  const { content, metadata, attachments } = body;
   if (typeof content !== 'string' || !content) {
     return { ok: false, error: 'contentは空でない文字列で指定してください' };
   }
@@ -644,12 +654,18 @@ export function parseReplaceMessageBody(
       error: `メッセージは${formatCount(MAX_ASSISTANT_MESSAGE_LENGTH)}文字以内で入力してください`,
     };
   }
+  const parsedAttachments = parseAttachments(
+    attachments,
+    MAX_TOOL_SCREENSHOTS_PER_MESSAGE
+  );
+  if (!parsedAttachments.ok) return parsedAttachments;
 
   return {
     ok: true,
     value: {
       content,
       metadata: isJsonObject(metadata) ? metadata : undefined,
+      attachments: parsedAttachments.value,
     },
   };
 }

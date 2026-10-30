@@ -10,11 +10,50 @@ import {
  * `PUT /api/conversations/[id]/messages/[messageId]`（再生成した応答での置き換え。#9）の IT。
  * 本文・metadata・createdAt の置き換え、会話の updatedAt 更新、置き換えられる対象の制限
  * （同じ会話の assistant の応答だけ）を実 DB に対して検証する。
+ * 応答の画面（ブラウザのツールのスクリーンショット。#200）は、旧応答の分を消して入れ替える。
  */
 const URL = 'http://localhost/api/conversations/x/messages/y';
 const NONEXISTENT = '00000000-0000-0000-0000-000000000000';
 /** UUID 形式でない ID。`id` 列は TEXT なので Prisma は例外を投げず、検証が無いと 404 に化ける。 */
 const NOT_UUID = 'not-a-uuid';
+
+/** 先頭だけが JPEG の SOI マーカーのバイト列（サーバーは先頭で形式を判定するだけ） */
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x04, 0x05]);
+
+/**
+ * 保存 API の画面 1 枚を組み立てる（#200）。
+ *
+ * @returns `{ id, data, width, height }` の添付
+ */
+function screenshot() {
+  return {
+    id: crypto.randomUUID(),
+    data: Buffer.from(JPEG_BYTES).toString('base64'),
+    width: 1280,
+    height: 800,
+  };
+}
+
+/**
+ * 応答に、旧応答の画面を 1 枚付ける。
+ *
+ * @param messageId - 応答の ID
+ * @returns 付けた画面の ID
+ */
+async function attachOldScreenshot(messageId: string): Promise<string> {
+  const old = await prisma.attachment.create({
+    data: {
+      messageId,
+      position: 0,
+      mimeType: 'image/jpeg',
+      width: 1280,
+      height: 800,
+      size: JPEG_BYTES.length,
+      data: JPEG_BYTES,
+    },
+  });
+  return old.id;
+}
 
 /**
  * 動的ルート `[id]/messages/[messageId]` の handler に渡すコンテキスト。
@@ -105,6 +144,38 @@ describe('PUT /api/conversations/[id]/messages/[messageId]（置き換え）', (
   });
 
   describe('準正常系', () => {
+    it('旧応答の画面を消し、置き換え後の応答の画面に入れ替える（#200）', async () => {
+      const { conversationId, assistantId } = await createExchange();
+      const oldId = await attachOldScreenshot(assistantId);
+      const shots = [screenshot(), screenshot()];
+
+      const res = await PUT(
+        jsonRequest(URL, 'PUT', { content: '新回答', attachments: shots }),
+        context(conversationId, assistantId)
+      );
+      expect(res.status).toBe(200);
+      const saved = await prisma.attachment.findMany({
+        where: { messageId: assistantId },
+        orderBy: { position: 'asc' },
+      });
+      expect(saved.map((a) => a.id)).toEqual(shots.map((shot) => shot.id));
+      expect(
+        await prisma.attachment.findUnique({ where: { id: oldId } })
+      ).toBeNull();
+    });
+
+    it('画面の無い応答で置き換えると、旧応答の画面は残らない（#200）', async () => {
+      const { conversationId, assistantId } = await createExchange();
+      await attachOldScreenshot(assistantId);
+
+      const res = await PUT(
+        jsonRequest(URL, 'PUT', { content: '新回答' }),
+        context(conversationId, assistantId)
+      );
+      expect(res.status).toBe(200);
+      expect(await prisma.attachment.count()).toBe(0);
+    });
+
     it('metadata を省略すると旧応答の metadata を消す', async () => {
       const { conversationId, assistantId } = await createExchange();
 
@@ -193,6 +264,15 @@ describe('PUT /api/conversations/[id]/messages/[messageId]（置き換え）', (
       ['content が空', { content: '' }],
       ['metadata が配列', { content: 'x', metadata: [1] }],
       [
+        '画面が PNG / JPEG でない（#200）',
+        {
+          content: 'x',
+          attachments: [
+            { ...screenshot(), data: Buffer.from('GIF89a').toString('base64') },
+          ],
+        },
+      ],
+      [
         'content が上限超過',
         { content: 'あ'.repeat(MAX_ASSISTANT_MESSAGE_LENGTH + 1) },
       ],
@@ -211,8 +291,9 @@ describe('PUT /api/conversations/[id]/messages/[messageId]（置き換え）', (
       ).toBe('旧回答');
     });
 
-    it('会話の updatedAt 更新に失敗すると置き換えもロールバックされ 500', async () => {
+    it('会話の updatedAt 更新に失敗すると置き換えもロールバックされ 500（旧応答の画面も残る）', async () => {
       const { conversationId, assistantId } = await createExchange();
+      const oldId = await attachOldScreenshot(assistantId);
       // Prisma をモックせず、実 DB 側で Conversation の UPDATE だけを失敗させる
       // （messages.test.ts の POST と同じ障害注入）
       await prisma.$executeRaw`
@@ -227,7 +308,10 @@ describe('PUT /api/conversations/[id]/messages/[messageId]（置き換え）', (
         FOR EACH ROW EXECUTE FUNCTION fail_conversation_update()`;
       try {
         const res = await PUT(
-          jsonRequest(URL, 'PUT', { content: '新回答' }),
+          jsonRequest(URL, 'PUT', {
+            content: '新回答',
+            attachments: [screenshot()],
+          }),
           context(conversationId, assistantId)
         );
         expect(res.status).toBe(500);
@@ -235,6 +319,11 @@ describe('PUT /api/conversations/[id]/messages/[messageId]（置き換え）', (
           (await prisma.message.findUnique({ where: { id: assistantId } }))
             ?.content
         ).toBe('旧回答');
+        expect(
+          (await prisma.attachment.findMany()).map(
+            (attachment) => attachment.id
+          )
+        ).toEqual([oldId]);
       } finally {
         await prisma.$executeRaw`DROP TRIGGER fail_conversation_update ON "Conversation"`;
         await prisma.$executeRaw`DROP FUNCTION fail_conversation_update()`;

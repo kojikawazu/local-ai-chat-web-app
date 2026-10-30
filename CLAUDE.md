@@ -130,7 +130,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（添付画像）のリレーション（カスケード削除）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -147,8 +147,8 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）の変更 |
 | DELETE | `/api/conversations/[id]` | 会話削除（メッセージもカスケード削除） |
 | GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得（添付画像の情報付き。中身は含めない） |
-| POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可。user は添付画像 `attachments` を指定可） |
-| PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成） |
+| POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可。`attachments` は user の添付画像、assistant はブラウザのツールが撮った画面（#200）） |
+| PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成。旧応答の画面は `attachments` に入れ替える） |
 | POST | `/api/conversations/[id]/generate-title` | LLMで会話タイトル自動生成 |
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 | GET | `/api/attachments/[id]` | 添付画像の中身を返す |
@@ -187,7 +187,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
 - **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`）
@@ -199,9 +199,9 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
-      - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
+      - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。利用者へ見せる画面（操作の前・後、開いた後）は capture.ts で撮り、応答の保存で assistant の添付画像にする。#200。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
   - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）

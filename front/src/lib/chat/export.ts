@@ -1,6 +1,7 @@
 import type { Message } from '@/types/chat/message';
 import type { Conversation } from '@/types/conversation/conversation';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
+import { withoutScreenshotData } from '@/lib/chat/tool-screenshots';
 
 /**
  * 応答・会話の書き出し（#12）。保存するファイルの名前・中身・種類を組み立てる。
@@ -190,6 +191,7 @@ function formatConversationMarkdown(
  *
  * 画面の側だけで持つ保存失敗の状態（`saveState`）は入れない（API・DB には無い値のため）。
  * 添付画像は中身を入れず、ID と大きさだけを `images` に入れる（#6。中身は `GET /api/attachments/[id]` で取れる）。
+ * ブラウザのツールの画面（#200）も、生成した直後の画面の記録が持つ中身を外し、保存したときと同じ形（ID と大きさ）にする。
  *
  * @param conversation - 書き出す会話
  * @param messages - 表示中のメッセージ（古い順）
@@ -216,7 +218,12 @@ function formatConversationJson(
       role: message.role,
       content: message.content,
       createdAt: message.createdAt.toISOString(),
-      metadata: message.metadata ?? null,
+      metadata: message.metadata?.toolCalls
+        ? {
+            ...message.metadata,
+            toolCalls: withoutScreenshotData(message.metadata.toolCalls),
+          }
+        : (message.metadata ?? null),
       images: (message.images ?? []).map(({ id, width, height }) => ({
         id,
         width,

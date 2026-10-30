@@ -6,11 +6,16 @@ import {
 } from '@/app/api/conversations/[id]/messages/route';
 import { DELETE as deleteConversation } from '@/app/api/conversations/[id]/route';
 import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
+import {
+  MAX_IMAGES_PER_MESSAGE,
+  MAX_TOOL_SCREENSHOTS_PER_MESSAGE,
+} from '@/lib/shared/validation';
 
 /**
  * 添付画像（#6）の保存・一覧・取得の IT。
  * user メッセージと添付を 1 トランザクションで保存すること、一覧に中身を含めないこと、
  * 取得 API が中身から判定した形式で返すこと、会話の削除で添付も消えることを実 DB に対して検証する。
+ * assistant の応答には、ブラウザのツールが撮った画面（#200）を添付として保存する。
  */
 const MESSAGES_URL = 'http://localhost/api/conversations/x/messages';
 const ATTACHMENT_URL = 'http://localhost/api/attachments/x';
@@ -87,6 +92,30 @@ describe('POST /api/conversations/[id]/messages（添付の保存）', () => {
   });
 
   describe('準正常系', () => {
+    it(`assistant の応答はブラウザのツールの画面を ${MAX_TOOL_SCREENSHOTS_PER_MESSAGE} 枚まで保存できる（#200。user の上限 ${MAX_IMAGES_PER_MESSAGE} 枚を超えても）`, async () => {
+      const conversationId = await createConversation();
+      const shots = Array.from(
+        { length: MAX_TOOL_SCREENSHOTS_PER_MESSAGE },
+        () => attachment(JPEG_BYTES)
+      );
+
+      const res = await saveMessage(
+        jsonRequest(MESSAGES_URL, 'POST', {
+          role: 'assistant',
+          content: '開きました',
+          attachments: shots,
+        }),
+        routeContext(conversationId)
+      );
+      expect(res.status).toBe(201);
+      const saved = await prisma.attachment.findMany({
+        orderBy: { position: 'asc' },
+      });
+      expect(saved.map((a) => [a.id, a.mimeType])).toEqual(
+        shots.map((shot) => [shot.id, 'image/jpeg'])
+      );
+    });
+
     it('同じメッセージ ID の再送は 409 で、添付は増えない（保存の再試行）', async () => {
       const conversationId = await createConversation();
       const body = {
@@ -110,14 +139,17 @@ describe('POST /api/conversations/[id]/messages（添付の保存）', () => {
   });
 
   describe('異常系', () => {
-    it('assistant の添付は 400 で、メッセージも保存しない', async () => {
+    it(`assistant の添付が ${MAX_TOOL_SCREENSHOTS_PER_MESSAGE} 枚を超えると 400 で、メッセージも保存しない（#200）`, async () => {
       const conversationId = await createConversation();
 
       const res = await saveMessage(
         jsonRequest(MESSAGES_URL, 'POST', {
           role: 'assistant',
           content: '回答',
-          attachments: [attachment()],
+          attachments: Array.from(
+            { length: MAX_TOOL_SCREENSHOTS_PER_MESSAGE + 1 },
+            () => attachment(JPEG_BYTES)
+          ),
         }),
         routeContext(conversationId)
       );

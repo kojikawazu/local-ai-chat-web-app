@@ -4,7 +4,7 @@ import type { Message } from '@/types/chat/message';
 /** 結果の欄に入れる値。{@link finishToolCall} が受け取る */
 type ToolCallOutcome = Pick<
   ToolCallInfo,
-  'result' | 'isError' | 'summary' | 'isEmpty' | 'approval'
+  'result' | 'isError' | 'summary' | 'isEmpty' | 'approval' | 'screenshots'
 >;
 
 /**

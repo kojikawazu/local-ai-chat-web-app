@@ -17,6 +17,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_LONG_EDGE,
   MAX_IMAGES_PER_MESSAGE,
+  MAX_TOOL_SCREENSHOTS_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
@@ -612,6 +613,21 @@ describe('parseSaveMessageBody', () => {
       );
     });
 
+    it('assistant はブラウザのツールの画面を上限の枚数まで添付できる（#200。user の上限を超えても通す）', () => {
+      const attachments = Array.from(
+        { length: MAX_TOOL_SCREENSHOTS_PER_MESSAGE },
+        () => attachment()
+      );
+      const result = parseSaveMessageBody({
+        role: 'assistant',
+        content: '回答',
+        attachments,
+      });
+      expect(result.ok && result.value.attachments).toHaveLength(
+        MAX_TOOL_SCREENSHOTS_PER_MESSAGE
+      );
+    });
+
     it('クライアントが採番した id（UUID）を返す（#9）', () => {
       const id = crypto.randomUUID();
       const result = parseSaveMessageBody({
@@ -724,16 +740,22 @@ describe('parseSaveMessageBody', () => {
       expect(errorOf(parseSaveMessageBody(body))).toBe(expected);
     });
 
-    it('assistant に attachments があれば失敗（添付は user だけが持つ）', () => {
+    it('assistant の attachments がツールの画面の上限の枚数を超えると失敗（#200）', () => {
+      const attachments = Array.from(
+        { length: MAX_TOOL_SCREENSHOTS_PER_MESSAGE + 1 },
+        () => attachment()
+      );
       expect(
         errorOf(
           parseSaveMessageBody({
             role: 'assistant',
             content: '回答',
-            attachments: [attachment()],
+            attachments,
           })
         )
-      ).toBe('attachmentsはuserのメッセージにだけ指定できます');
+      ).toBe(
+        `画像は1メッセージにつき${MAX_TOOL_SCREENSHOTS_PER_MESSAGE}枚までです`
+      );
     });
 
     it('attachments が上限の枚数を超えると失敗', () => {
@@ -849,22 +871,40 @@ describe('parseReplaceMessageBody', () => {
         })
       ).toEqual({
         ok: true,
-        value: { content: '新しい回答', metadata: { agentRounds: 2 } },
+        value: {
+          content: '新しい回答',
+          metadata: { agentRounds: 2 },
+          attachments: [],
+        },
       });
+    });
+
+    it('置き換え後の応答の画面（attachments）を検証して返す（#200）', () => {
+      const shot = attachment();
+      const result = parseReplaceMessageBody({
+        content: '新しい回答',
+        attachments: [shot],
+      });
+      expect(
+        result.ok && result.value.attachments.map((a) => [a.id, a.mimeType])
+      ).toEqual([[shot.id, 'image/png']]);
     });
   });
 
   describe('準正常系', () => {
     it('metadata の null は未指定として扱う（旧応答の metadata を消す）', () => {
       expect(parseReplaceMessageBody({ content: 'x', metadata: null })).toEqual(
-        { ok: true, value: { content: 'x', metadata: undefined } }
+        {
+          ok: true,
+          value: { content: 'x', metadata: undefined, attachments: [] },
+        }
       );
     });
 
     it('role を付けても無視する（置き換えられるのは assistant だけ）', () => {
       expect(parseReplaceMessageBody({ role: 'user', content: 'x' })).toEqual({
         ok: true,
-        value: { content: 'x', metadata: undefined },
+        value: { content: 'x', metadata: undefined, attachments: [] },
       });
     });
 
@@ -895,6 +935,11 @@ describe('parseReplaceMessageBody', () => {
         'metadata が配列',
         { content: 'x', metadata: [] },
         'metadataはオブジェクト形式で指定してください',
+      ],
+      [
+        'attachments が配列でない（#200）',
+        { content: 'x', attachments: {} },
+        'attachmentsは配列で指定してください',
       ],
       [
         'content が assistant の上限を超える',

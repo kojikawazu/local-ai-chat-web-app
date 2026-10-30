@@ -333,6 +333,8 @@ describe('正常系', () => {
       title: '操作の確認',
       local: true,
       element: 'button "押す"',
+      // 操作の前の画面（#200）の中身は chat-agent-browser-screenshots.test.ts で確かめる
+      screenshot: expect.objectContaining({ kind: 'before' }),
     });
     const [clicked] = resultsOf(events, 'browser_click');
     expect(clicked).toMatchObject({

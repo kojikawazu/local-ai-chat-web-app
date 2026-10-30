@@ -417,6 +417,42 @@ describe('buildConversationExport（JSON）', () => {
       ]);
       expect(json).not.toContain('base64');
     });
+
+    it('ブラウザのツールの画面は、生成した直後の中身を入れず、保存したときと同じ形で出す（#200）', () => {
+      const shot = {
+        id: 's1',
+        kind: 'after' as const,
+        mimeType: 'image/jpeg' as const,
+        width: 1280,
+        height: 800,
+      };
+      const json = buildConversationExport(
+        conversation(),
+        [
+          message({
+            role: 'assistant',
+            metadata: {
+              toolCalls: [
+                {
+                  name: 'browser_navigate',
+                  arguments: {},
+                  result: '開きました',
+                  isError: false,
+                  durationMs: 1,
+                  screenshots: [{ ...shot, data: 'SCREENSHOT_DATA' }],
+                },
+              ],
+            },
+          }),
+        ],
+        'json',
+        EXPORTED_AT
+      ).content;
+      expect(
+        JSON.parse(json).messages[0].metadata.toolCalls[0].screenshots
+      ).toEqual([shot]);
+      expect(json).not.toContain('SCREENSHOT_DATA');
+    });
   });
 
   describe('異常系', () => {

@@ -6,6 +6,7 @@ import type {
 import type {
   PreparedAction,
   Tool,
+  ToolContext,
   ToolDefinition,
   ToolExecution,
 } from '../types';
@@ -14,6 +15,7 @@ import type { BrowserSession } from './session';
 import { getOpenedPage } from './session';
 import { formatPageResult, takeSnapshot } from './snapshot';
 import { findElement, parseRef } from './element';
+import { captureScreen } from './capture';
 import {
   BROWSER_EXCLUSIVE,
   BROWSER_NO_CONTEXT_REASON,
@@ -230,12 +232,41 @@ async function performAction(
 }
 
 /**
+ * 許可された操作を行い（{@link performAction}）、操作を試みた後の画面を撮って結果に入れる（#200）。
+ *
+ * 操作しなかった（承認の間にページ・要素が変わった）・失敗したときも、ページが残っていれば撮る
+ * （何が起きていたかを利用者が後から見られるように）。停止・タイムアウトで閉じたページは撮らない。
+ *
+ * @param session - この応答のブラウザのセッション
+ * @param context - 応答ごとの文脈（撮った枚数を数える）
+ * @param prepared - 準備で決めたこと（{@link performAction} と同じ）
+ * @param prepared.ref - 要素の参照
+ * @param prepared.preview - 承認カードに出した内容
+ * @param prepared.perform - 要素を操作する
+ * @param signal - ツールのタイムアウト・停止で中断される signal
+ * @returns 実行結果（操作の後の画面付き）
+ */
+async function performAndCapture(
+  session: BrowserSession,
+  context: ToolContext,
+  prepared: Parameters<typeof performAction>[1],
+  signal: AbortSignal
+): Promise<ToolExecution> {
+  const output = await performAction(session, prepared, signal);
+  const page = session.openedPage();
+  if (signal.aborted || !page) return output;
+  const shown = await captureScreen(page, context, 'after');
+  return shown ? { ...output, screenshots: [shown] } : output;
+}
+
+/**
  * ページを操作するツール（クリック・入力・選択）を作る（#149 Phase C。`docs/18-browser-tools.md`「Phase C: 操作のツール」）。
  *
  * 実行前に承認が要る。準備（`prepare`）で、この応答で開いたページから参照で要素を探し、役割と名前を引いて承認カードに出す
  * （モデルの説明ではなく、実際に操作する要素を見せる）。許可されたら、ページと要素が準備のときと同じかを確かめてから操作し、
  * 操作の後のページを返す。手元の情報を読んだ後は、公開のページを操作しない（入れた文字を外へ送りうるため）。
  * 操作の後のページが手元の開発サーバーなら、結果の `readLocal` で知らせる。
+ * 準備で操作の前の画面（要素の位置付き）を撮って承認カードに出し、操作の後の画面と合わせて結果にも入れる（#200）。
  *
  * @param localOrigins - 開いてよい手元の開発サーバー（`BROWSER_LOCAL_ORIGINS`）。承認カードの公開／手元に使う
  * @param spec - 操作のツールごとの違い
@@ -282,6 +313,13 @@ export function createBrowserActionTool(
       );
       if (!checked.ok) return fail(checked.reason, local);
 
+      // 操作する要素を枠で示すため、要素が見えるところまでスクロールしてから撮る（#200。承認の前にページへ起こす変化はこれだけ）
+      const before = await captureScreen(
+        page,
+        context,
+        'before',
+        found.locator
+      );
       const preview: BrowserActionApprovalPreview = {
         action: 'browser-action',
         operation: spec.operation,
@@ -293,13 +331,16 @@ export function createBrowserActionTool(
         ...(parsed.value.submit !== undefined && {
           submit: parsed.value.submit,
         }),
+        ...(before && { screenshot: before }),
       };
       return {
         ok: true,
         preview,
+        ...(before && { screenshots: [before] }),
         run: (signal) =>
-          performAction(
+          performAndCapture(
             session,
+            context,
             { ref: ref.value, preview, perform: checked.perform },
             signal
           ),

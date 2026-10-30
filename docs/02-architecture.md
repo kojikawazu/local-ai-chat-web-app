@@ -126,12 +126,14 @@ front/src/
 │   └── features/              #   機能の部品
 │       ├── chat/
 │       │   ├── atoms/
-│       │   │   └── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
+│       │   │   ├── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
+│       │   │   └── ElementBoxOverlay.tsx # スクリーンショットに、操作する要素を囲む枠を重ねる（SVG。#200）
 │       │   ├── molecules/
-│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C）
+│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素と操作の前の画面・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C、#200）
 │       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
-│       │   │   ├── ImageZoomDialog.tsx   # 添付画像の拡大のダイアログ（#6）
+│       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
+│       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
 │       │   │   ├── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示。ソースとの切り替え・拡大のボタン（#169・#171・#176）
@@ -212,6 +214,7 @@ front/src/
 │   │       │   ├── navigate.ts / read-snapshot.ts / screenshot.ts # browser_navigate・browser_snapshot・browser_screenshot
 │   │       │   ├── element.ts #         参照の形・スナップショットから参照の行を探す・要素の役割と名前（#149 Phase C）
 │   │       │   ├── action.ts  #         操作のツールに共通の準備（承認カード）と実行（照合・操作・操作の後のページ）
+│   │       │   ├── capture.ts #         利用者へ見せる画面を撮る（JPEG・要素の位置・応答ごとの枚数の上限。#200）
 │   │       │   └── click.ts / type.ts / select.ts # browser_click・browser_type・browser_select（実行前に承認）
 │   │       ├── github/        #       GitHub のツール（#148 Phase C。GITHUB_REPOS があるときだけ登録）
 │   │       │   ├── config.ts  #         GITHUB_REPOS の解釈（owner/name の形・大文字小文字の重なり）
@@ -247,6 +250,7 @@ front/src/
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
 │   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）
+│   │   ├── tool-screenshots.ts #    ツールの画面の表示の URL・保存する記録から中身を外す・保存の添付にする・done の記録に中身を戻す（#200）
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す
 │   │   ├── diagram.ts         #     Mermaid の判定・要素 ID・SVG の data: URI と大きさ・テーマの色の組み立て（#169）

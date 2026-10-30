@@ -48,3 +48,14 @@ export const REF_PARAM: ToolDefinition['parameters']['properties'][string] = {
   description:
     '操作する要素の参照（ページの内容の [ref=e12] の e12。iframe の中は f1e3 の形）',
 };
+
+/**
+ * 利用者へ見せるスクリーンショット（操作の前・後、ページを開いた後。#200）の JPEG の品質。
+ * PNG の 6 割程度の大きさで、文字は読める（`docs/18-browser-tools.md`「画面の表示の前提の調査」）
+ */
+export const BROWSER_SCREENSHOT_JPEG_QUALITY = 70;
+
+/**
+ * スクリーンショットを撮るのに待つ時間（ミリ秒）。`browser_screenshot` と、利用者へ見せる画面（#200）で共通
+ */
+export const BROWSER_SCREENSHOT_TIMEOUT_MS = 10_000;

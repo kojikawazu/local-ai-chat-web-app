@@ -68,7 +68,7 @@ export async function GET(
  * `role` は `'user'` / `'assistant'` のみ許可。`metadata`（ツール呼び出し情報・
  * 思考過程等）は任意で、JSON オブジェクトの場合のみ保存する（配列・プリミティブを
  * 指定した場合は黙って捨てずに 400 を返す）。
- * `attachments`（添付画像。#6）は user のときだけ指定でき、メッセージと同じトランザクションで保存する。
+ * `attachments` は、user は添付画像（#6）、assistant はブラウザのツールが撮った画面（#200）で、メッセージと同じトランザクションで保存する。
  *
  * @param request - 任意の `id`（UUID）・`role`（必須・user|assistant）・`content`（必須・user は最大 `MAX_MESSAGE_LENGTH` 文字、assistant は最大 `MAX_ASSISTANT_MESSAGE_LENGTH` 文字）・任意の `metadata`・任意の `attachments`（`{ id, data, width, height }` の配列。`data` は PNG / JPEG の Base64）を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
