@@ -74,8 +74,14 @@ jobs:
         working-directory: front
         run: pnpm prisma generate
 
+      # ブラウザのツール（#149）の IT は実際の Chromium で、テストの中で起こした HTTP サーバーを開く。
+      # アプリが使う playwright-core と同じ版の Chromium（ヘッドレス）を入れる
+      - name: Install Playwright browsers
+        working-directory: front
+        run: pnpm exec playwright install --with-deps chromium
+
       # PostgreSQL は Testcontainers が使い捨てコンテナとして起動する（サービスコンテナ不要）。
-      # Ollama / ブラウザは不要。ubuntu-latest には Docker が同梱されている。
+      # Ollama は不要。ubuntu-latest には Docker が同梱されている。
       - name: Run integration tests
         working-directory: front
         run: pnpm test:integration

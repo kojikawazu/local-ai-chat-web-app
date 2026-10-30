@@ -41,7 +41,7 @@
 ### POST /api/chat
 
 チャットメッセージをOllamaに送信し、ストリーミングレスポンスを返す。
-`enableTools: true` の場合はエージェントモードとなり、ツール呼び出しを含む NDJSON イベントストリームを返す。
+`enableTools: true` の場合はエージェントモードとなり、ツール呼び出しを含む NDJSON イベントストリームを返す。画像を読めないモデル（`/api/show` の `capabilities` に `vision` が無い）には、結果を画像で渡すツール（`browser_screenshot`。#149）を渡さない。ブラウザのツールは、このリクエストのオリジン（アプリ自身）を開かない。
 
 **リクエスト**
 
@@ -393,7 +393,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file も。#148）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）も）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
   }[];

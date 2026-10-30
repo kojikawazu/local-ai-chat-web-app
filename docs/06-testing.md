@@ -67,7 +67,7 @@
 | 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
 | モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ（`helpers/ollama-stub.ts`）。DB系はスタブ無し |
 | エラー契約 | Ollamaダウン→502・バリデーション→400 等を IT で決定的に検証（E2E の障害注入から移譲） |
-| 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため） |
+| 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため）。ブラウザのツールの IT（#149）は実際の Chromium を使うため `pnpm exec playwright install chromium` が必要（CI も入れる） |
 
 UT・IT・E2E とも **正常系・準正常系・異常系の3分類**で記述する。
 
@@ -205,6 +205,11 @@ describe('機能名', () => {
 - 正常系: `GET /api/tools` に GitHub の 5 つのツールが出る。PR の一覧は承認カードを出さずに読み、件数が ✅ で出る（**ツール呼び出しが要るため軽量モデルではスキップ**）
 - 準正常系: コメントを頼むと承認カードにコメント先・送る本文・公開リポジトリの知らせが出て（結果の欄は承認待ち）、拒否すると `gh` でコメントしない（同上）
 - 異常系: 存在しない PR は、`gh` のエラーが ❌ で出る（同上）
+
+**ブラウザのツール（`browser-tools.spec.ts`、#149）**（dev サーバーには `playwright.config.ts` が `BROWSER_ENABLED` と、確認用のページを配るサーバー（`127.0.0.1:3101`。2 つ目の `webServer`）のオリジンを `BROWSER_LOCAL_ORIGINS` として渡す。公開の Web には触れない）
+- 正常系: `GET /api/tools` にブラウザの 3 つのツールが出る。確認用のページを開かせると、JavaScript で描いた合言葉を答え、結果がページのタイトルとともに ✅ で出る（**ツール呼び出しが要るため軽量モデルではスキップ**）
+- 準正常系: 許可していない手元のサーバー（PostgreSQL の 5499）は開かず、`BROWSER_LOCAL_ORIGINS` の書き方が ❌ で出る（同上）
+- 異常系: 名前を引けないホスト（`.invalid`）は ❌ で出る（同上）。`file:` の URL はモデルが呼ぶのを断るため、IT で確かめる
 
 **ツールの結果の要約（`tool-result-summary.spec.ts`、#150）**（保存済みの metadata から表示するため、モデルに依存せず CI でも動く）
 - 正常系: 検索の件数が見出しに ✅ とともに出る
@@ -427,6 +432,8 @@ front/tests/
 │   ├── tool-call-progress.test.ts # 結果が届く前のツールの記録（実行中の仮の記録・承認待ちとの行き来・結果での置き換え・同じ名前が続くときの順番）（#192）
 │   ├── tool-approval.test.ts     # 承認待ちの決着（許可・拒否・時間切れ・停止。偽のタイマー）・edit_file の一致と CRLF・差分の行数・.git の判定・拒否の文章・承認の API のボディ（#148 Phase A2）
 │   ├── github-tools.test.ts      # GitHub のツールの純関数（GITHUB_REPOS の解釈・引数の検証（番号の書き方・ブランチ名・本文の長さ）・一覧／詳細／差分の文章と上限・差分の絞り込み・書き込みの結果・公開か非公開か。#148 Phase C）
+│   ├── network-guard.test.ts     # プライベートのアドレスの判定（IPv4-mapped の 10 進・16 進・省略しない形・未指定・NAT64・IPv4-compatible ですり抜けない・自機の判定。url_fetch とブラウザのツールで共有。#196）
+│   ├── browser-tools.test.ts     # ブラウザのツールの純関数（BROWSER_LOCAL_ORIGINS の解釈・開く URL・宛先の判定（アプリ自身・許可した開発サーバー・プライベート・手元を読んだ後。名前の解決は差し替え）・スナップショットの切り詰めと offset・呼び出しごとの access・画像を読めないモデル。#149）
 │   ├── local-commands.test.ts    # コマンドの解釈（クォート・シェルの記号を断る・上限）・クォートし直し・許可リスト（シェル等を外す）・渡す環境変数・出力の先頭と末尾と制御文字・結果の文章（#148 Phase B）
 │   ├── local-files.test.ts       # ローカルのファイルのツールの純関数（LOCAL_FILE_ROOTS の解釈・包含の判定・秘匿ファイルの名前・行の切り出し・ワイルドカード・結果の文章・持ち出しの判定。#148）
 │   └── class-names.test.ts       # クラス名の連結（偽値を捨てる・衝突は解決しない）
@@ -452,6 +459,7 @@ front/tests/
 │   ├── local-command.test.ts     # 実際に node を起動する run_command の準備と実行（出力・作業フォルダ・標準入力を閉じる・終了コード・環境変数の絞り込み・許可リスト／パス／シェルの記号／範囲外の作業フォルダを断る・時間の上限・停止で孫まで止める・親が先に終わったときの残り。#148 Phase B）
 │   ├── chat-agent-command.test.ts # /api/chat のコマンドの承認の流れ（許可で実行・拒否で実行しない・実行中の停止でプロセスを止める・実行の後は外部と通信するツールを止める）と GET /api/tools
 │   ├── chat-agent-github.test.ts # /api/chat の GitHub のツール（偽の gh。読むツールは承認なしで決まった引数・一時フォルダ・絞った環境変数・コメントと PR の作成の承認カードと --flag=… の引数・拒否で送らない・検証で断ったら gh を呼ばない・既存の PR・gh の失敗・未ログインで再び実行しない・gh が無い・読んだ後は外部と通信するツールを止める）と GET /api/tools（#148 Phase C）
+│   ├── chat-agent-browser.test.ts # /api/chat のブラウザのツール（実際の Chromium と手元の HTTP サーバー。JavaScript で描いた内容・localhost の書き方で 127.0.0.1 だけのサーバー・offset の続き・スクリーンショットの画像はツールのメッセージにだけ・転送とその連鎖・ページの中の fetch と WebSocket を止める・画像を読めないモデル・手元のページの後の外部のツール・アプリ自身・file:・停止でセッションを返す。#149）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）
 │   ├── chat-images.test.ts       # /api/chat の添付画像（DB から読んで images へ・履歴の画像・エージェント・非対応モデルの 400 と注記・上限超過の省略・見つからない ID・/api/show の失敗→502）
@@ -466,6 +474,8 @@ front/tests/
     │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
     │   ├── local-files.ts        # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
     │   ├── github.ts             # E2E の GITHUB_REPOS（架空のリポジトリ）・偽の gh のフォルダと応答（#148 Phase C）
+    │   ├── browser.ts            # E2E の確認用のページのサーバー（BROWSER_LOCAL_ORIGINS に渡すオリジン・合言葉。#149）
+    │   ├── browser-fixture-server.mjs # 確認用のページ（fixtures/browser）を配る小さい静的なサーバー（playwright.config.ts の webServer）
     │   └── global-setup.ts       # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts              # チャット機能テスト
     ├── chat-streaming.spec.ts    # ストリーミング表示テスト
@@ -497,6 +507,7 @@ front/tests/
     ├── file-write-approval.spec.ts # ファイルの書き込みの承認（承認カードの差分・許可で書く・拒否で書かない（大モデルのみ）・承認の API の 404 / 400）
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
+    ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts        # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
 ```
@@ -546,7 +557,7 @@ front/tests/
 | Secret scan | `.github/workflows/secret-scan.yml` | `git ls-files` から鍵・`.env` 系の秘匿ファイルを検出（テンプレート・`env.d.ts` は除外） | 依存なし・数秒。**パスの絞り込みなしで常時実行** |
 | Quality Checks | `.github/workflows/quality.yml` | `pnpm lint` → `pnpm format:check` → `pnpm typecheck` | `prisma generate` のみ（tsc が生成クライアントを解決するため）。Ollama / DB 不要 |
 | Unit Tests | `.github/workflows/unit-test.yml` | `pnpm test:unit`（Vitest） | Ollama / DB 不要・数十秒 |
-| Integration Tests | `.github/workflows/integration-test.yml` | `pnpm test:integration`（Vitest + Testcontainers） | Docker のみ（Testcontainers が PostgreSQL を起動）。Ollama 不要 |
+| Integration Tests | `.github/workflows/integration-test.yml` | `pnpm test:integration`（Vitest + Testcontainers） | Docker（Testcontainers が PostgreSQL を起動）と Chromium（ブラウザのツールの IT。#149）。Ollama 不要 |
 | E2E Tests | `.github/workflows/e2e-test.yml` | `pnpm test:e2e`（Playwright） | Ollama + PostgreSQL |
 
 Quality・UT・IT ジョブは Ollama を必要とせず、E2E と独立に高速実行される。IT は PostgreSQL サービスコンテナを使わず Testcontainers が使い捨て DB を起動するため、`prisma generate` のみ前処理として実行する。

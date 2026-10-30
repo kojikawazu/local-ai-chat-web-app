@@ -74,7 +74,8 @@ globs: "front/tests/**"
   - アプリ側のロジック（フック・`lib/`）は差し替えない。分岐のロジックは UT で偽の境界を渡して検証し、E2E では UI の描画・耐性だけを見る。
 - **呼び出し**: handler を関数として import し、`NextRequest` を組んで直接実行（ブラウザ・Next サーバー起動なし）。
 - **隔離**: 各テスト `beforeEach` で会話を全削除（Message は cascade）。`fileParallelism: false` で DB 競合を回避。
-- **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker のみ必要、Ollama 不要）。
+- **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker と Chromium（ブラウザのツールの IT。#149。`pnpm exec playwright install chromium`）が必要、Ollama 不要）。
+- **ブラウザ（#149）**: ブラウザのツールの IT は、実際の Chromium で、テストの中で起こした HTTP サーバー（`127.0.0.1` の空きポート）を開く。ブラウザは手元で動かす実依存で、差し替えない。公開の Web には触れない。
 - **設定**: `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup でコンテナ起動、setup-env で接続 URL を注入）。
 - **前提**: 生成クライアント（`src/generated/prisma/`）は gitignore のため、実行前に `pnpm prisma generate` が必要。
 
@@ -87,7 +88,7 @@ globs: "front/tests/**"
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。
   - 同じく、PlantUML サーバーに繋がらなければ開始前に止める（PlantUML の図の E2E は実際の PlantUML サーバーで描くため。ローカルは `docker compose up -d`、CI は `e2e-test.yml` の `services:`）。
-- **ローカルのファイル**: `webServer.env` で dev サーバーの `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`。定義は `tests/e2e/helpers/local-files.ts`）を渡す。開発者の `.env.local` のフォルダを E2E に読ませないため（#148）。再利用した dev サーバーがこれ無しで起動していると `local-files.spec.ts` が落ちる。GitHub のツール（#148 Phase C）は `GITHUB_REPOS` に架空のリポジトリを、`PATH` の先頭に偽の `gh`（`tests/integration/helpers/fake-gh.ts`。IT と共通。置き場所と応答は `tests/e2e/helpers/github.ts`）のフォルダを渡し、本物の GitHub には触れない。書き込み（#148 Phase A2）は `LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダ（`E2E_WRITE_DIR`）を渡し、リポジトリの中は書き換えない。コマンドの実行（#148 Phase B）は `LOCAL_COMMANDS` に `node` だけを渡す（作業フォルダは同じ `E2E_WRITE_DIR`）
+- **ローカルのファイル**: `webServer.env` で dev サーバーの `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`。定義は `tests/e2e/helpers/local-files.ts`）を渡す。開発者の `.env.local` のフォルダを E2E に読ませないため（#148）。再利用した dev サーバーがこれ無しで起動していると `local-files.spec.ts` が落ちる。GitHub のツール（#148 Phase C）は `GITHUB_REPOS` に架空のリポジトリを、`PATH` の先頭に偽の `gh`（`tests/integration/helpers/fake-gh.ts`。IT と共通。置き場所と応答は `tests/e2e/helpers/github.ts`）のフォルダを渡し、本物の GitHub には触れない。書き込み（#148 Phase A2）は `LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダ（`E2E_WRITE_DIR`）を渡し、リポジトリの中は書き換えない。コマンドの実行（#148 Phase B）は `LOCAL_COMMANDS` に `node` だけを渡す（作業フォルダは同じ `E2E_WRITE_DIR`）。ブラウザのツール（#149）は `BROWSER_ENABLED` と、確認用のページを配るサーバー（2 つ目の `webServer`。`tests/e2e/helpers/browser-fixture-server.mjs`・`127.0.0.1:3101`。定義は `tests/e2e/helpers/browser.ts`）のオリジンを `BROWSER_LOCAL_ORIGINS` に渡す
 - 失敗時: スクリーンショット + トレースを保存
 - テストファイル配置: `front/tests/e2e/`
 - Base URL: `http://localhost:3000`

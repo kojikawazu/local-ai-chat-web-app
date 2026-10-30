@@ -76,6 +76,40 @@ export type ToolExecution = ToolOutput & {
    * 入力ごとに成否が変わる失敗（取得できない URL 等）には付けない
    */
   unavailable?: boolean;
+  /**
+   * モデルへ画像として渡すもの（`data:` の接頭辞なしの Base64。#149）。ループが `role: 'tool'` のメッセージの
+   * `images` に入れる。画面・DB へは送らない
+   */
+  images?: string[];
+  /**
+   * 手元の情報を読んだなら true（#149）。`access` だけでは決まらないとき（公開の URL を開いたら手元の
+   * 開発サーバーへ転送された等）に、実行の後でループへ知らせる。以降は外部と通信するツールを止める
+   */
+  readLocal?: boolean;
+};
+
+/**
+ * エージェントループが 1 回の応答ごとに作り、ツールへ渡す文脈（#149。`docs/18-browser-tools.md`）。
+ *
+ * 応答をまたがない状態（ブラウザのページ）を、同じ応答のツールの呼び出しの間で共有し、応答の終わりに片付ける。
+ */
+export type ToolContext = {
+  /** このアプリ自身のオリジン（`/api/chat` のリクエストのオリジン）。分からなければ `undefined` */
+  appOrigin?: string;
+  /** 応答ごとに 1 つ作るものを置く場所（キーはツールの側で決める） */
+  scope: Map<string, unknown>;
+  /**
+   * 応答の終わり（完了・エラー・停止）に行う後始末を登録する
+   *
+   * @param dispose - 後始末。失敗してもほかの後始末は続ける
+   */
+  onDispose: (dispose: () => Promise<void>) => void;
+  /**
+   * この応答で手元の情報を読むツールが成功したか（以降は外部と通信しない）
+   *
+   * @returns 読んでいれば true
+   */
+  hasReadLocal: () => boolean;
 };
 
 /**
@@ -192,8 +226,17 @@ export type PreparedAction =
 export type Tool = {
   /** ツールのメタ情報（名前・説明・引数スキーマ） */
   definition: ToolDefinition;
-  /** 何に触れるか（{@link ToolAccess}）。どちらでもない（計算・日時）なら省略 */
-  access?: ToolAccess;
+  /**
+   * 何に触れるか（{@link ToolAccess}）。どちらでもない（計算・日時）なら省略。
+   * 引数で変わるツール（開く URL で変わるブラウザ。#149）は、引数から決める関数にする
+   */
+  access?:
+    ToolAccess | ((args: Record<string, unknown>) => ToolAccess | undefined);
+  /**
+   * 結果をモデルへ画像で渡すツールなら true（#149）。画像を読めないモデルには渡さない
+   * （画像の無い結果に対して、モデルは見たふりをして答えるため）
+   */
+  requiresVision?: boolean;
   /**
    * 承認の後の実行（`prepare` が返す `run`）に掛ける時間の上限（ミリ秒。#148 Phase B）。
    * 省略時はツール全般の上限（`AGENT_TOOL_TIMEOUT_MS`）。コマンドの実行のように 30 秒で終わらないツールが、
@@ -220,11 +263,14 @@ export type Tool = {
    *
    * @param args - LLM から渡された引数（キー→値のマップ）
    * @param signal - エージェントのツールタイムアウトで中断される signal
+   * @param context - 応答ごとの文脈（{@link ToolContext}）。エージェントループは必ず渡す。使わないツールは受け取らなくてよい。
+   *   ループの外（テスト）から直接呼ぶときは省略でき、文脈が要るツールは失敗を返す
    * @returns 実行結果。失敗も例外にせず `isError: true` で返す（`output.ts` の `toolError`。
    *   接続先ごと使えない失敗は `toolUnavailable`）
    */
   execute: (
     args: Record<string, unknown>,
-    signal: AbortSignal
+    signal: AbortSignal,
+    context?: ToolContext
   ) => Promise<ToolExecution>;
 };

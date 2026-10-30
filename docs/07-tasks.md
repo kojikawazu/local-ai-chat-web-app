@@ -1071,3 +1071,18 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 書くツール（`github_comment`・`github_create_pr`）と承認カードの出し分け
 - [x] UT（`github-tools.test.ts` 57 件）・IT（`chat-agent-github.test.ts` 14 件。偽の `gh`・`tools.test.ts`）・E2E（`github-tools.spec.ts` 4 件。モデルにツールを呼ばせる 3 件は大モデルのみ）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`10`・`12`・`14`・`15`・`16`・`17`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）
+
+## フェーズ44: ブラウザでページを開いて読むツール（#149 Phase A・B）
+
+エージェントが、ブラウザでページを開き、アクセシビリティツリーとスクリーンショットで読む。JavaScript で描くページ・手元の開発サーバーの画面を読めるようにする。クリック・入力などの操作（#149 Phase C）は含めない。設計は [18-browser-tools.md](./18-browser-tools.md)。 — #149・サブ issue #196（2026-10-30 着手）
+
+- [x] 前提の調査（スナップショットの大きさ・ツールの結果の画像をモデルが読めるか・リダイレクトの先の判定のしかた）
+- [x] 設計（`docs/18-browser-tools.md`。`BROWSER_ENABLED`・`BROWSER_LOCAL_ORIGINS`・アプリの中のプロキシで接続ごとに判定・応答ごとのセッション・3 つのツール・画像を読めないモデルにはスクリーンショットを渡さない）
+- [x] 設計のレビュー（推奨どおり: 読み取りだけ・`BROWSER_ENABLED` と `BROWSER_LOCAL_ORIGINS`・応答ごとのセッション・3 つのツール・手元の開発サーバーのページは `local`・スクリーンショットはモデルに渡すだけ）
+- [x] 宛先の判定（`url-fetch.ts` からプライベートのアドレスの判定を `network-guard.ts` に切り出す）とプロキシ（http・CONNECT。判定したアドレスへ接続。手元を読んだ後は公開の Web へ接続しない）
+- [x] ブラウザとセッション（起動・使い回し・同時の上限・応答ごとのプロキシとコンテキスト・後始末）とツールへ渡す応答ごとの文脈（`ToolContext`）
+- [x] `browser_navigate`・`browser_snapshot`・`browser_screenshot`（呼び出しごとの `access` と実行の後の `readLocal`・ツールの結果の画像・画像を読めないモデルからの除外）
+- [x] UT（`browser-tools.test.ts` 50 件）・IT（`chat-agent-browser.test.ts` 16 件。実際の Chromium と手元の HTTP サーバー・`tools.test.ts`。CI の IT に Chromium を入れる）・E2E（`browser-tools.spec.ts` 4 件。モデルにツールを呼ばせる 3 件は大モデルのみ。`file:` はモデルが呼ぶのを断るため IT に任せた）
+- [x] 自動のセキュリティレビューの指摘: アドレスの判定が `[::ffff:7f00:1]`（URL が書き換える IPv4-mapped の形）・`::` ですり抜け、`url_fetch` もループバックに届いた。`network-guard.ts` を `net.BlockList` にし、NAT64・IPv4-compatible の埋め込みも判定する（UT `network-guard.test.ts` 31 件）
+- [x] PR #197 の自動のセキュリティレビューの指摘: 公開のページの中のスクリプトが、許可した手元の開発サーバーを `fetch` で読めた（手元を読んだ印が付かず、外へ送れた）。最上位のページが手元のときだけ手元への接続を通す（`gateByTopPage`。UT 4 件）。続く指摘で、公開のページから手元へ移るときに古いページのスクリプトが残る隙も、先に `about:blank` へ移ってから切り替えて塞いだ
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`18`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）

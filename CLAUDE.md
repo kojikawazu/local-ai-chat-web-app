@@ -31,6 +31,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | DB | PostgreSQL 16（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose。`web_search` ツールの検索エンジン） |
 | 図の描画 | mermaid（ブラウザ内）・PlantUML サーバー（Docker Compose。`PLANTUML_SECURITY_PROFILE=SANDBOX`） |
+| ブラウザの操作 | playwright-core（エージェントのブラウザのツール。Chromium はヘッドレス。`@playwright/test` と同じ版に揃える） |
 | ORM | Prisma 7（クライアント出力先: `src/generated/prisma/`） |
 | ユニットテスト | Vitest（純ロジック対象） |
 | インテグレーションテスト | Vitest + Testcontainers（実PostgreSQL） |
@@ -106,6 +107,8 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `LOCAL_COMMANDS` | エージェントが実行してよいプログラムの名前（カンマ区切り。実行前に承認が要る。作業フォルダは `LOCAL_FILE_WRITE_ROOTS` の中だけ。シェル・`env`・`sudo` 等は書いても使わない） | 未設定（コマンドの実行のツールを使わない） |
 | `LOCAL_COMMAND_TIMEOUT_MS` | コマンドの実行時間の上限（ms。上限 600000） | `120000` |
 | `GITHUB_REPOS` | エージェントの GitHub のツールで扱ってよいリポジトリ（`owner/name` のカンマ区切り。読むツールは承認なし、コメント・PR の作成は実行前に承認が要る。認証は `gh auth login`） | 未設定（GitHub のツールを使わない） |
+| `BROWSER_ENABLED` | `true` でエージェントのブラウザのツール（ページを開く・読む・スクリーンショット）を使う（要 `pnpm exec playwright install chromium`） | 未設定（ブラウザのツールを使わない） |
+| `BROWSER_LOCAL_ORIGINS` | ブラウザのツールで開いてよい手元の開発サーバーのオリジン（`http://localhost:5173` の形・カンマ区切り。このアプリ自身は書いても開けない） | 未設定（手元のサーバーは開けない） |
 
 ## 開発手法
 
@@ -119,6 +122,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 ブラウザ → Next.js Route Handlers → Ollama API (localhost:11434)
                                   → Agent Loop → Tool Executor（ツール実行）→ SearXNG (Docker・Web検索)
                                                                           → gh (GitHub CLI) → GitHub（GitHub のツール）
+                                                                          → Chromium（ブラウザのツール。アプリの中のプロキシで宛先を判定）
                                   → Prisma ORM → PostgreSQL (Docker)
                                   → PlantUML サーバー (Docker・図の描画)
 ```
@@ -186,7 +190,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/chat/` — チャット（atoms: AttachButton / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
@@ -195,6 +199,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
+      - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
@@ -245,10 +250,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/15-tool-approval.md` | ツールの承認とファイルの書き込み 設計書 |
 | `docs/16-command-execution.md` | コマンドの実行 設計書 |
 | `docs/17-github-tools.md` | GitHub のツール 設計書 |
+| `docs/18-browser-tools.md` | ブラウザのツール 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`18-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`19-`〜）を付与する。
 
 ## Instruction Shortcuts
 

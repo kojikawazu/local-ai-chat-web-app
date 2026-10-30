@@ -1,7 +1,12 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
-import { streamChat, withSystemPrompt } from '@/lib/llm/ollama';
+import { streamChat, supportsVision, withSystemPrompt } from '@/lib/llm/ollama';
 import { parsePositiveIntEnv } from './agent-config';
-import { getAllToolDefinitions, executeTool, getTool } from './tools/index';
+import {
+  getAllToolDefinitions,
+  executeTool,
+  getTool,
+  hasVisionTools,
+} from './tools/index';
 import { waitForApproval } from './approvals';
 import type { ToolApproval, ToolCallInfo } from '@/types/agent/tool-call';
 import type {
@@ -9,6 +14,7 @@ import type {
   OllamaToolCall,
   Tool,
   ToolAccess,
+  ToolContext,
   ToolExecution,
   ToolOutput,
 } from './tools/types';
@@ -76,6 +82,41 @@ function blockedNetworkToolOutput(name: string): ToolOutput {
     summary:
       '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため）',
   };
+}
+
+/**
+ * 画像を読めないモデルが、渡していない画像のツール（`requiresVision`。#149）を呼んだときの結果。
+ *
+ * ツールの一覧から外しても、モデルが名前を覚えていて呼ぶことがある。実行して画像を渡せないまま返すと、
+ * モデルは見たふりをして答えるため、実行せずに理由を返す。
+ *
+ * @param name - 呼ばれたツール名
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+export function visionRequiredOutput(name: string): ToolOutput {
+  const reason = `選択中のモデルは画像を読めないため、${name} は使えません`;
+  return {
+    result: `エラー: ${reason}。ページの内容は browser_snapshot で文字として読んでください。`,
+    isError: true,
+    summary: reason,
+  };
+}
+
+/**
+ * ツールが今回の呼び出しで何に触れるかを決める（#148・#149）。
+ *
+ * 固定の値ならそのまま、引数で変わるツール（開く URL で変わるブラウザ）は引数から決める。
+ *
+ * @param tool - 呼ばれたツール（未登録なら `undefined`）
+ * @param args - LLM から渡された引数
+ * @returns 触れるもの（{@link ToolAccess}）。どちらでもなければ `undefined`
+ */
+export function resolveAccess(
+  tool: Tool | undefined,
+  args: Record<string, unknown>
+): ToolAccess | undefined {
+  const access = tool?.access;
+  return typeof access === 'function' ? access(args) : access;
 }
 
 /**
@@ -176,11 +217,12 @@ function failedOutput(message: string): ToolExecution {
 async function runTool(
   name: string,
   args: Record<string, unknown>,
-  loopSignal: AbortSignal
+  loopSignal: AbortSignal,
+  context: ToolContext
 ): Promise<ToolExecution & { durationMs: number }> {
   const timed = await withToolTimeout(
     name,
-    (signal) => executeTool(name, args, signal),
+    (signal) => executeTool(name, args, signal, context),
     loopSignal
   );
   return timed.ok
@@ -436,6 +478,8 @@ async function relayOllamaResponse(
  * ローカルのファイルを読むツールが成功した後は、外部と通信するツールを実行しない（#148。{@link shouldBlockTool}）。
  * 承認が要るツール（`prepare` を持つ。ファイルの書き込み等）は、`tool_approval_request` を送って利用者の許可を待ってから実行する
  * （#148 Phase A2。{@link runWithApproval}）。
+ * ツールには応答ごとの文脈（{@link ToolContext}。#149）を渡し、応答の終わりに、ツールが登録した後始末（ブラウザのページを閉じる等）を行う。
+ * 結果を画像で渡すツール（`requiresVision`）は、モデルが画像を読めるときだけ渡し、結果の画像を `role: 'tool'` のメッセージに付ける。
  * エージェントモード（enableTools=true）時に呼ぶ。
  *
  * `signal` の abort、または返したストリームの cancel（ブラウザの停止・切断）でループを止める。
@@ -445,20 +489,31 @@ async function relayOllamaResponse(
  * @param model - 使用モデル名。未指定時はデフォルトモデルを使う
  * @param systemPrompt - 先頭に付与するシステムプロンプト。空・未指定なら付与しない
  * @param signal - 中断の信号（Route Handler の `request.signal`）。未指定ならストリームの cancel でのみ止まる
+ * @param appOrigin - このアプリ自身のオリジン（ブラウザのツールで開かせない。#149）。未指定なら判定しない
  * @returns NDJSON イベント（text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
  */
 export function runAgentLoop(
   messages: OllamaChatMessage[],
   model?: string,
   systemPrompt?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  appOrigin?: string
 ): ReadableStream<Uint8Array> {
-  const tools = getAllToolDefinitions();
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
   // この応答で手元の情報を読むツール（access: local。ファイル・コマンド・GitHub）が成功したか。以降は外部と通信するツールを止める
   let hasReadLocalFiles = false;
+  // 応答の終わりに行う後始末（ブラウザのページを閉じる等。#149）
+  const disposers: (() => Promise<void>)[] = [];
+  const toolContext: ToolContext = {
+    appOrigin,
+    scope: new Map(),
+    onDispose: (dispose) => {
+      disposers.push(dispose);
+    },
+    hasReadLocal: () => hasReadLocalFiles,
+  };
   // ストリームの cancel 用。外からの signal とまとめて 1 つの中断の信号にする
   const cancelController = new AbortController();
   const loopSignal = signal
@@ -522,6 +577,13 @@ export function runAgentLoop(
         close();
       };
 
+      // 画像を読めるモデルか。画像のツールが無ければ問い合わせない。問い合わせに失敗したら読めないものとする
+      // （画像のツールを渡さないだけで、応答は続けられる）
+      const vision = hasVisionTools()
+        ? await supportsVision(model).catch(() => false)
+        : false;
+      const tools = getAllToolDefinitions({ excludeVision: !vision });
+
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           let ollamaResponse: Response;
@@ -576,25 +638,27 @@ export function runAgentLoop(
 
               const skipReason = unavailableTools.get(name);
               const tool = getTool(name);
-              const access = tool?.access;
-              // unavailable はループだけが読む印。画面・DB へは送らない
-              const { durationMs, unavailable, ...output } =
+              const access = resolveAccess(tool, args);
+              // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない
+              const { durationMs, unavailable, images, readLocal, ...output } =
                 skipReason !== undefined
                   ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
-                  : shouldBlockTool(access, hasReadLocalFiles)
-                    ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
-                    : tool?.prepare
-                      ? await runWithApproval(
-                          { ...tool, prepare: tool.prepare },
-                          args,
-                          send,
-                          loopSignal
-                        )
-                      : await runTool(name, args, loopSignal);
+                  : tool?.requiresVision && !vision
+                    ? { ...visionRequiredOutput(name), durationMs: 0 }
+                    : shouldBlockTool(access, hasReadLocalFiles)
+                      ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
+                      : tool?.prepare
+                        ? await runWithApproval(
+                            { ...tool, prepare: tool.prepare },
+                            args,
+                            send,
+                            loopSignal
+                          )
+                        : await runTool(name, args, loopSignal, toolContext);
               if (unavailable) {
                 unavailableTools.set(name, output.summary ?? output.result);
               }
-              if (access === 'local' && !output.isError) {
+              if ((access === 'local' && !output.isError) || readLocal) {
                 hasReadLocalFiles = true;
               }
 
@@ -609,7 +673,7 @@ export function runAgentLoop(
                 contentOffset,
               });
 
-              return { name, result: output.result };
+              return { name, result: output.result, images };
             })
           );
 
@@ -620,14 +684,22 @@ export function runAgentLoop(
           // tool ロールのメッセージを呼び出し順で履歴に追加
           for (let i = 0; i < toolCalls.length; i++) {
             const settled = toolResults[i];
-            const result =
-              settled.status === 'fulfilled'
-                ? settled.value.result
-                : settled.reason instanceof Error
-                  ? settled.reason.message
-                  : String(settled.reason);
-
-            history.push({ role: 'tool', content: result });
+            if (settled.status === 'fulfilled') {
+              const { result, images } = settled.value;
+              history.push({
+                role: 'tool',
+                content: result,
+                ...(images && images.length > 0 && { images }),
+              });
+            } else {
+              history.push({
+                role: 'tool',
+                content:
+                  settled.reason instanceof Error
+                    ? settled.reason.message
+                    : String(settled.reason),
+              });
+            }
           }
         }
 
@@ -665,6 +737,15 @@ export function runAgentLoop(
         send({ type: 'error', message: msg });
         close();
       } finally {
+        // ツールが登録した後始末（ブラウザのページを閉じる等）。失敗してもほかの後始末は続ける
+        const disposed = await Promise.allSettled(
+          disposers.map((dispose) => dispose())
+        );
+        for (const result of disposed) {
+          if (result.status === 'rejected') {
+            console.error('Tool dispose failed:', result.reason);
+          }
+        }
         // 停止・切断で抜けた場合もストリームを閉じ、読み手を待たせない（request.signal だけが
         // abort された場合、cancel されていないストリームが開いたまま残る）。
         // cancel 済みのストリームへの close は例外になるため無視する
