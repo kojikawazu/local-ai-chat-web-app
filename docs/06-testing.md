@@ -462,7 +462,7 @@ front/tests/
 │   ├── chat-agent-command.test.ts # /api/chat のコマンドの承認の流れ（許可で実行・拒否で実行しない・実行中の停止でプロセスを止める・実行の後は外部と通信するツールを止める）と GET /api/tools
 │   ├── chat-agent-github.test.ts # /api/chat の GitHub のツール（偽の gh。読むツールは承認なしで決まった引数・一時フォルダ・絞った環境変数・コメントと PR の作成の承認カードと --flag=… の引数・拒否で送らない・検証で断ったら gh を呼ばない・既存の PR・gh の失敗・未ログインで再び実行しない・gh が無い・読んだ後は外部と通信するツールを止める）と GET /api/tools（#148 Phase C）
 │   ├── chat-agent-browser.test.ts # /api/chat のブラウザのツール（実際の Chromium と手元の HTTP サーバー。JavaScript で描いた内容・localhost の書き方で 127.0.0.1 だけのサーバー・offset の続き・スクリーンショットの画像はツールのメッセージにだけ・転送とその連鎖・ページの中の fetch と WebSocket を止める・画像を読めないモデル・手元のページの後の外部のツール・アプリ自身・file:・停止でセッションを返す。#149）
-│   ├── chat-agent-browser-actions.test.ts # /api/chat のブラウザの操作（実際の Chromium と承認の API。参照付きのスナップショット・承認カードの実際の要素・クリック・入力と submit・選択・並べた 2 つの操作は順に承認・拒否・承認の間に変わった要素・見つからない参照・パスワード欄・入れられない要素と選べない項目・confirm のキャンセル・新しいウィンドウ・開く前・無効のボタン・承認を待つ間の停止。#149 Phase C）
+│   ├── chat-agent-browser-actions.test.ts # /api/chat のブラウザの操作（実際の Chromium と承認の API。参照付きのスナップショット・承認カードの実際の要素・クリック・入力と submit・選択・並べた 2 つの操作は順に承認・拒否・承認の間に変わった要素・見つからない参照・パスワード欄・入れられない要素と選べない項目・confirm のキャンセル・新しいウィンドウは開いたまま操作の対象にする（#200）・開く前・無効のボタン・承認を待つ間の停止。#149 Phase C）
 │   ├── chat-agent-browser-screenshots.test.ts # /api/chat の操作の画面（承認の依頼の操作の前の画面と要素の位置・画面の外の要素・結果の前と後・done の記録に中身が無い・browser_screenshot はモデルへ渡した PNG と同じ・拒否は前だけ・応答ごとの 20 枚の上限・承認の間に変わった要素。#200）
 │   ├── chat-agent-max-rounds.test.ts # /api/chat エージェントの最大ラウンド到達（ツールなしの最終回答・注記・失敗時もツール結果を残す）
 │   ├── chat-stop.test.ts         # /api/chat の生成停止（cancel・request.signal で Ollama の接続を切る・エージェントのツール中断と次ラウンド停止・499）

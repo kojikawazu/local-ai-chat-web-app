@@ -209,7 +209,7 @@ front/src/
 │   │       │   ├── url-policy.ts #      開く URL の読み取り・宛先の判定（アプリ自身・許可した開発サーバー・プライベート・手元を読んだ後）
 │   │       │   ├── proxy.ts   #         宛先を判定して中継する HTTP プロキシ（http・CONNECT。判定したアドレスへ接続）
 │   │       │   ├── browser.ts #         Chromium の起動・使い回し・同時のセッションの上限・放置で閉じる（globalThis）
-│   │       │   ├── session.ts #         応答ごとのコンテキストとページ・後始末・閉じたダイアログと新しいウィンドウの記録・通信が落ち着くのを待つ
+│   │       │   ├── session.ts #         応答ごとのコンテキストとページ・後始末・閉じたダイアログと開いた新しいウィンドウの記録・新しいウィンドウへの切り替え（#200）・通信が落ち着くのを待つ
 │   │       │   ├── snapshot.ts #        スナップショットの取得・上限での切り詰め・結果の文章
 │   │       │   ├── navigate.ts / read-snapshot.ts / screenshot.ts # browser_navigate・browser_snapshot・browser_screenshot
 │   │       │   ├── element.ts #         参照の形・スナップショットから参照の行を探す・要素の役割と名前（#149 Phase C）

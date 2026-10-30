@@ -12,17 +12,6 @@ type ToolScreenshotsProps = {
   screenshots: ToolScreenshot[];
   /** ツールの表示名（`クリック` 等）。画像の代替テキストに使う */
   label: string;
-  /** 画像の大きさ。`sm` はツールの結果の下に並べるサムネイル、`lg` は承認カードの画像 */
-  size?: 'sm' | 'lg';
-};
-
-/** 画像の大きさごとのクラス（高さを揃え、幅は縦横比に合わせる） */
-const SIZE_CLASSES: Record<
-  NonNullable<ToolScreenshotsProps['size']>,
-  string
-> = {
-  sm: 'h-[120px] w-auto',
-  lg: 'max-h-80 w-auto max-w-full',
 };
 
 /** 画面の種類の見出し */
@@ -47,32 +36,37 @@ function screenshotAlt(label: string, shot: ToolScreenshot): string {
 /**
  * ブラウザのツールが撮った画面を並べる（#200。`docs/18-browser-tools.md`「画面をチャットに出す」）。
  *
+ * 画面の文字を読めるよう、置かれた欄（ツールの結果・承認カード）の幅いっぱいに、縦に並べて出す（小さいサムネイルでは読めないため）。
  * 操作の前の画面には、操作する要素を枠で囲む（{@link ElementBoxOverlay}）。押すと拡大し、拡大でも枠を出す。
- * 操作の前の画面があるときは、前と後を見分けられるよう、画像の下に見出しを付ける。
+ * 操作の前の画面があるときは、前と後を見分けられるよう、画像の上に見出しを付ける。
  * `width` / `height` を渡して、読み込みの前から枠を確保する（画面が跳ねないように）。
  *
- * @param props - 画面の一覧・ツールの表示名・大きさを持つ props
+ * @param props - 画面の一覧・ツールの表示名を持つ props
  */
 export default function ToolScreenshots({
   screenshots,
   label,
-  size = 'sm',
 }: ToolScreenshotsProps) {
   const [zoomed, setZoomed] = useState<ToolScreenshot | null>(null);
   const showKind = screenshots.some((shot) => shot.kind === 'before');
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3">
         {screenshots.map((shot) => {
           const alt = screenshotAlt(label, shot);
           return (
             <figure key={shot.id} className="flex flex-col gap-1">
+              {showKind && (
+                <figcaption className="text-xs text-[var(--color-nord-4)] opacity-70">
+                  {KIND_LABELS[shot.kind]}
+                </figcaption>
+              )}
               <button
                 type="button"
                 aria-label={`${alt} を拡大`}
                 onClick={() => setZoomed(shot)}
-                className="relative self-start overflow-hidden rounded-md border border-[var(--color-nord-3)] hover:opacity-90 transition"
+                className="relative block w-full overflow-hidden rounded-md border border-[var(--color-nord-3)] hover:opacity-90 transition"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- data: URI と取得 API の画像を、Next の画像最適化を通さずにそのまま出す */}
                 <img
@@ -80,7 +74,7 @@ export default function ToolScreenshots({
                   alt={alt}
                   width={shot.width}
                   height={shot.height}
-                  className={`block ${SIZE_CLASSES[size]}`}
+                  className="block h-auto w-full"
                 />
                 {shot.box && (
                   <ElementBoxOverlay
@@ -91,11 +85,6 @@ export default function ToolScreenshots({
                   />
                 )}
               </button>
-              {showKind && (
-                <figcaption className="text-xs text-[var(--color-nord-4)] opacity-70">
-                  {KIND_LABELS[shot.kind]}
-                </figcaption>
-              )}
             </figure>
           );
         })}

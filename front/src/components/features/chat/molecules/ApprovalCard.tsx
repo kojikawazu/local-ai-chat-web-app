@@ -272,7 +272,6 @@ function BrowserActionPreview({
         <ToolScreenshots
           screenshots={[preview.screenshot]}
           label={TOOL_LABELS[`browser_${preview.operation}`]}
-          size="lg"
         />
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">

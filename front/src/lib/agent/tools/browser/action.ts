@@ -106,7 +106,7 @@ export function actionSummary(
  * @param happened - 起きたこと
  * @param happened.fromUrl - 操作の前のページの URL
  * @param happened.toUrl - 操作の後のページの URL
- * @param happened.notices - 操作の間に増えたページの記録（閉じたダイアログ・新しいウィンドウ）
+ * @param happened.notices - 操作の間に増えたページの記録（閉じたダイアログ・開いた新しいウィンドウ）
  * @param happened.blocked - 操作の間にプロキシが止めた接続
  * @returns 1 行ずつの文章。何も起きていなければ空文字
  */
@@ -170,8 +170,14 @@ async function performAction(
   const noticesBefore = session.notices.length;
   const blockedBefore = session.proxy.blocked.length;
   // Playwright の操作は signal を受けないため、停止・タイムアウトではページを閉じて操作を止める
-  // （同じ応答の次の呼び出しでは、ページを開き直すよう促す）
-  const abort = () => void page.close().catch(() => {});
+  // （同じ応答の次の呼び出しでは、ページを開き直すよう促す）。操作で開いた新しいウィンドウも閉じる
+  const abort = () => {
+    void page.close().catch(() => {});
+    void session
+      .openedPage()
+      ?.close()
+      .catch(() => {});
+  };
   signal.addEventListener('abort', abort, { once: true });
   try {
     try {
@@ -185,7 +191,9 @@ async function performAction(
     }
     await session.waitForQuiet();
 
-    const url = page.url();
+    // 操作で新しいウィンドウが開いたら、以降はそのウィンドウを読む（セッションが操作の対象を切り替えている）
+    const target = session.openedPage() ?? page;
+    const url = target.url();
     const happened = formatHappened({
       fromUrl: preview.url,
       toUrl: url,
@@ -202,8 +210,8 @@ async function performAction(
     try {
       output = formatPageResult({
         url,
-        title: await page.title(),
-        snapshot: await takeSnapshot(page),
+        title: await target.title(),
+        snapshot: await takeSnapshot(target),
         offset: 0,
       });
     } catch {

@@ -1112,3 +1112,4 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 表示（`ToolScreenshots`・`ElementBoxOverlay`・承認カード・ツールの結果・拡大）。枠は SVG を画像と同じ収め方で重ね、位置を割合に直さずに済ませた
 - [x] UT（`browser-screenshots.test.ts` 16 件・`request-body.test.ts` に 3 件）・IT（`chat-agent-browser-screenshots.test.ts` 7 件・`attachments.test.ts`・`message-replace.test.ts` に 4 件）・E2E（`browser-tools.spec.ts` に 3 件。API で保存した会話を開く形で CI でも動く。大モデルの承認のテストに承認カードと結果の画面を足した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`05`・`06`・`09`・`10`・`12`・`13`・`18`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,security}.md`）
+- [x] 動作確認の指摘で直した: 画面が小さく読めない（高さ 120px のサムネイル → 欄の幅いっぱいに縦に並べる）。新しいウィンドウを開かずに閉じるのは分かりにくい（開いたまま操作の対象に切り替え、元のページは閉じる。`session.ts` の `watchPage`）
