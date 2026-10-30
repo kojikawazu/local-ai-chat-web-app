@@ -1084,5 +1084,5 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] `browser_navigate`・`browser_snapshot`・`browser_screenshot`（呼び出しごとの `access` と実行の後の `readLocal`・ツールの結果の画像・画像を読めないモデルからの除外）
 - [x] UT（`browser-tools.test.ts` 50 件）・IT（`chat-agent-browser.test.ts` 16 件。実際の Chromium と手元の HTTP サーバー・`tools.test.ts`。CI の IT に Chromium を入れる）・E2E（`browser-tools.spec.ts` 4 件。モデルにツールを呼ばせる 3 件は大モデルのみ。`file:` はモデルが呼ぶのを断るため IT に任せた）
 - [x] 自動のセキュリティレビューの指摘: アドレスの判定が `[::ffff:7f00:1]`（URL が書き換える IPv4-mapped の形）・`::` ですり抜け、`url_fetch` もループバックに届いた。`network-guard.ts` を `net.BlockList` にし、NAT64・IPv4-compatible の埋め込みも判定する（UT `network-guard.test.ts` 31 件）
-- [x] PR #197 の自動のセキュリティレビューの指摘: 公開のページの中のスクリプトが、許可した手元の開発サーバーを `fetch` で読めた（手元を読んだ印が付かず、外へ送れた）。最上位のページが手元のときだけ手元への接続を通す（`gateByTopPage`。UT 4 件）
+- [x] PR #197 の自動のセキュリティレビューの指摘: 公開のページの中のスクリプトが、許可した手元の開発サーバーを `fetch` で読めた（手元を読んだ印が付かず、外へ送れた）。最上位のページが手元のときだけ手元への接続を通す（`gateByTopPage`。UT 4 件）。続く指摘で、公開のページから手元へ移るときに古いページのスクリプトが残る隙も、先に `about:blank` へ移ってから切り替えて塞いだ
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`09`・`18`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.env.example`、マニュアル、`.claude/rules/{security,testing}.md`）

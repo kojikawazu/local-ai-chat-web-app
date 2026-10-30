@@ -73,7 +73,6 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
       }
       const { session } = opened;
       const page = await session.page();
-      session.prepareNavigation(parsed.url.href);
 
       // page.goto は signal を受けないため、停止・タイムアウトではページを閉じて読み込みを止める
       // （同じ応答の次の呼び出しでは、セッションがページを開き直す）
@@ -82,6 +81,7 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
       try {
         let status: number | undefined;
         try {
+          await session.prepareNavigation(page, parsed.url.href);
           const response = await page.goto(parsed.url.href, {
             waitUntil: 'load',
             timeout: NAVIGATION_TIMEOUT_MS,
@@ -94,6 +94,8 @@ export function createBrowserNavigateTool(localOrigins: string[]): Tool {
           }
           status = response?.status();
         } catch (e) {
+          // 開けなかったら、最上位のページの判定を今のページ（エラーのページ・元のページ）に合わせ直す
+          session.syncTopPage(page);
           if (signal.aborted) return toolError('ページを開くのを中断しました');
           const lastBlocked = session.proxy.blocked.at(-1);
           const message = e instanceof Error ? e.message.split('\n')[0] : '';

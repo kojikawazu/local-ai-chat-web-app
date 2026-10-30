@@ -33,11 +33,21 @@ export type BrowserSession = {
   openedPage: () => Page | undefined;
   /**
    * これから開くページを知らせる。最上位のページが手元の開発サーバーかを、開く前に切り替える
-   * （開くページへのリクエスト自体が、最上位のページの判定で止まらないように）
+   * （開くページへのリクエスト自体が、最上位のページの判定で止まらないように）。
+   * 公開のページから手元のページへ移るときは、先に空のページ（about:blank）へ移って古いページのスクリプトを止めてから切り替える
+   * （切り替えた後に、古い公開のページのスクリプトが手元へ接続できる隙を作らない）
    *
+   * @param page - 開くページ
    * @param url - 開く URL
+   * @returns 切り替え終わったら解決する Promise
    */
-  prepareNavigation: (url: string) => void;
+  prepareNavigation: (page: Page, url: string) => Promise<void>;
+  /**
+   * 最上位のページの判定を、今のページの URL に合わせ直す（開けなかった・中断したとき）
+   *
+   * @param page - ページ
+   */
+  syncTopPage: (page: Page) => void;
   /**
    * URL が、許可した手元の開発サーバーのものかを返す
    *
@@ -149,8 +159,16 @@ async function createSession(
         current && !current.isClosed() && current.url() !== 'about:blank'
           ? current
           : undefined,
-      prepareNavigation: (url) => {
-        topIsLocal = isLocalUrl(url);
+      async prepareNavigation(page, url) {
+        const toLocal = isLocalUrl(url);
+        if (toLocal && !topIsLocal && page.url() !== 'about:blank') {
+          // 古い公開のページを捨てる。空のページへの移動はプロキシを通らない
+          await page.goto('about:blank');
+        }
+        topIsLocal = toLocal;
+      },
+      syncTopPage(page) {
+        topIsLocal = !page.isClosed() && isLocalUrl(page.url());
       },
       isLocalUrl,
     },
