@@ -1,6 +1,6 @@
 # ツールの承認とファイルの書き込み 設計書
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-10-31
 
 エージェントがファイルを作成・編集する前に、利用者の承認を挟むための設計（#148 の Phase A2）。承認の仕組みは、この後のコマンドの実行（Phase B）・ブラウザの操作（#149）でも使い回す前提で作る（Phase B では見せる内容の `ApprovalPreview` を `action` の union にし、`run` を足した。[16-command-execution.md](./16-command-execution.md)。Phase C で GitHub への書き込みの `github-comment`・`github-create-pr` を足した。[17-github-tools.md](./17-github-tools.md)。#149 Phase C でブラウザの操作の `browser-action` を足し、`prepare` に応答ごとの文脈を渡すようにした。[18-browser-tools.md](./18-browser-tools.md)）。読み取りのツール（Phase A）は [14-local-file-tools.md](./14-local-file-tools.md)。
 
@@ -145,8 +145,18 @@ type PreparedAction =
 |---|---|---|
 | `write_file` の `content` | 200,000 文字 | モデルがこれを超える量を一度に書くのは現実的でない（出力が遅い）。誤って巨大な文字列を書かせない |
 | 編集・上書きする既存のファイル | 2MB | `read_file` と同じ |
-| 承認の待ち時間 | 5 分 | 席を外していてもすぐには取り消さない長さ。ストリームを開いたまま待つため、際限なくは待たない |
+| 承認の待ち時間 | 5 分 | 席を外していてもすぐには取り消さない長さ。ストリームを開いたまま待つため、際限なくは待たない（値は `constants/agent/approval.ts` の `APPROVAL_TIMEOUT_MS`） |
 | 承認カードの差分の表示 | 400 行 | — |
+
+## 承認の待ち時間の表示（#202）
+
+承認カードの見出しの横に、承認の残り時間を「残り 4:32」の形で出す。時間切れが近いことに気づけるようにするため。
+
+- **時間の渡し方**: `tool_approval_request` に待ち時間の上限（`timeoutMs`。ミリ秒）を載せる。画面は受け取った時刻（`Date.now()`）に足して期限にし、1 秒ごとに数え直す（`hooks/chat/useApprovalCountdown.ts`・`lib/chat/approval-countdown.ts`）。終わる時刻（絶対時刻）は送らない。ブラウザとサーバーの時計がずれていても、残り時間がずれないようにするため。
+- **表示**: 秒は切り上げる。残り 1 分以下は黄、0 になったら赤で「時間切れ」と出し、許可・拒否のボタンを押せなくする。届くまでの遅れの分だけ画面の期限はサーバーより早く来るため、サーバーが時間切れにした後に押せることはない（早めに押せなくなるだけ）。
+- **決着はサーバーのまま**: 時間切れの判定（`waitForApproval`）と結果（「承認されませんでした（時間切れ）」）はサーバーが持つ。画面の表示は目安で、カードは時間切れの `tool_call_result` が届いて消える。
+- `timeoutMs` が届かない・正の数でないときは、残り時間を出さない（ボタンはそのまま押せる）。
+- ファイルの書き込み・コマンドの実行・GitHub への書き込み・ブラウザの操作のすべての承認カードに出す（同じ `ApprovalCard`）。
 
 ## 脅威と対策
 
@@ -176,16 +186,16 @@ front/src/
 └── hooks/chat/useChat.ts             # tool_approval_request を受け、承認の API を呼ぶ
 ```
 
-- `AgentStreamEvent` に `tool_approval_request`（`approvalId`・`name`・`preview`）を足す。決着は続く `tool_call_result` で分かるため、別のイベントは足さない。
+- `AgentStreamEvent` に `tool_approval_request`（`approvalId`・`name`・`preview`。#202 で待ち時間の上限の `timeoutMs` を足した）を足す。決着は続く `tool_call_result` で分かるため、別のイベントは足さない。
 - `ToolCallInfo` に `approval?: 'approved' | 'rejected' | 'expired'` を足す。
 
 ## テスト
 
 | 層 | 対象 |
 |---|---|
-| UT | 承認待ちの登録・決着・時間切れ・取り消し（偽のタイマー）・`edit_file` の一致の数え方と CRLF・書き込み先の判定（新規・`.git`・秘匿）・差分の行数・結果の文章 |
+| UT | 承認待ちの登録・決着・時間切れ・取り消し（偽のタイマー）・承認カードの残り時間（期限・切り上げ・警告・時間切れ・不正な待ち時間。#202）・`edit_file` の一致の数え方と CRLF・書き込み先の判定（新規・`.git`・秘匿）・差分の行数・結果の文章 |
 | IT | `/api/chat`（Ollama はスタブ）と承認の API を合わせて: 許可で書ける・拒否で書かない・時間切れ・停止で取り消し・準備と実行の間にファイルが変わったら書かない・`old_string` が 0 / 2 か所・`.git` と秘匿ファイルを断る・知らない承認 ID は 404・書き込みの場所が無ければツールを登録しない |
-| E2E | 承認の API の 404・400（CI でも動く）。実際にモデルにファイルを書かせ、承認カードの差分・許可・拒否（大きいモデルだけ。`IS_LIGHT_MODEL` でスキップ。E2E 用のフォルダの複製に書く） |
+| E2E | 承認の API の 404・400（CI でも動く）。承認カードの残り時間・残り 1 分の警告・時間切れでボタンを押せない（#202。`command-approval.spec.ts`。ブラウザの時計を `page.clock` で進める）。実際にモデルにファイルを書かせ、承認カードの差分・許可・拒否（大きいモデルだけ。`IS_LIGHT_MODEL` でスキップ。E2E 用のフォルダの複製に書く） |
 
 ## やらないこと
 

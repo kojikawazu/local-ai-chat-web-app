@@ -1,4 +1,5 @@
 import type { ToolApproval } from '@/types/agent/tool-call';
+import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
 
 /**
  * ツールの実行前の承認待ちを持つ（#148 Phase A2。`docs/15-tool-approval.md`）。
@@ -7,9 +8,6 @@ import type { ToolApproval } from '@/types/agent/tool-call';
  * 結果を渡す。2 つの route は Next.js の開発サーバーで別にモジュールを読み込むことがあるため、
  * 承認待ちはモジュールの変数ではなく `globalThis` に置く（`lib/server/prisma.ts` と同じ置き方）。
  */
-
-/** 承認を待つ時間の上限（ミリ秒。5 分）。席を外してもすぐには取り消さず、際限なくも待たない長さ */
-const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** 承認待ち 1 件の決着のさせ方 */
 type PendingApproval = (approved: boolean) => void;

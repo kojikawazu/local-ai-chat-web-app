@@ -4,6 +4,7 @@ import { access, rm } from 'fs/promises';
 import path from 'path';
 import { E2E_WRITE_DIR } from './helpers/local-files';
 import { IS_LIGHT_MODEL } from './helpers/model';
+import { stopButton } from './helpers/long-answer';
 import {
   cleanupAllConversations,
   sendMessage,
@@ -18,6 +19,8 @@ import {
  * ツール呼び出しが要るため、軽量モデルではスキップする。
  * 承認の流れ（許可・拒否・停止）の契約は IT（chat-agent-command.test.ts）、コマンドの解釈・プロセスの停止は IT（local-command.test.ts）が担う。
  * 承認の API の 404・400 は file-write-approval.spec.ts が確かめる（同じ API のため繰り返さない）。
+ * 承認カードの残り時間（#202）は、どの承認カードも同じ部品のためここで確かめる。時間切れは 5 分を待たず、
+ * ブラウザの時計（`page.clock`）を進めて起こす（ブラウザ API の境界。サーバーの待ち時間はそのまま）。
  */
 
 const MARKER = path.join(E2E_WRITE_DIR, 'command-ran.txt');
@@ -61,6 +64,16 @@ function approvalCard(page: Page) {
   return page.getByRole('region', { name: 'ツールの実行の承認' });
 }
 
+/**
+ * 承認カードの残り時間（#202）。
+ *
+ * @param page - 対象のページ
+ * @returns 残り時間のロケーター
+ */
+function countdown(page: Page) {
+  return approvalCard(page).getByRole('timer', { name: '承認の残り時間' });
+}
+
 test.describe('コマンドの実行の承認', () => {
   test.beforeEach(async ({ request }) => {
     await cleanupAllConversations(request);
@@ -95,6 +108,8 @@ test.describe('コマンドの実行の承認', () => {
         '$ node -e'
       );
       await expect(card).toContainText('作業フォルダ');
+      // 承認の待ち時間（5 分）の残りが出る（#202）
+      await expect(countdown(page)).toHaveText(/残り [45]:\d\d/);
       // 許可するまでは実行されない。結果の欄は ✅ ではなく承認待ち（#192）
       expect(await exists(MARKER)).toBe(false);
       const pending = page.locator('button', { hasText: 'コマンドを実行' });
@@ -126,6 +141,35 @@ test.describe('コマンドの実行の承認', () => {
       await expect(
         page.locator('button', { hasText: '拒否されました' }).first()
       ).toContainText('❌');
+    });
+
+    test('承認の時間切れが近づくと残り時間が警告の色になり、時間切れでは許可・拒否を押せない', async ({
+      page,
+    }) => {
+      test.skip(IS_LIGHT_MODEL, '軽量モデルはツール呼び出しが不安定なため');
+      test.setTimeout(240000);
+
+      // ページの読み込みより前に入れる（残り時間を数えるタイマーを、進められる時計に載せる）
+      await page.clock.install();
+      await askToRun(page);
+      const card = approvalCard(page);
+      await expect(card).toBeVisible({ timeout: 200000 });
+      await expect(countdown(page)).toHaveText(/残り [45]:\d\d/);
+
+      await page.clock.fastForward('04:01');
+      await expect(countdown(page)).toHaveText(/残り 0:[0-5]\d/);
+      await expect(countdown(page)).toHaveClass(/text-nord-aurora-yellow/);
+      await expect(card.getByRole('button', { name: '許可' })).toBeEnabled();
+
+      await page.clock.fastForward('01:00');
+      await expect(countdown(page)).toHaveText('時間切れ');
+      await expect(card.getByRole('button', { name: '許可' })).toBeDisabled();
+      await expect(card.getByRole('button', { name: '拒否' })).toBeDisabled();
+
+      // サーバーはまだ待っている（ブラウザの時計だけを進めた）。停止で取り消し、実行されないことを確かめる
+      await stopButton(page).click();
+      await expect(card).toBeHidden();
+      expect(await exists(MARKER)).toBe(false);
     });
   });
 

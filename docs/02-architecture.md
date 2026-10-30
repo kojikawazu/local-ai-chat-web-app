@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-10-31
 
 ## 目次
 
@@ -163,6 +163,7 @@ front/src/
 │               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
 │   ├── agent/
+│   │   ├── approval.ts        #     承認の待ち時間の上限（5 分。エージェントループと承認待ちで共有。#202）
 │   │   └── github.ts          #     GitHub のツールで共通の引数の定義（kind・number）・一覧の件数の上限（#148 Phase C）
 │   └── chat/
 │       ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
@@ -174,6 +175,7 @@ front/src/
 │   │   ├── useChat.ts         #     チャットロジック（ストリーミング、NDJSON、タイトル生成、会話ごとの状態）
 │   │   ├── useModels.ts       #     利用可能なモデル一覧（画像に対応したモデルを含む）の取得と選択中のモデル
 │   │   ├── useImageAttachments.ts # 送信前の添付画像（追加・前処理・削除・添付できなかった理由。#6）
+│   │   ├── useApprovalCountdown.ts # 承認カードの残り時間を 1 秒ごとに数え直す（#202）
 │   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
 │   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
 │   ├── clipboard/
@@ -250,6 +252,7 @@ front/src/
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
 │   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）
+│   │   ├── approval-countdown.ts #  承認カードの残り時間（受け取った待ち時間からの期限・切り上げ・警告・時間切れ。#202）
 │   │   ├── tool-screenshots.ts #    ツールの画面の表示の URL・保存する記録から中身を外す・保存の添付にする・done の記録に中身を戻す（#200）
 │   │   ├── system-prompt.ts   #     会話の役割のプリセット・表示名の逆引き・役割とエージェントのプリセットの連結
 │   │   ├── code-block.ts      #     コードブロックの構文木から言語名・コピーする本文を取り出す

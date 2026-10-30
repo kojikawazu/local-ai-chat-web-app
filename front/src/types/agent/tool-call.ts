@@ -196,6 +196,11 @@ export type ToolApprovalRequest = {
   preview: ApprovalPreview;
   /** 承認を待っている応答のメッセージ ID。許可・拒否を返したら、その記録を「実行中」に戻す（#192） */
   messageId: string;
+  /**
+   * 承認の期限（画面の時計の `Date.now()` と同じ基準のミリ秒。#202）。
+   * 受け取った時刻に待ち時間の上限を足したもの。待ち時間が届かなければ持たない（残り時間を出さない）
+   */
+  expiresAt?: number;
 };
 
 /**

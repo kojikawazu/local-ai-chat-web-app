@@ -22,7 +22,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
     'rounded-lg text-sm font-bold bg-nord-frost-1 text-nord-0 hover:bg-nord-frost-2 disabled:opacity-50 transition-colors',
   secondary:
-    'rounded-lg text-sm text-nord-4 hover:bg-white/5 transition-colors',
+    'rounded-lg text-sm text-nord-4 hover:bg-white/5 disabled:opacity-50 transition-colors',
   subtle: 'rounded-lg text-sm text-nord-frost-1 hover:bg-white/5',
   link: 'flex items-center gap-1 text-nord-frost-1 hover:underline disabled:opacity-50 disabled:no-underline',
 };

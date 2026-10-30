@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-10-31
 
 ## 目次
 
@@ -334,7 +334,7 @@ Content-Type: application/x-ndjson
 | `text_delta` | `content: string` | テキスト差分（1チャンク分） | A |
 | `tool_call_start` | `name: string`, `arguments: object`, `contentOffset: number` | ツール呼び出し開始。`contentOffset` はその時点で送った本文の文字数（#186） | A |
 | `tool_call_result` | `name: string`, `result: string`, `isError: boolean`, `summary?: string`, `isEmpty?: boolean`, `approval?: 'approved' \| 'rejected' \| 'expired'`, `screenshots?: ToolScreenshot[]` | ツール実行結果（`summary` は見出しの要約、`isEmpty` は成功だが結果が空。#150。`approval` は承認が要るツールの承認の結果。#148 Phase A2。`screenshots` はブラウザのツールが撮った画面で、中身（`data`）付き。`done` の `toolCalls` は中身を外して載せる。#200） | A |
-| `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview` | 承認が要るツールの実行前に、見せる内容を送って利用者の許可を待つ。`preview` は `action` で形が決まる（`create` / `overwrite` / `edit` はファイルの差分、`run` はコマンド・実行ファイル・作業フォルダ・時間の上限、`github-comment`・`github-create-pr` はリポジトリと公開か・送る本文）（#148 Phase A2・B・C。`docs/15-tool-approval.md`・`docs/16-command-execution.md`・`docs/17-github-tools.md`） | A2 |
+| `tool_approval_request` | `approvalId: string`, `name: string`, `preview: ApprovalPreview`, `timeoutMs: number` | 承認が要るツールの実行前に、見せる内容を送って利用者の許可を待つ。`timeoutMs` は待ち時間の上限で、画面は受け取った時刻から承認カードの残り時間を数える（#202）。`preview` は `action` で形が決まる（`create` / `overwrite` / `edit` はファイルの差分、`run` はコマンド・実行ファイル・作業フォルダ・時間の上限、`github-comment`・`github-create-pr` はリポジトリと公開か・送る本文）（#148 Phase A2・B・C。`docs/15-tool-approval.md`・`docs/16-command-execution.md`・`docs/17-github-tools.md`） | A2 |
 | `done` | `metadata?: { toolCalls: ToolCallInfo[]; agentRounds?: number; agentDurationMs?: number }` | ストリーミング完了（実行統計付き） | A/C |
 | `error` | `message: string` | エラー発生 | A |
 | `thinking` | `content: string` | エージェントの思考過程 | C |

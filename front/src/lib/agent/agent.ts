@@ -8,6 +8,7 @@ import {
   hasVisionTools,
 } from './tools/index';
 import { waitForApproval } from './approvals';
+import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
 import type {
   ToolApproval,
   ToolCallInfo,
@@ -312,7 +313,7 @@ export function createInOrderQueue(): <T>(
  * 承認が要るツールを、準備 → 承認 → 実行の順に進める（#148 Phase A2。`docs/15-tool-approval.md`）。
  *
  * 準備で失敗したら承認は求めず、その結果を返す。準備できたら `tool_approval_request` を送り、
- * 承認の API から結果が届くまで待つ（停止・切断で取り消し、5 分で時間切れ）。許可されたら準備で作った処理を実行する。
+ * 承認の API から結果が届くまで待つ（停止・切断で取り消し、{@link APPROVAL_TIMEOUT_MS} で時間切れ。画面が残り時間を出せるよう、同じ値をイベントに載せる。#202）。許可されたら準備で作った処理を実行する。
  * 所要時間は準備と実行の合計（承認を待つ時間は含めない）。
  *
  * @param tool - 承認が要るツール（`prepare` を持つ）
@@ -353,10 +354,12 @@ async function runWithApproval(
     approvalId,
     name,
     preview: prepared.value.preview,
+    timeoutMs: APPROVAL_TIMEOUT_MS,
   });
   const decision = await waitForApproval({
     id: approvalId,
     signal: loopSignal,
+    timeoutMs: APPROVAL_TIMEOUT_MS,
   });
   if (decision !== 'approved') {
     return {

@@ -14,6 +14,7 @@ import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
 import { toConversationHistory } from '@/lib/chat/conversation-history';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
+import { approvalExpiresAt } from '@/lib/chat/approval-countdown';
 import {
   finishToolCall,
   startToolCall,
@@ -544,11 +545,22 @@ export function useChat({
                 } else if (event.type === 'tool_approval_request') {
                   // 承認を待つ。承認カードを出し、利用者の許可・拒否は respondToApproval で返す（#148 Phase A2）
                   const { approvalId, name, preview } = event;
+                  // 期限は受け取った時刻から数える（サーバーとの時計のずれに左右されないように。#202）
+                  const expiresAt = approvalExpiresAt(
+                    event.timeoutMs,
+                    Date.now()
+                  );
                   updateChatOf(convId, (chat) => ({
                     ...chat,
                     pendingApprovals: [
                       ...chat.pendingApprovals,
-                      { approvalId, name, preview, messageId: aiMessageId },
+                      {
+                        approvalId,
+                        name,
+                        preview,
+                        messageId: aiMessageId,
+                        ...(expiresAt !== undefined && { expiresAt }),
+                      },
                     ],
                   }));
                   // 仮の記録を「承認待ち」にする（許可していないのに ✅ に見えないように。#192）
