@@ -1,5 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import {
+  CONVERSATION_SELECT,
+  toConversationResponse,
+} from '@/lib/server/conversation';
 import { prisma } from '@/lib/server/prisma';
 import {
   parseUpdateConversationBody,
@@ -16,7 +20,7 @@ import { isValidUUID } from '@/lib/shared/validation';
  *
  * @param request - `systemPrompt`（文字列か `null`。最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
- * @returns 成功時は変更後の会話（`id` / `title` / `systemPrompt` / `createdAt` / `updatedAt`）の JSON。ID フォーマット・ボディの不正は 400、会話が存在しなければ 404、更新失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は変更後の会話（一覧の 1 件と同じ形。分岐元の `forkedFrom` を含む）の JSON。ID フォーマット・ボディの不正は 400、会話が存在しなければ 404、更新失敗は 500 の JSON エラーレスポンス
  */
 export async function PATCH(
   request: NextRequest,
@@ -49,13 +53,8 @@ export async function PATCH(
 
     const conversation = await prisma.conversation.findUnique({
       where: { id },
-      select: {
-        id: true,
-        title: true,
-        systemPrompt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      // 一覧の 1 件と同じ形にする（クライアントは一覧の会話をこの応答で差し替えるため、分岐元も要る）
+      select: CONVERSATION_SELECT,
     });
     // 更新の直後に別のリクエストが削除した場合だけ null になる
     if (!conversation) {
@@ -64,7 +63,7 @@ export async function PATCH(
         { status: 404 }
       );
     }
-    return NextResponse.json(conversation);
+    return NextResponse.json(toConversationResponse(conversation));
   } catch (error) {
     console.error('Failed to update conversation:', error);
     return NextResponse.json(

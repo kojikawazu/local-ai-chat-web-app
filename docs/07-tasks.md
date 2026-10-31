@@ -1181,3 +1181,15 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] シーケンス A（基本の往復）・B（ツールの往復）・C（承認を挟む往復）。ブラウザとサーバーは色を分ける
 - [x] ページごとの PNG と更新の手順（`docs/diagrams/README.md`）
 - [x] ドキュメント（`docs/02`・`07`・`09`・`README.md`、`CLAUDE.md`）
+
+## フェーズ53: 会話の分岐（#29）
+
+会話の途中の応答から、そこまでのやり取りを新しい会話にコピーし、別の方向で続けられるようにする（会話の中のツリーにはしない）。設計は [22-conversation-fork.md](./22-conversation-fork.md)。 — #29・サブ issue #215（2026-10-31 着手）
+
+- [x] 設計（`docs/22-conversation-fork.md`。新しい会話にコピー・保存済みの応答から分岐・`Conversation.forkedFromMessageId`（消えたら `null`）・添付画像は中身ごとコピーしてツールの画面の ID を書き換える・ブックマークはコピーしない・タイトルは `（分岐）` を足す・ヘッダーの分岐元のリンクで元の応答へ移る）
+- [x] 設計のレビュー（推奨どおり）
+- [x] DB（`Conversation.forkedFromMessageId`）・マイグレーション（`20261031124104_add_conversation_fork`）
+- [x] API（`POST /api/conversations/[id]/fork`）・会話一覧 / 作成 / 役割の変更の `forkedFrom`（会話を返す route の形を `lib/server/conversation.ts` にそろえた。タイトル未指定のときの会話タイトルは `constants/conversation/title.ts` へ昇格）
+- [x] 応答の下の分岐のボタン（`ChatWindow`）・ヘッダーの分岐元のリンク（`Header`）・サイドバーの印（`ConversationListItem`）・`useConversationFork`
+- [x] UT（`conversation-fork.test.ts` 18 件）・IT（`conversation-fork.test.ts` 13 件。一覧・役割の変更のキーの確認に `forkedFrom` を足した）・E2E（`conversation-fork.spec.ts` 6 件。続けて質問する 1 件は CI でスキップ）。書き出し（JSON）は分岐元を含めないため、`export.test.ts` の期待値を会話の 5 項目にした
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`22`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,documentation}.md`）

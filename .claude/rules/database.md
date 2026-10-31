@@ -28,6 +28,11 @@ model Conversation {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   messages     Message[]
+  // 分岐した応答（#29）。分岐していない・分岐元が消えた会話は null
+  forkedFromMessageId String?
+  forkedFromMessage   Message? @relation("ConversationFork", fields: [forkedFromMessageId], references: [id], onDelete: SetNull)
+
+  @@index([forkedFromMessageId])
 }
 
 model Message {
@@ -40,6 +45,7 @@ model Message {
   createdAt      DateTime     @default(now())
   attachments    Attachment[]
   bookmark       Bookmark?
+  forkedConversations Conversation[] @relation("ConversationFork") // この応答から分岐した会話（#29）
 }
 
 // メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）
@@ -82,6 +88,7 @@ model Bookmark {
 - 添付画像は DB（`bytea`）に置く（ファイルに置かない）。assistant の画像（ブラウザのツールの画面。#200）は `metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
 - 一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット・応答のブックマーク）は、事前の確認ではなく制約の違反（`P2002`）で判定して 409 を返す（`lib/server/prisma-error.ts`）。確認と作成の間に同じ値で作られても食い違わないため。
 - ブックマーク（#30）は user のメッセージに付けさせない（`role` は文字列の列で DB の制約にしにくいため、API で検証する）。会話の削除で Conversation → Message → Bookmark とカスケード削除され、再生成の置き換え（`PUT .../messages/[messageId]`）は同じトランザクションでその応答のブックマークを消す。
+- 分岐した会話（#29）は、分岐元の応答への外部キー（`forkedFromMessageId`）を `onDelete: SetNull` で持つ。分岐元の会話を消すと Conversation → Message のカスケードで応答が消え、分岐した会話の参照だけが `null` になる（分岐した会話は残る）。コピーしたメッセージ・添付画像は分岐した会話のもので、元とは共有しない（添付画像は新しい ID でコピーし、metadata の中のツールの画面の ID も書き換える）。
 
 ## Prisma クライアント
 

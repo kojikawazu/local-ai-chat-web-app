@@ -121,11 +121,13 @@ front/src/
 │       ├── tools/
 │       │   └── route.ts       #     エージェントの利用可能ツール一覧取得
 │       └── conversations/
-│           ├── route.ts       #     会話一覧取得・新規作成
+│           ├── route.ts       #     会話一覧取得・新規作成（分岐元の forkedFrom 付き。#29）
 │           ├── search/
 │           │   └── route.ts   #     会話のキーワード検索（#11）
 │           └── [id]/
 │               ├── route.ts   #     会話の役割の変更（PATCH）・会話削除
+│               ├── fork/
+│               │   └── route.ts #   応答から会話を分岐する（その応答までを新しい会話にコピー。#29）
 │               ├── generate-title/
 │               │   └── route.ts #   LLMで会話タイトル自動生成
 │               └── messages/
@@ -157,7 +159,7 @@ front/src/
 │       │   │   └── DiagramZoomDialog.tsx # 図の拡大（倍率の変更）と SVG / PNG での保存のダイアログ（#176）
 │       │   └── organisms/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応・画像の添付ボタン / ドラッグ＆ドロップ / 貼り付け・先頭の `/` でテンプレートの候補とキー操作。#28）
-│       │       ├── ChatWindow.tsx # メッセージ一覧表示（応答のブックマークのボタン・ブックマークから移る先へのスクロールと枠。#30）
+│       │       ├── ChatWindow.tsx # メッセージ一覧表示（応答のブックマークのボタン・ブックマークから移る先へのスクロールと枠。#30。応答の下の「ここから分岐」のボタン。#29）
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
@@ -193,6 +195,8 @@ front/src/
 │   ├── chat/
 │   │   ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
 │   │   └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
+│   ├── conversation/
+│   │   └── title.ts           #     タイトル未指定のときの会話タイトル（会話の作成と分岐のタイトルで共有。#29）
 │   └── prompt-template/
 │       └── errors.ts          #     ショートカットの重複のエラーメッセージ（作成・置き換えの route で共有。#28）
 ├── generated/
@@ -203,6 +207,7 @@ front/src/
 │   │   ├── useModels.ts       #     利用可能なモデル一覧（画像に対応したモデルを含む）の取得と選択中のモデル
 │   │   ├── useImageAttachments.ts # 送信前の添付画像（追加・前処理・削除・添付できなかった理由。#6）
 │   │   ├── useApprovalCountdown.ts # 承認カードの残り時間を 1 秒ごとに数え直す（#202）
+│   │   ├── useConversationFork.ts # 応答から会話を分岐する（返事を待つ間の二度押しの防止・失敗を分岐元の会話に結びつけて持つ。#29）
 │   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
 │   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
 │   ├── clipboard/
@@ -294,7 +299,8 @@ front/src/
 │   │   ├── image-attachment.ts #    添付画像の選別（形式・大きさ・枚数）とブラウザでの縮小・再エンコード（#6）
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
-│   │   └── search.ts          #     会話検索のキーワードの解釈（ブックマークの一覧と共有。#30）・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   │   ├── search.ts          #     会話検索のキーワードの解釈（ブックマークの一覧と共有。#30）・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   │   └── fork.ts            #     分岐した会話のタイトル・コピーした応答の metadata のツールの画面の ID の書き換え（#29）
 │   ├── bookmark/              #   ブックマーク
 │   │   └── snippet.ts         #     一覧に出す応答の抜粋（一致した箇所の前後か先頭の 120 文字。#30）
 │   ├── prompt-template/       #   プロンプトテンプレート
@@ -304,10 +310,11 @@ front/src/
 │   ├── server/                #   サーバー専用（app/api/** から使う）
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
 │   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
+│   │   ├── conversation.ts    #     会話を返す API（一覧・作成・役割の変更・分岐）の共通の select と応答の形（分岐元の forkedFrom。#29）
 │   │   ├── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
 │   │   ├── attachment.ts      #     添付画像の形式の判定（マジックナンバー）・Base64 の復号（#6）
 │   │   ├── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
-│   │   └── prisma-error.ts    #     Prisma の一意制約の違反（409。メッセージの id・テンプレートのショートカット・ブックマーク。#28・#30）と外部キーの違反（404。#30）の判定
+│   │   └── prisma-error.ts    #     Prisma の一意制約の違反（409。メッセージの id・テンプレートのショートカット・ブックマーク。#28・#30）と外部キーの違反（404。ブックマーク・分岐。#30・#29）の判定
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID・テンプレートのショートカットの形の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
@@ -324,7 +331,7 @@ front/src/
     │   ├── metrics.ts         #     ResponseMetrics（応答のトークン数・所要時間。#31）
     │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
-    │   └── conversation.ts    #     Conversation・ConversationSearchResult
+    │   └── conversation.ts    #     Conversation・ConversationForkSource（分岐元。#29）・ConversationSearchResult
     ├── prompt-template/
     │   └── prompt-template.ts #     PromptTemplate（#28）
     ├── bookmark/
@@ -385,6 +392,7 @@ front/tests/
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
+    ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
@@ -421,6 +429,8 @@ Conversation           Message                     Attachment
 
 削除は Conversation → Message → Attachment とカスケードする。
 
+分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答（`Message.id`）を参照する。分岐元の会話を消すと、応答の削除に合わせて `SetNull` で `null` になる（分岐した会話は残る）。
+
 ```
 Bookmark（#30。応答 1 つに 1 つまで）
 ┌──────────────────────┐
@@ -454,6 +464,11 @@ model Conversation {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   messages     Message[]
+  // 分岐した応答（#29）。分岐していない・分岐元が消えた会話は null
+  forkedFromMessageId String?
+  forkedFromMessage   Message? @relation("ConversationFork", fields: [forkedFromMessageId], references: [id], onDelete: SetNull)
+
+  @@index([forkedFromMessageId])
 }
 
 model Message {
@@ -466,6 +481,7 @@ model Message {
   createdAt      DateTime     @default(now())
   attachments    Attachment[]
   bookmark       Bookmark?
+  forkedConversations Conversation[] @relation("ConversationFork") // この応答から分岐した会話（#29）
 }
 
 // メッセージに添付した画像（#6）。user メッセージだけが持つ
@@ -562,6 +578,13 @@ model Bookmark {
 3. サイドバーのボタンで一覧のダイアログ（`BookmarkDialog`）を開くと、`useBookmarks` が `GET /api/bookmarks` で新しい順に 20 件ずつ読む。キーワードは入力が止まって 300ms 後に読み直す（メモ・応答の本文・会話のタイトル。会話の検索と同じ解釈）
 4. 一覧の行を押すと、page が移る先（会話の ID・応答の ID）を持ってその会話を開き、`ChatWindow` がメッセージ一覧に移る先が現れたら画面の中央までスクロールして 2 秒だけ枠で示す（その間は一番下へのスクロールをしない）
 5. 一覧で外すと、開いている会話のその応答の印も `setMessageBookmark` で消す
+
+### 会話の分岐のフロー（#29）
+
+1. 応答の下の「ここから分岐」を押すと、`useConversationFork` が `POST /api/conversations/[id]/fork` を呼ぶ。返事を待つ間はどの応答の分岐のボタンも押させない
+2. API は、表示と同じ順（`createdAt` の昇順）でその応答までのメッセージを、本文・`createdAt`（元のまま）・metadata・添付画像（中身ごと新しい ID で）ごと新しい会話にコピーする。metadata の中のツールの画面の ID はコピーした画像の ID に書き換え、ブックマークはコピーしない。タイトルは `（分岐）` を足し、役割は元のまま。1 回の入れ子の作成で行い、途中で失敗したら何も残さない
+3. 成功したら、page が会話一覧を読み直し、新しい会話を開いて入力欄にフォーカスする。失敗したら、分岐元の会話を開いている間だけお知らせを出す
+4. 分岐した会話を開いている間、ヘッダーに分岐元のリンク（`GET /api/conversations` の `forkedFrom`）を出す。押すと、ブックマークと同じ移る先の仕組みで、分岐元の会話のその応答へ移る
 
 ### 会話管理フロー
 
