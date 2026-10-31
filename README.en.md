@@ -35,6 +35,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Response bookmarks**: bookmark answers and jump back to them from a cross-conversation list with keyword search and notes
 - **Conversation forks**: "Fork from here" on an answer copies the exchange up to that point into a new conversation so you can take it in a different direction (with a link back to the source)
+- **HTML reports / PDF**: save an answer or a conversation as a single HTML file with diagrams and images embedded, or open the same report in the print dialog to save it as PDF
 - **Keyboard shortcuts**: new conversation (⌘⇧O), search conversations (⌘K), toggle the sidebar (⌘B), focus the input (Shift+Esc), previous / next conversation (Ctrl+Shift+↑↓); ⌘/ shows the list (Ctrl on Windows / Linux)
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text
@@ -47,7 +48,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | Framework | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19 (React Compiler enabled) |
 | Styling | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
+| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid (HTML reports: unified + hast-util-to-html) |
 | Diff | diff (jsdiff, for the write-approval diff) |
 | LLM | Ollama (runs locally) |
 | DB | PostgreSQL 16 (Docker Compose) |

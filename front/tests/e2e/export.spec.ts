@@ -94,6 +94,24 @@ async function exportConversation(page: Page, format: 'Markdown' | 'JSON') {
   return download;
 }
 
+/**
+ * 応答の下の「保存」から、応答を Markdown で保存する（#36 で形式を選ぶダイアログを挟むようになった）。
+ *
+ * @param page - 対象のページ
+ * @returns ダウンロード
+ */
+async function saveAnswerAsMarkdown(page: Page) {
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '応答を保存' });
+  await expect(dialog).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: /^Markdown/ }).click(),
+  ]);
+  await expect(dialog).toBeHidden();
+  return download;
+}
+
 test.describe('書き出し', () => {
   test.beforeEach(async ({ request }) => {
     await cleanupAllConversations(request);
@@ -104,16 +122,13 @@ test.describe('書き出し', () => {
   });
 
   test.describe('正常系', () => {
-    test('応答の「Markdown で保存」で、応答の原文が .md で保存される', async ({
+    test('応答の「保存」で Markdown を選ぶと、応答の原文が .md で保存される', async ({
       page,
       request,
     }) => {
       await openSeededConversation(page, request);
 
-      const [download] = await Promise.all([
-        page.waitForEvent('download'),
-        page.getByRole('button', { name: 'Markdown で保存' }).click(),
-      ]);
+      const download = await saveAnswerAsMarkdown(page);
 
       expect(download.suggestedFilename()).toMatch(
         new RegExp(`^${TITLE}${DATE_PART}\\.md$`)
@@ -223,10 +238,7 @@ test.describe('書き出し', () => {
       const title = '設計/レビュー: 案*1?';
       await openSeededConversation(page, request, title);
 
-      const [download] = await Promise.all([
-        page.waitForEvent('download'),
-        page.getByRole('button', { name: 'Markdown で保存' }).click(),
-      ]);
+      const download = await saveAnswerAsMarkdown(page);
 
       const name = download.suggestedFilename();
       expect(name).toMatch(

@@ -16,8 +16,6 @@ import type { Message } from '@/types/chat/message';
 import type { ToolApprovalRequest } from '@/types/agent/tool-call';
 import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildAgentTimeline } from '@/lib/chat/agent-timeline';
-import { buildMessageExport } from '@/lib/chat/export';
-import { downloadTextFile } from '@/lib/shared/download';
 import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
@@ -43,8 +41,8 @@ type ChatWindowProps = {
   onRetrySave?: (messageId: string) => void;
   /** 再生成ボタン押下時のコールバック。再生成する応答の ID を受け取る。省略時はボタンを出さない。 */
   onRegenerate?: (messageId: string) => void;
-  /** 応答を Markdown で保存するときのファイル名に使う会話のタイトル（#12）。会話が一覧に無い間は空でよい。 */
-  conversationTitle?: string;
+  /** 応答の下の「保存」で呼ぶ（#36。形式を選ぶダイアログを開く）。押した応答を受け取る。省略時はボタンを出さない。 */
+  onSaveMessage?: (message: Message) => void;
   /** 承認を待っているツールの実行（届いた順。#148 Phase A2）。先頭の 1 件の承認カードを出す。省略時は無し。 */
   pendingApprovals?: ToolApprovalRequest[];
   /** 承認カードの許可・拒否で呼ぶ。承認 ID と、許可なら true を受け取る。 */
@@ -73,7 +71,7 @@ const FOCUS_HIGHLIGHT_MS = 2000;
  * user のメッセージに添付画像があれば、本文の上にサムネイルを並べる（#6）。
  *
  * メッセージ更新時は自動で最下部へスクロールする。assistant の応答は Markdown で
- * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピー・Markdown で保存のボタンを付随表示する。停止した応答には
+ * 描画し、思考過程・ツール呼び出し結果・ラウンド統計とコピー・保存（形式を選ぶダイアログ。#36）のボタンを付随表示する。停止した応答には
  * 「生成を中断しました」を添える。ツールの呼び出しに本文の位置（`contentOffset`）があれば、思考過程 → 説明と
  * ツールの結果（呼んだ順）→ 回答の吹き出しの順に並べ、回答を一番下に出す（#186。古いデータは吹き出し → ツールの一覧）。最初のチャンク
  * 待ち中はドットアニメーションを表示する。保存に失敗したメッセージには失敗表示と
@@ -92,7 +90,7 @@ export default function ChatWindow({
   isLoading,
   onRetrySave,
   onRegenerate,
-  conversationTitle = '',
+  onSaveMessage,
   pendingApprovals = [],
   onRespondApproval,
   onToggleBookmark,
@@ -344,22 +342,14 @@ export default function ChatWindow({
                       // 表示ではなく Markdown の原文をコピーする（貼り付け先で書式を再現できる）
                       <CopyButton text={msg.content} label="コピー" />
                     )}
-                    {msg.role === 'assistant' && (
+                    {msg.role === 'assistant' && onSaveMessage && (
                       <IconButton
-                        label="Markdown で保存"
+                        label="保存"
                         tone="inherit"
                         size="xs"
-                        onClick={() => {
-                          const file = buildMessageExport(
-                            msg,
-                            conversationTitle
-                          );
-                          downloadTextFile(
-                            file.fileName,
-                            file.content,
-                            file.mimeType
-                          );
-                        }}
+                        aria-haspopup="dialog"
+                        // 形式（Markdown・HTML・PDF）を選ぶダイアログを開く（#36）
+                        onClick={() => onSaveMessage(msg)}
                       >
                         <Download size={14} />
                       </IconButton>

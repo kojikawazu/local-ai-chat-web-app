@@ -6,12 +6,7 @@ import {
   withIntrinsicSize,
 } from '@/lib/chat/diagram';
 import type { DiagramState } from '@/types/chat/diagram';
-
-/**
- * 図の文字のフォント。mermaid はページの中で文字の幅を測って枠の大きさを決めるが、`<img>` の中では
- * Web フォント（Geist）が使えない。測る側と描く側を揃えるため、本文の `font-family` から Geist を除いたものにする
- */
-const DIAGRAM_FONT_FAMILY = 'Arial, Helvetica, sans-serif';
+import { DIAGRAM_FONT_FAMILY } from '@/constants/chat/diagram';
 
 /** テーマを表す `<html>` の属性（`useTheme` が付け外しする） */
 const THEME_ATTRIBUTE = 'data-theme';

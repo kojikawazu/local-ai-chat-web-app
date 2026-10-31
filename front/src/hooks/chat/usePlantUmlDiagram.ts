@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react';
 import { toPlantUmlDiagramState } from '@/lib/chat/diagram';
 import { MAX_DIAGRAM_SOURCE_LENGTH } from '@/lib/shared/validation';
 import type { DiagramState } from '@/types/chat/diagram';
-
-/** PlantUML の図を描かせる API */
-const PLANTUML_API = '/api/diagrams/plantuml';
+import { PLANTUML_API } from '@/constants/chat/diagram';
 
 /** 上限を超えるソースのメッセージ（API と同じ上限で、送る前に止める） */
 const TOO_LONG_ERROR = `図のソースが長すぎます（上限 ${MAX_DIAGRAM_SOURCE_LENGTH.toLocaleString('ja-JP')} 文字）`;

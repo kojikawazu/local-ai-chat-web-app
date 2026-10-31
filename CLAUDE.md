@@ -25,6 +25,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
 | Markdown表示 | react-markdown + remark-gfm + rehype-highlight（コードブロックのシンタックスハイライト）+ mermaid（Mermaid の図。使うときだけ読み込む） |
+| HTML レポート | unified + remark-parse + remark-rehype + hast-util-to-html（応答・会話の HTML / PDF の書き出し。画面と同じ remark-gfm・rehype-highlight を使う） |
 | 差分 | diff（jsdiff。ファイルの書き込みの承認カードの unified diff） |
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
@@ -206,9 +207,9 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
   - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
   - `features/shortcut/` — ショートカットキー（organisms: ShortcutHelpDialog）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -217,14 +218,14 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
       - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。利用者へ見せる画面（操作の前・後、開いた後）は capture.ts で撮り、応答の保存で assistant の添付画像にする。#200。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts, metrics.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts）
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
   - `lib/shortcut/` — ショートカットキー（match.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
   - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts）
-  - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, image.ts）
+  - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
 - **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
@@ -275,10 +276,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/21-bookmarks.md` | 応答のブックマーク 設計書 |
 | `docs/22-conversation-fork.md` | 会話の分岐 設計書 |
 | `docs/23-keyboard-shortcuts.md` | ショートカットキー 設計書 |
+| `docs/24-html-report-export.md` | HTML レポートと PDF の書き出し 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`24-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`25-`〜）を付与する。
 
 ## Instruction Shortcuts
 

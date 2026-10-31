@@ -43,7 +43,8 @@ const FALLBACK_TITLE = '会話';
  */
 const UNSAFE_FILE_NAME_CHARS = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
 
-const ROLE_HEADINGS: Record<Message['role'], string> = {
+/** 書き出しでメッセージの見出しに使う、role の名前（Markdown と HTML のレポートで共有。#36） */
+export const ROLE_HEADINGS: Record<Message['role'], string> = {
   user: 'ユーザー',
   assistant: 'アシスタント',
 };
@@ -77,7 +78,7 @@ function formatParts(date: Date): { day: string; time: string } {
  * @param date - 書く日時
  * @returns 本文に書く日時
  */
-function formatDateTime(date: Date): string {
+export function formatDateTime(date: Date): string {
   const { day, time } = formatParts(date);
   return `${day} ${time}`;
 }
@@ -88,7 +89,7 @@ function formatDateTime(date: Date): string {
  * @param title - 会話のタイトル
  * @returns 整えたタイトル。空なら {@link FALLBACK_TITLE}
  */
-function normalizeTitle(title: string): string {
+export function normalizeTitle(title: string): string {
   return title.replace(/\s+/g, ' ').trim() || FALLBACK_TITLE;
 }
 
