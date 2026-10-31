@@ -12,13 +12,16 @@ import {
 const MEDIA_FILE = /^word\/media\/[^/]+\.(?:png|jpe?g)$/;
 
 /**
- * HTML レポート・PDF・DOCX の書き出しの E2E（#36。`docs/24-html-report-export.md`・`docs/25-docx-export.md`）。
+ * HTML レポート・PDF・DOCX・HTML スライドの書き出しの E2E（#36。`docs/24-html-report-export.md`・
+ * `docs/25-docx-export.md`・`docs/26-html-slides-export.md`）。
  *
  * 会話は API で作る（Ollama を使わず、軽量モデル・CI でも動く）。Markdown の変換・安全策（生の HTML・危ない URL・
  * 外部の画像）・図と画像の埋め込みの組み立ては UT（report-html.test.ts）が担い、ここでは実際のブラウザで、
  * 書き出しのダイアログから保存したファイルの中身・Mermaid の図を描いて入れること・PDF の印刷が開くことを見る。
  * PDF はブラウザの印刷のダイアログを自動で操作できないため、`print` をブラウザの API の境界で差し替え、
  * 呼ばれたことと、印刷する文書（iframe の中）がレポートであることを確かめる。
+ * スライドの分け方・安全策は UT（slides.test.ts・report-slides.test.ts）が担い、ここでは応答の「保存」から保存した
+ * ファイルの中身と、そのファイルをブラウザで開いてキーで 1 枚ずつ進めること（scroll-snap）を見る。
  */
 
 const BASE_URL = 'http://localhost:3000';
@@ -427,6 +430,186 @@ test.describe('HTML レポート・PDF・DOCX の書き出し', () => {
       await expect(dialog).toBeVisible();
       // 失敗の後も選び直せる
       await expect(dialog.getByRole('button', { name: /^HTML/ })).toBeEnabled();
+    });
+  });
+});
+
+/** スライドの形で書いた応答（表紙・区切り線で 3 枚） */
+const SLIDES_ANSWER = [
+  '# 提案',
+  '',
+  '副題',
+  '',
+  '---',
+  '',
+  '## 背景',
+  '',
+  '- 1',
+  '- 2',
+  '',
+  '---',
+  '',
+  '## まとめ',
+  '',
+  '本文',
+].join('\n');
+
+/**
+ * 応答の「保存」のダイアログでスライドを選び、保存されたファイルを受け取る。
+ *
+ * @param page - 対象のページ
+ * @returns ダウンロード
+ */
+async function saveSlides(page: Page) {
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '応答を保存' });
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: /^スライド/ }).click(),
+  ]);
+  return download;
+}
+
+/**
+ * スライドの上端の、画面の上端からの位置（px。四捨五入）を返す。
+ *
+ * @param page - スライドを開いたページ
+ * @param index - スライドの番号（1 始まり）
+ * @returns 上端の位置
+ */
+async function slideTop(page: Page, index: number) {
+  return page.evaluate(
+    (id) =>
+      Math.round(
+        document.getElementById(id)?.getBoundingClientRect().top ?? NaN
+      ),
+    `slide-${index}`
+  );
+}
+
+test.describe('HTML スライドの書き出し', () => {
+  test.beforeEach(async ({ request }) => {
+    await cleanupAllConversations(request);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await cleanupAllConversations(request);
+  });
+
+  test.describe('正常系', () => {
+    test('応答の「保存」でスライドを選ぶと、区切り線ごとのスライドが 1 ファイルで保存される', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request, SLIDES_ANSWER);
+      await openConversation(page);
+
+      const download = await saveSlides(page);
+
+      expect(download.suggestedFilename()).toMatch(
+        /^レポートの会話_\d{4}-\d{2}-\d{2}_\d{4}\.slides\.html$/
+      );
+      const html = await readDownload(download);
+      expect(html.startsWith('<!doctype html>')).toBe(true);
+      expect(html.match(/<section class="slide/g)).toHaveLength(3);
+      expect(html).toContain('<section class="slide cover" id="slide-1">');
+      expect(html).toContain('<h2>背景</h2>');
+      expect(html).toContain('<span class="slide-number">3 / 3</span>');
+      // 応答 1 件なので、質問は入らない
+      expect(html).not.toContain('この画像について教えて');
+      expect(html).not.toMatch(/<script/i);
+      await expect(
+        page.getByRole('dialog', { name: '応答を保存' })
+      ).toBeHidden();
+    });
+
+    test('保存したスライドをブラウザで開くと、スペース・Page Down で 1 枚ずつ止まって進む', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request, SLIDES_ANSWER);
+      await openConversation(page);
+      const html = await readDownload(await saveSlides(page));
+
+      await page.setContent(html);
+      await expect(page.locator('#slide-1 h1')).toHaveText('提案');
+      expect(await slideTop(page, 1)).toBe(0);
+
+      await page.keyboard.press('Space');
+      await expect.poll(() => slideTop(page, 2)).toBe(0);
+      await page.keyboard.press('PageDown');
+      await expect.poll(() => slideTop(page, 3)).toBe(0);
+    });
+
+    test('スライドの Mermaid の図は描いた SVG を <img> で入れる', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(
+        request,
+        '## 図\n\n```mermaid\ngraph TD; A-->B\n```'
+      );
+      await openConversation(page);
+
+      const html = await readDownload(await saveSlides(page));
+
+      expect(html).toContain('<img src="data:image/svg+xml');
+      expect(html).not.toContain('language-mermaid');
+    });
+  });
+
+  test.describe('準正常系', () => {
+    test('会話の書き出しのダイアログには、スライドを出さない', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request, SLIDES_ANSWER);
+      await openConversation(page);
+
+      await page.getByRole('button', { name: '会話を書き出す' }).click();
+      const dialog = page.getByRole('dialog', { name: '会話を書き出す' });
+      await expect(dialog.getByRole('button', { name: /^HTML/ })).toBeVisible();
+      await expect(
+        dialog.getByRole('button', { name: /^スライド/ })
+      ).toHaveCount(0);
+    });
+
+    test('PlantUML の図を描けなければ、ソースのコードブロックのままスライドに入れる', async ({
+      page,
+      request,
+    }) => {
+      await page.route('**/api/diagrams/plantuml', (route) =>
+        route.fulfill({ status: 502, json: { error: 'PlantUML の失敗' } })
+      );
+      await createReportConversation(
+        request,
+        '## 図\n\n```plantuml\n@startuml\nA -> B\n@enduml\n```'
+      );
+      await openConversation(page);
+
+      const html = await readDownload(await saveSlides(page));
+
+      expect(html).toContain('language-plantuml');
+      expect(html).toContain('@startuml');
+    });
+  });
+
+  test.describe('異常系', () => {
+    test('応答の中の生の HTML・危ない URL は、スライドでも動かない', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(
+        request,
+        '## A\n\n<script>alert(1)</script>\n\n[押す](javascript:alert(1))'
+      );
+      await openConversation(page);
+
+      const html = await readDownload(await saveSlides(page));
+
+      expect(html).not.toMatch(/<script/i);
+      expect(html).not.toContain('javascript:');
+      expect(html).toContain('<a>押す</a>');
     });
   });
 });

@@ -29,7 +29,7 @@ front/src/app/api/
 ├── prompt-templates/
 │   ├── route.ts                           # プロンプトテンプレートの一覧・作成（#28）
 │   ├── [id]/route.ts                      # テンプレートの置き換え（PUT）・削除
-│   └── examples/route.ts                  # 一覧が空のときに例の 3 件を作る
+│   └── examples/route.ts                  # 一覧が空のときに例の 4 件を作る
 ├── bookmarks/
 │   ├── route.ts                           # 応答のブックマークの一覧（新しい順・検索・20 件ずつ）・付ける（#30）
 │   └── [id]/route.ts                      # メモの書き換え（PATCH）・外す

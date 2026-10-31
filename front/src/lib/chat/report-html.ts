@@ -42,6 +42,15 @@ export type ReportDiagram = {
   source: string;
 };
 
+/** {@link renderMarkdown} の変換の指定。 */
+export type RenderOptions = {
+  /**
+   * コメントだけの生の HTML（`<!-- … -->`）を出さない（スライド。Marp の指示・発表者のノートの書き方を文字で出さないため）。
+   * 既定（false）は、ほかの生の HTML と同じく文字として出す
+   */
+  dropHtmlComments?: boolean;
+};
+
 /** 描けた図。キーは {@link diagramKey}、値は SVG の `data:` URI */
 export type RenderedDiagrams = ReadonlyMap<string, string>;
 
@@ -99,7 +108,7 @@ export function diagramKey(kind: DiagramKind, source: string): string {
  * @param children - 子
  * @returns 要素
  */
-function el(
+export function el(
   tagName: string,
   properties: Properties = {},
   children: ElementContent[] = []
@@ -113,7 +122,7 @@ function el(
  * @param value - 文字列
  * @returns テキストのノード
  */
-function text(value: string): ElementContent {
+export function text(value: string): ElementContent {
   return { type: 'text', value };
 }
 
@@ -123,30 +132,51 @@ function text(value: string): ElementContent {
  * 生の HTML は react-markdown と同じく、構文木に `raw` として入れてからテキストに替える（そのままの文字で見せる）。
  *
  * @param markdown - Markdown の本文
+ * @param dropHtmlComments - コメントだけの生の HTML を出さないか（{@link RenderOptions}）
  * @returns hast のルート
  */
-function markdownToHast(markdown: string): Root {
+function markdownToHast(markdown: string, dropHtmlComments: boolean): Root {
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true });
   const tree = processor.runSync(processor.parse(markdown)) as Root;
-  replaceRawWithText(tree);
+  replaceRawWithText(tree, dropHtmlComments);
   return tree;
+}
+
+/** HTML のコメント（`<!-- … -->`） */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+/**
+ * 生の HTML が、コメントと空白だけでできているかを判定する。
+ *
+ * @param value - 生の HTML
+ * @returns コメントだけなら true
+ */
+function isCommentOnly(value: string): boolean {
+  return (
+    value.includes('<!--') && value.replace(HTML_COMMENT, '').trim() === ''
+  );
 }
 
 /**
  * 生の HTML（`raw` のノード）をテキストのノードに替える（スクリプト等をタグとして出さない）。
  *
  * @param node - 走査する親
+ * @param dropHtmlComments - true ならコメントだけの生の HTML は替えずに取り除く
  */
-function replaceRawWithText(node: Root | Element): void {
-  node.children = node.children.map((child) => {
+function replaceRawWithText(
+  node: Root | Element,
+  dropHtmlComments: boolean
+): void {
+  node.children = node.children.flatMap((child) => {
     if (child.type === 'raw') {
-      return { type: 'text', value: child.value };
+      if (dropHtmlComments && isCommentOnly(child.value)) return [];
+      return [{ type: 'text', value: child.value }];
     }
-    if (child.type === 'element') replaceRawWithText(child);
-    return child;
+    if (child.type === 'element') replaceRawWithText(child, dropHtmlComments);
+    return [child];
   }) as typeof node.children;
 }
 
@@ -188,7 +218,7 @@ function walk(node: Root | Element, visit: (element: Element) => void): void {
 export function collectDiagrams(markdowns: string[]): ReportDiagram[] {
   const found = new Map<string, ReportDiagram>();
   for (const markdown of markdowns) {
-    walk(markdownToHast(markdown), (element) => {
+    walk(markdownToHast(markdown, false), (element) => {
       if (element.tagName !== 'pre') return;
       const diagram = diagramOf(element);
       if (diagram && diagram.source.trim() !== '') {
@@ -295,13 +325,15 @@ function sanitizeLinksAndImages(node: Root | Element): void {
  *
  * @param markdown - Markdown の本文
  * @param diagrams - 描けた図
+ * @param options - 変換の指定（省略時は HTML レポートの既定）
  * @returns 本文の要素
  */
 export function renderMarkdown(
   markdown: string,
-  diagrams: RenderedDiagrams
+  diagrams: RenderedDiagrams,
+  options: RenderOptions = {}
 ): ElementContent[] {
-  const tree = markdownToHast(markdown);
+  const tree = markdownToHast(markdown, options.dropHtmlComments === true);
   replaceDiagrams(tree, diagrams);
   const highlighted = unified().use(rehypeHighlight).runSync(tree) as Root;
   sanitizeLinksAndImages(highlighted);

@@ -12,7 +12,7 @@ globs:
 ## インジェクション対策
 
 - **SQL インジェクション**: Prisma Client のパラメータバインディングを必須とする。`$queryRaw` での文字列結合は禁止。
-- **XSS**: 生の HTML 埋め込みは禁止。Reactの標準エスケープを活用。Markdown表示は `react-markdown` を使用（HTML パースなし）。シンタックスハイライトは構文木を書き換える `rehype-highlight` を使い、HTML 文字列を返すハイライター（埋め込みが要るもの）は使わない。SVG の文字列を返すライブラリ（mermaid）は、DOM に入れず `data:image/svg+xml` の URI にして `<img>` で表示する。HTML レポート・PDF・DOCX の書き出し（#36）は構文木（hast・文書の中間の形）から作り、本文の生の HTML は文字として出し、危ない URL のリンク・本文の画像を外し、スクリプトを入れない（`docs/05-security.md`「XSS対策」）。
+- **XSS**: 生の HTML 埋め込みは禁止。Reactの標準エスケープを活用。Markdown表示は `react-markdown` を使用（HTML パースなし）。シンタックスハイライトは構文木を書き換える `rehype-highlight` を使い、HTML 文字列を返すハイライター（埋め込みが要るもの）は使わない。SVG の文字列を返すライブラリ（mermaid）は、DOM に入れず `data:image/svg+xml` の URI にして `<img>` で表示する。HTML レポート・PDF・DOCX・HTML スライドの書き出し（#36）は構文木（hast・文書の中間の形）から作り、本文の生の HTML は文字として出し、危ない URL のリンク・本文の画像を外し、スクリプトを入れない（`docs/05-security.md`「XSS対策」）。
 - **CSP**: `next.config.ts` で CSP ヘッダーを設定する。
 - **添付画像**: 形式はクライアントの申告ではなく中身の先頭（マジックナンバー）で判定し、PNG / JPEG だけを保存する（SVG を受け付けない）。配信は判定済みの `Content-Type` と `X-Content-Type-Options: nosniff` で返す（#6。`docs/05-security.md`「添付画像」）。
 

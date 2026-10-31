@@ -303,7 +303,7 @@ test.describe('プロンプトテンプレート', () => {
       expect(await fetchTemplates(request)).toEqual([]);
     });
 
-    test('一覧が空なら、候補の「例を追加」で 3 件を作り、そのまま候補に出る', async ({
+    test('一覧が空なら、候補の「例を追加」で 4 件を作り、そのまま候補に出る', async ({
       page,
       request,
     }) => {
@@ -315,10 +315,11 @@ test.describe('プロンプトテンプレート', () => {
       await page.getByRole('button', { name: '例を追加' }).click();
       await expect(suggestions(page).getByRole('option')).toHaveText([
         /\/review/,
+        /\/slides/,
         /\/summarize/,
         /\/translate/,
       ]);
-      expect(await fetchTemplates(request)).toHaveLength(3);
+      expect(await fetchTemplates(request)).toHaveLength(4);
       await expect(page.locator('textarea')).toHaveValue('/');
     });
   });

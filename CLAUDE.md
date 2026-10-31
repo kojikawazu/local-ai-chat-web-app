@@ -25,7 +25,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | スタイリング | TailwindCSS 4 |
 | アイコン | lucide-react |
 | Markdown表示 | react-markdown + remark-gfm + rehype-highlight（コードブロックのシンタックスハイライト）+ mermaid（Mermaid の図。使うときだけ読み込む） |
-| HTML レポート | unified + remark-parse + remark-rehype + hast-util-to-html（応答・会話の HTML / PDF の書き出し。画面と同じ remark-gfm・rehype-highlight を使う） |
+| HTML レポート | unified + remark-parse + remark-rehype + hast-util-to-html（応答・会話の HTML / PDF と、応答の HTML スライドの書き出し。画面と同じ remark-gfm・rehype-highlight を使う） |
 | DOCX | docx（応答・会話の Word の書き出し。書き出すときだけ読み込む。テストは jszip で中身を読む） |
 | 差分 | diff（jsdiff。ファイルの書き込みの承認カードの unified diff） |
 | パッケージマネージャー | pnpm |
@@ -160,7 +160,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/prompt-templates` | テンプレートの作成（100 件まで。ショートカットの重複は 409） |
 | PUT | `/api/prompt-templates/[id]` | テンプレートの置き換え（名前・ショートカット・本文） |
 | DELETE | `/api/prompt-templates/[id]` | テンプレートの削除 |
-| POST | `/api/prompt-templates/examples` | 一覧が空のときに例の 3 件を作る（空でなければ 409） |
+| POST | `/api/prompt-templates/examples` | 一覧が空のときに例の 4 件を作る（空でなければ 409） |
 | GET | `/api/bookmarks` | 応答のブックマークの一覧（付けた日時の新しい順・20 件ずつ。`q` でメモ・応答の本文・会話のタイトルを AND で絞り込む。#30） |
 | POST | `/api/bookmarks` | 応答にブックマークを付ける（`messageId`。user のメッセージは 400・もう付いていれば 409） |
 | PATCH | `/api/bookmarks/[id]` | ブックマークのメモの書き換え（`note`。null・空白だけで消す。500 文字まで） |
@@ -219,7 +219,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
       - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。利用者へ見せる画面（操作の前・後、開いた後）は capture.ts で撮り、応答の保存で assistant の添付画像にする。#200。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts, metrics.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts, document-model.ts, report-docx.ts, report-assets.ts）
+  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts, document-model.ts, report-docx.ts, report-assets.ts, slides.ts, report-slides.ts, slides-style.ts）
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
@@ -279,10 +279,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/23-keyboard-shortcuts.md` | ショートカットキー 設計書 |
 | `docs/24-html-report-export.md` | HTML レポートと PDF の書き出し 設計書 |
 | `docs/25-docx-export.md` | DOCX の書き出し 設計書 |
+| `docs/26-html-slides-export.md` | HTML スライドの書き出し 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`26-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`27-`〜）を付与する。
 
 ## Instruction Shortcuts
 

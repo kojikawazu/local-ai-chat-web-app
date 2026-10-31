@@ -1,8 +1,8 @@
 # DOCX の書き出し 設計書
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-01
 
-応答・会話を、Word で開ける DOCX として保存できるようにするための設計（#36 の Phase C。サブ issue #221）。中身と安全策は HTML レポート（`docs/24-html-report-export.md`。#219）に揃える。HTML スライド・PPTX は後のサブ issue に回す。
+応答・会話を、Word で開ける DOCX として保存できるようにするための設計（#36 の Phase C。サブ issue #221）。中身と安全策は HTML レポート（`docs/24-html-report-export.md`。#219）に揃える。HTML スライドは `26-html-slides-export.md`（#223）、PPTX は後のサブ issue。
 
 ## 目次
 

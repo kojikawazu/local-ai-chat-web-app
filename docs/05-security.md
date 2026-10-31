@@ -1,6 +1,6 @@
 # セキュリティ要件書
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-11-01
 
 ## 目次
 
@@ -81,6 +81,7 @@
   - Markdown は unified（remark → rehype）で構文木にし、`hast-util-to-html` で文字列にする（HTML を文字列の連結で作らない）。本文の生の HTML はタグにせず文字として出す（react-markdown と同じ）
   - リンクは react-markdown と同じ `defaultUrlTransform` で検査し、危ない URL（`javascript:` 等）は `href` を外す。本文の画像（`![](…)`）は埋め込まずリンクにする（開いたときに外部へ読みに行かせない）
   - 図は SVG を `data:` URI の `<img>` で、添付画像は `data:image/png|jpeg;base64` の形のものだけを埋め込む。レポートにスクリプトは入れない
+  - HTML スライド（#36 Phase B）は、HTML レポートと同じ変換（`renderMarkdown`）の要素の並びをスライドに分けて作る。ページ送りは CSS の scroll-snap で、スクリプトは入れない。コメントだけの生の HTML（Marp の指示）は文字にせず取り除く（HTML として出すわけではない）
   - DOCX（#36 Phase C）は、同じ Markdown の解釈・安全策（生の HTML は文字・危ない URL のリンクと本文の画像は外す）で文書の中間の形にしてから `docx` で作る。文字は `docx` が XML としてエスケープする
   - PDF は、同じ HTML をアプリと同じオリジンの `srcdoc` の iframe で開いて印刷する。iframe の文書はアプリの CSP を受け継ぐ（スクリプトが無く、`data:` の画像・インラインの CSS だけを使うため、CSP は変えない）
 
