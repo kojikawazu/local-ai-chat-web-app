@@ -35,7 +35,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Response bookmarks**: bookmark answers and jump back to them from a cross-conversation list with keyword search and notes
 - **Conversation forks**: "Fork from here" on an answer copies the exchange up to that point into a new conversation so you can take it in a different direction (with a link back to the source)
-- **HTML reports / PDF / DOCX**: save an answer or a conversation as a single HTML file or an editable Word (DOCX) file with diagrams and images embedded; the HTML report can also be opened in the print dialog to save it as PDF
+- **HTML reports / PDF / DOCX / slides**: save an answer or a conversation as a single HTML file or an editable Word (DOCX) file with diagrams and images embedded; the HTML report can also be opened in the print dialog to save it as PDF. An answer can also be saved as HTML slides (split by `---` or headings) that you can present straight from the browser
 - **Keyboard shortcuts**: new conversation (⌘⇧O), search conversations (⌘K), toggle the sidebar (⌘B), focus the input (Shift+Esc), previous / next conversation (Ctrl+Shift+↑↓); ⌘/ shows the list (Ctrl on Windows / Linux)
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text

@@ -1,6 +1,6 @@
 # UI コンポーネント 設計書（Atomic Design）
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-01
 
 フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
@@ -181,7 +181,7 @@ src/
 
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
-| `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した。`ExportDialog` は #36 で書き出す対象（`target`。会話全体 / 応答 1 件）を受けるようにし、HTML・PDF・DOCX の形式を足した。`ChatWindow` には #36 で応答の「Markdown で保存」を、形式を選ぶダイアログを開く「保存」（`onSaveMessage`）に替えた。`ChatWindow` には #30 で応答のブックマークのボタンと、移る先（`focusMessageId`）へのスクロールと枠を足した。#29 で応答の下の「ここから分岐」のボタン（`onFork`・`forkingMessageId`）を足した。`Header` には #29 で分岐元の会話へのリンク（`forkSourceTitle`・`onOpenForkSource`）を足した） | `features/chat/components/` |
+| `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した。`ExportDialog` は #36 で書き出す対象（`target`。会話全体 / 応答 1 件）を受けるようにし、HTML・PDF・DOCX の形式と、応答 1 件だけのスライドの形式を足した。`ChatWindow` には #36 で応答の「Markdown で保存」を、形式を選ぶダイアログを開く「保存」（`onSaveMessage`）に替えた。`ChatWindow` には #30 で応答のブックマークのボタンと、移る先（`focusMessageId`）へのスクロールと枠を足した。#29 で応答の下の「ここから分岐」のボタン（`onFork`・`forkingMessageId`）を足した。`Header` には #29 で分岐元の会話へのリンク（`forkSourceTitle`・`onOpenForkSource`）を足した） | `features/chat/components/` |
 | `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |

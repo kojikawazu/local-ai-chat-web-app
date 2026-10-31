@@ -1,7 +1,14 @@
 'use client';
 
 import type { LucideIcon } from 'lucide-react';
-import { FileCode, FileJson, FileText, FileType, Printer } from 'lucide-react';
+import {
+  FileCode,
+  FileJson,
+  FileText,
+  FileType,
+  Presentation,
+  Printer,
+} from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import type { Conversation } from '@/types/conversation/conversation';
 import { buildConversationExport, buildMessageExport } from '@/lib/chat/export';
@@ -69,6 +76,12 @@ const FORMAT_LABELS: Record<
       'Word で編集できるファイルで保存する（図・画像も入る。コードの色は付けない）',
     icon: FileType,
   },
+  slides: {
+    name: 'スライド',
+    description:
+      'ブラウザで開いて発表できるスライドで保存する（区切り線（---）か見出しで 1 枚ずつ分ける。↓・スペースで次へ）',
+    icon: Presentation,
+  },
   json: {
     name: 'JSON',
     description: 'バックアップとして、ツールの結果なども含めてすべて残す',
@@ -78,6 +91,7 @@ const FORMAT_LABELS: Record<
 
 /**
  * 対象ごとに選べる形式（表示順）。応答 1 件には JSON を出さない（会話のバックアップの形式のため）。
+ * スライドは応答 1 件だけ（質問と応答が交互に並ぶ会話は発表の形にならないため。#36）。
  *
  * @param target - 書き出す対象
  * @returns 形式の一覧
@@ -85,13 +99,13 @@ const FORMAT_LABELS: Record<
 function formatsOf(target: ExportTarget): ExportFormat[] {
   return target.kind === 'conversation'
     ? ['markdown', 'html', 'pdf', 'docx', 'json']
-    : ['markdown', 'html', 'pdf', 'docx'];
+    : ['markdown', 'html', 'pdf', 'docx', 'slides'];
 }
 
 /**
- * 会話全体・応答 1 件を書き出すダイアログ（#12。HTML・PDF・DOCX は #36）。形式を選ぶと保存して閉じる。
+ * 会話全体・応答 1 件を書き出すダイアログ（#12。HTML・PDF・DOCX・スライドは #36）。形式を選ぶと保存して閉じる。
  *
- * Markdown・JSON はその場で保存する。HTML・PDF・DOCX は図を描き・画像を読んでからレポートを組み立てるため、
+ * Markdown・JSON はその場で保存する。HTML・PDF・DOCX・スライドは図を描き・画像を読んでから組み立てるため、
  * その間はボタンを押せなくして「作成中…」を出し、失敗したらダイアログの中にエラーを出す（閉じない）。
  * 開いている間だけ描画する（呼び出し側で条件付きで置く）。外枠は共通の {@link Modal}。
  * 入力が無く失うものが無いため、背景のクリックでも閉じる（作成中は閉じない）。
@@ -102,7 +116,7 @@ export default function ExportDialog({ target, onClose }: ExportDialogProps) {
   const report = useReportExport();
 
   const handleExport = async (format: ExportFormat) => {
-    if (format === 'html' || format === 'pdf' || format === 'docx') {
+    if (format !== 'markdown' && format !== 'json') {
       const exported = await report.exportReport(
         target.kind === 'conversation'
           ? {

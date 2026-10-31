@@ -360,16 +360,17 @@ describe('PUT・DELETE /api/prompt-templates/[id]', () => {
 
 describe('POST /api/prompt-templates/examples', () => {
   describe('正常系', () => {
-    it('一覧が空なら例の 3 件を作り、ショートカットの昇順で返す', async () => {
+    it('一覧が空なら例の 4 件（スライドの /slides を含む。#36）を作り、ショートカットの昇順で返す', async () => {
       const res = await POST_EXAMPLES();
       expect(res.status).toBe(201);
       const { templates } = await res.json();
       expect(templates.map((t: { shortcut: string }) => t.shortcut)).toEqual([
         'review',
+        'slides',
         'summarize',
         'translate',
       ]);
-      expect(await prisma.promptTemplate.count()).toBe(3);
+      expect(await prisma.promptTemplate.count()).toBe(4);
     });
   });
 
@@ -379,13 +380,13 @@ describe('POST /api/prompt-templates/examples', () => {
       const res = await POST_EXAMPLES();
       expect(res.status).toBe(409);
       expect(typeof (await res.json()).error).toBe('string');
-      expect(await prisma.promptTemplate.count()).toBe(3);
+      expect(await prisma.promptTemplate.count()).toBe(4);
     });
 
-    it('同時に 2 回届いても 3 件だけ作る', async () => {
+    it('同時に 2 回届いても 4 件だけ作る', async () => {
       const results = await Promise.all([POST_EXAMPLES(), POST_EXAMPLES()]);
       expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
-      expect(await prisma.promptTemplate.count()).toBe(3);
+      expect(await prisma.promptTemplate.count()).toBe(4);
     });
 
     it('利用者のテンプレートが 1 件でもあれば 409', async () => {

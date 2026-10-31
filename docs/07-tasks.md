@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-01
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1229,3 +1229,16 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 書き出しのダイアログに DOCX（DOCX を選んだときだけ `import('docx')`）
 - [x] UT（`document-model.test.ts` 14 件・`report-docx.test.ts` 6 件）・E2E（`report-export.spec.ts` に DOCX の 3 件。`jszip` 3.10.1 を dev に足して中身を読む。zip のフォルダの項目を画像と数えないよう、画像のファイルだけを数える）
 - [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`25`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）
+
+## フェーズ57: HTML スライドの書き出し（#36 Phase B）
+
+応答を、ブラウザで開いてそのまま発表できる 1 ファイルの HTML スライドで保存する。設計は [26-html-slides-export.md](./26-html-slides-export.md)。 — #36・サブ issue #223（2026-11-01 着手）
+
+- [x] 設計（`docs/26-html-slides-export.md`。ブラウザの中で作る・HTML レポートの `renderMarkdown` の要素の並びを分ける（Marp は使わない）・応答 1 件だけ・`---` があればそこで、無ければ `max(最も浅い見出し, 2)` 段までの見出しで分ける・表紙は足さない・スクリプトを入れず scroll-snap でページ送り・収まらないスライドは伸ばす・コメントと front matter を出さない・例のテンプレートに `/slides`）
+- [x] 設計のレビュー（推奨どおり）
+- [x] スライドの分け方（`lib/chat/slides.ts`。PPTX と共有する総称の純関数）・front matter の除去
+- [x] スライドの HTML の組み立て・CSS（`lib/chat/report-slides.ts`・`slides-style.ts`。`renderMarkdown` にコメントだけの生の HTML を出さない指定（`dropHtmlComments`）を足し、hast の部品 `el`・`text` を公開。本文の CSS を `report-style.ts` の `MARKDOWN_STYLE` に切り出してレポートと共有）
+- [x] 応答の「保存」のダイアログにスライド（`useReportExport`・`ExportDialog`。ファイル名は `.slides.html`）
+- [x] 例のテンプレートに `/slides`（全体をコードブロックで囲まないよう本文で頼む。例は 4 件）
+- [x] UT（`slides.test.ts` 19 件・`report-slides.test.ts` 10 件）・IT（`prompt-templates.test.ts` の例の件数を 4 件に）・E2E（`report-export.spec.ts` に HTML スライドの 6 件。保存したファイルを `page.setContent` で開き、スペース・Page Down で次のスライドの上端に止まることを確かめる。`prompt-templates.spec.ts` の例の件数を 4 件に）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`20`・`24`・`25`・`26`・`README`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,documentation}.md`）

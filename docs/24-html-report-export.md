@@ -1,8 +1,8 @@
 # HTML レポートと PDF の書き出し 設計書
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-01
 
-応答・会話を、スタイル付きの 1 ファイルの HTML（レポート）として保存し、同じ HTML をブラウザの印刷で PDF にできるようにするための設計（#36 の Phase A・Phase E と、Phase F の書き出しの入口。サブ issue #219）。HTML スライド・DOCX・PPTX は後のサブ issue に回す。
+応答・会話を、スタイル付きの 1 ファイルの HTML（レポート）として保存し、同じ HTML をブラウザの印刷で PDF にできるようにするための設計（#36 の Phase A・Phase E と、Phase F の書き出しの入口。サブ issue #219）。DOCX は `25-docx-export.md`（#221）、HTML スライドは `26-html-slides-export.md`（#223）、PPTX は後のサブ issue。
 
 ## 目次
 
@@ -111,7 +111,7 @@ remark-parse → remark-gfm → remark-rehype（生の HTML は通さない）
 ```
 front/src/
 ├── lib/chat/report-html.ts              # 図の拾い出し・Markdown → HTML・レポートの組み立て（純関数）
-├── lib/chat/report-style.ts             # レポートの CSS（文字列の定数。テンプレートに埋め込む）
+├── lib/chat/report-style.ts             # レポートの CSS（文字列の定数。テンプレートに埋め込む。本文の部分（MARKDOWN_STYLE）は #223 でスライドと共有するよう切り出した）
 ├── lib/chat/export.ts                   # 日時の書き方・タイトルの整え方・role の見出しをレポートと共有する
 ├── lib/shared/print.ts                  # HTML を iframe で印刷する（ブラウザの API の境界）
 ├── constants/chat/diagram.ts            # 図のフォント・PlantUML の API のパス（画面の図とレポートの図で共有）

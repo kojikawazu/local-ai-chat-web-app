@@ -32,7 +32,7 @@ type PromptTemplateDialogProps = {
   onUpdate: (id: string, input: TemplateInput) => Promise<void>;
   /** 削除する。失敗したら例外を投げる */
   onDelete: (id: string) => Promise<void>;
-  /** 例の 3 件を作る（一覧が空のとき）。失敗したら例外を投げる */
+  /** 例の 4 件を作る（一覧が空のとき）。失敗したら例外を投げる */
   onAddExamples: () => Promise<void>;
   /** 閉じる要求（閉じるボタン・Escape）で呼ぶ */
   onClose: () => void;
