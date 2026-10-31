@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { Prisma } from '@/generated/prisma/client';
+import { isUniqueConstraintError } from '@/lib/server/prisma-error';
 import { prisma } from '@/lib/server/prisma';
 import { parseSaveMessageBody, readJsonBody } from '@/lib/server/request-body';
 import { isValidUUID } from '@/lib/shared/validation';
@@ -138,11 +138,8 @@ export async function POST(
 
     return NextResponse.json(message, { status: 201 });
   } catch (error) {
-    // P2002 は一意制約違反。主キーの重複は、指定された id のメッセージ（または添付）が既にあることを表す
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    // 主キーの重複は、指定された id のメッセージ（または添付）が既にあることを表す
+    if (isUniqueConstraintError(error)) {
       return NextResponse.json(
         { error: '同じIDのメッセージが既に存在します' },
         { status: 409 }

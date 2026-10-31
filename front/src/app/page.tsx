@@ -14,10 +14,12 @@ import Footer from '@/components/features/chat/organisms/Footer';
 import SettingsModal from '@/components/features/settings/organisms/SettingsModal';
 import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
 import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
+import PromptTemplateDialog from '@/components/features/prompt-template/organisms/PromptTemplateDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
+import { usePromptTemplates } from '@/hooks/prompt-template/usePromptTemplates';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
 import { getPresetById } from '@/lib/agent/agent-prompts';
@@ -34,6 +36,7 @@ import { getRoleLabel } from '@/lib/chat/system-prompt';
  * モデル一覧は {@link useModels}、ツール使用の有効状態とプロンプトプリセットの永続化は {@link useAgentSettings}、
  * デスクトップのサイドバーの表示・非表示（#24）は {@link useSidebarVisibility} が持つ。
  * 送信前に添付している画像（#6）は {@link useImageAttachments} が持ち、送信したら空にする。
+ * 入力欄の `/` の候補と管理画面のプロンプトテンプレート（#28）は {@link usePromptTemplates} が持つ。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -50,6 +53,8 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const promptTemplates = usePromptTemplates();
   // 会話を作る前に選んだ役割。最初の送信で会話と同時に保存する
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
@@ -182,6 +187,26 @@ export default function Home() {
     ]
   );
 
+  const handleAddExampleTemplates = useCallback(async () => {
+    try {
+      await promptTemplates.addExampleTemplates();
+    } catch (error) {
+      // 候補から押したときは出す場所が無い。一覧は読み直してあるため、作られていればそのまま候補に出る
+      console.error('Failed to add example prompt templates:', error);
+    }
+  }, [promptTemplates]);
+
+  const handleOpenTemplateDialog = useCallback(() => {
+    // 設定モーダルから開くときも、ダイアログを重ねない
+    setIsSettingsOpen(false);
+    setIsTemplateDialogOpen(true);
+  }, []);
+
+  const handleCloseTemplateDialog = useCallback(() => {
+    setIsTemplateDialogOpen(false);
+    setTimeout(() => chatBarRef.current?.focus(), 0);
+  }, []);
+
   const sidebarProps = {
     conversations,
     currentConversationId,
@@ -245,6 +270,9 @@ export default function Home() {
           attachmentErrors={attachments.errors}
           unsupportedImageModel={unsupportedImageModel}
           onRemoveImage={attachments.removeImage}
+          templates={promptTemplates.templates}
+          onManageTemplates={handleOpenTemplateDialog}
+          onAddExampleTemplates={handleAddExampleTemplates}
         />
       }
       footer={<Footer />}
@@ -255,6 +283,16 @@ export default function Home() {
               conversation={currentConversation}
               messages={messages}
               onClose={() => setIsExportDialogOpen(false)}
+            />
+          )}
+          {isTemplateDialogOpen && (
+            <PromptTemplateDialog
+              templates={promptTemplates.templates}
+              onCreate={promptTemplates.createTemplate}
+              onUpdate={promptTemplates.updateTemplate}
+              onDelete={promptTemplates.deleteTemplate}
+              onAddExamples={promptTemplates.addExampleTemplates}
+              onClose={handleCloseTemplateDialog}
             />
           )}
           {isRoleDialogOpen && (
@@ -276,6 +314,7 @@ export default function Home() {
             onEnableToolsChange={changeEnableTools}
             agentPromptPresetId={agentPromptPresetId}
             onAgentPromptPresetChange={changeAgentPromptPresetId}
+            onOpenPromptTemplates={handleOpenTemplateDialog}
           />
         </>
       }

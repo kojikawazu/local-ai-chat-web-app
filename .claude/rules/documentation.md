@@ -34,7 +34,7 @@ globs:
 | 技術スタック・コマンド・環境変数の変更 | `CLAUDE.md`（技術スタック / コマンド / 環境変数節）、`README.md` |
 | DB スキーマ・Prisma 構成の変更 | `.claude/rules/database.md`、`CLAUDE.md`（必要に応じて） |
 | セットアップ手順の変更 | `manuals/setup-guide-macos.md`、`README.md` |
-| 新規ドキュメントの追加 | `docs/`（次の連番 `20-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
+| 新規ドキュメントの追加 | `docs/`（次の連番 `21-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
 
 該当する変更がない場合はスキップする。
 

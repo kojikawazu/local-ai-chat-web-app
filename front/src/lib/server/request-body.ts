@@ -7,6 +7,7 @@ import {
 } from '@/lib/server/attachment';
 import {
   getMaxMessageLength,
+  isValidPromptTemplateShortcut,
   isValidUUID,
   MAX_ASSISTANT_MESSAGE_LENGTH,
   MAX_DIAGRAM_SOURCE_LENGTH,
@@ -16,6 +17,8 @@ import {
   MAX_IMAGE_LONG_EDGE,
   MAX_IMAGES_PER_MESSAGE,
   MAX_MESSAGE_LENGTH,
+  MAX_PROMPT_TEMPLATE_NAME_LENGTH,
+  MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH,
   MAX_SYSTEM_PROMPT_LENGTH,
   MAX_TITLE_LENGTH,
   MAX_TOOL_SCREENSHOTS_PER_MESSAGE,
@@ -133,6 +136,16 @@ export type GenerateTitleBody = {
 export type PlantUmlBody = {
   /** PlantUML のソース（前後の空白を含め、書かれたまま PlantUML サーバーへ送る） */
   source: string;
+};
+
+/** `POST /api/prompt-templates`・`PUT /api/prompt-templates/[id]` の検証済みボディ（#28）。 */
+export type PromptTemplateBody = {
+  /** 前後の空白を除いた名前 */
+  name: string;
+  /** 前後の空白を除き、小文字にしたショートカット（先頭の `/` は含めない） */
+  shortcut: string;
+  /** 本文。末尾の改行に意味があるため、前後の空白・改行も書いたまま残す */
+  content: string;
 };
 
 /** 会話履歴・保存で許可する role。`system` は `systemPrompt`、`tool` はサーバー内のエージェントループだけが作る */
@@ -715,4 +728,63 @@ export function parsePlantUmlBody(body: unknown): ParseResult<PlantUmlBody> {
     };
   }
   return { ok: true, value: { source } };
+}
+
+/**
+ * `POST /api/prompt-templates`・`PUT /api/prompt-templates/[id]` のボディを検証する（#28）。
+ *
+ * 作成と置き換えで同じ形（名前・ショートカット・本文をすべて送る）。ショートカットは小文字にしてから形を見る
+ * （`/Translate` と `/translate` を別のものにしない）。重複の判定は DB の一意制約に任せる（route が 409 にする）。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・文字列でない・名前が空か上限超過・ショートカットの形が不正・本文が空白だけか上限超過なら失敗
+ */
+export function parsePromptTemplateBody(
+  body: unknown
+): ParseResult<PromptTemplateBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+
+  const { name, shortcut, content } = body;
+  if (typeof name !== 'string') {
+    return { ok: false, error: 'nameは文字列で指定してください' };
+  }
+  if (typeof shortcut !== 'string') {
+    return { ok: false, error: 'shortcutは文字列で指定してください' };
+  }
+  if (typeof content !== 'string') {
+    return { ok: false, error: 'contentは文字列で指定してください' };
+  }
+
+  const trimmedName = name.trim();
+  if (!trimmedName) return { ok: false, error: '名前を入力してください' };
+  if (trimmedName.length > MAX_PROMPT_TEMPLATE_NAME_LENGTH) {
+    return {
+      ok: false,
+      error: `名前は${MAX_PROMPT_TEMPLATE_NAME_LENGTH}文字以内で入力してください`,
+    };
+  }
+
+  const normalizedShortcut = shortcut.trim().toLowerCase();
+  if (!normalizedShortcut) {
+    return { ok: false, error: 'ショートカットを入力してください' };
+  }
+  if (!isValidPromptTemplateShortcut(normalizedShortcut)) {
+    return {
+      ok: false,
+      error: `ショートカットは英小文字・数字・「-」・「_」の${MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH}文字以内で、英小文字か数字で始めてください`,
+    };
+  }
+
+  if (!content.trim()) return { ok: false, error: '本文を入力してください' };
+  if (content.length > MAX_MESSAGE_LENGTH) {
+    return {
+      ok: false,
+      error: `本文は${formatCount(MAX_MESSAGE_LENGTH)}文字以内で入力してください`,
+    };
+  }
+
+  return {
+    ok: true,
+    value: { name: trimmedName, shortcut: normalizedShortcut, content },
+  };
 }

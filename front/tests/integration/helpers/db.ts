@@ -5,10 +5,12 @@ export { prisma };
 
 /**
  * DB を初期状態へ戻す。会話を全削除すると Message は `onDelete: Cascade` で連鎖削除される。
+ * プロンプトテンプレート（#28）は会話とリレーションを持たないため、別に消す。
  * 各テストの `beforeEach` で呼び、テスト間の独立性を担保する。
  */
 export async function resetDb(): Promise<void> {
   await prisma.conversation.deleteMany();
+  await prisma.promptTemplate.deleteMany();
 }
 
 /**

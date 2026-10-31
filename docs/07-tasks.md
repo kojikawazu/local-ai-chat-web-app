@@ -1137,3 +1137,16 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 表示（`ResponseMetrics`。エージェントのラウンド数の行に並べる）
 - [x] UT（`token-metrics.test.ts` 23 件）・IT（`chat.test.ts` に 2 件・`chat-agent.test.ts` に 3 件・`messages.test.ts` に 1 件。通常チャットの NDJSON に合わせて `chat.test.ts`・`chat-stop.test.ts` を直した）・E2E（`token-metrics.spec.ts` 6 件。実際の生成の 1 件は CI でスキップ）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`09`・`10`・`12`・`19`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,documentation}.md`）
+
+## フェーズ49: プロンプトテンプレート（#28 Phase A・B）
+
+よく使うプロンプトをテンプレートとして保存し、入力欄の先頭で `/` を打つと候補を出して、選んだテンプレートの本文を入力欄に入れる。設計は [20-prompt-templates.md](./20-prompt-templates.md)。 — #28・サブ issue #206（2026-10-31 着手）
+
+- [x] 設計（`docs/20-prompt-templates.md`。DB の `PromptTemplate`・既定のテンプレートは持たず「例を追加」・カテゴリは持たない・入力欄の先頭の `/` だけ・ショートカットの前方一致と名前の部分一致・重複は 409・削除は行の中で 2 段階・100 件まで）
+- [x] 設計のレビュー（推奨どおり）
+- [x] DB（`PromptTemplate`）・マイグレーション（`20261031005024_add_prompt_template`）
+- [x] CRUD の API（`/api/prompt-templates`・`[id]`・`examples`。一意制約の違反の判定は `lib/server/prisma-error.ts` にまとめ、メッセージの保存の 409 でも使う）
+- [x] 入力欄の `/` の候補（`PromptTemplateSuggestions`・`ChatBar` のキー操作）
+- [x] 管理画面（`PromptTemplateDialog`。設定モーダルと候補から開く）
+- [x] UT（`prompt-template.test.ts` 29 件）・IT（`prompt-templates.test.ts` 22 件。`helpers/db.ts` の `resetDb` でテンプレートも消す）・E2E（`prompt-templates.spec.ts` 12 件。開始時のテンプレートを控えて最後に作り直す）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`20`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,error-handling,documentation}.md`）
