@@ -1,7 +1,7 @@
 'use client';
 
 import type { LucideIcon } from 'lucide-react';
-import { FileCode, FileJson, FileText, Printer } from 'lucide-react';
+import { FileCode, FileJson, FileText, FileType, Printer } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import type { Conversation } from '@/types/conversation/conversation';
 import { buildConversationExport, buildMessageExport } from '@/lib/chat/export';
@@ -63,6 +63,12 @@ const FORMAT_LABELS: Record<
       '同じレポートを印刷の画面で開く。印刷先で「PDF として保存」を選ぶ',
     icon: Printer,
   },
+  docx: {
+    name: 'DOCX',
+    description:
+      'Word で編集できるファイルで保存する（図・画像も入る。コードの色は付けない）',
+    icon: FileType,
+  },
   json: {
     name: 'JSON',
     description: 'バックアップとして、ツールの結果なども含めてすべて残す',
@@ -78,14 +84,14 @@ const FORMAT_LABELS: Record<
  */
 function formatsOf(target: ExportTarget): ExportFormat[] {
   return target.kind === 'conversation'
-    ? ['markdown', 'html', 'pdf', 'json']
-    : ['markdown', 'html', 'pdf'];
+    ? ['markdown', 'html', 'pdf', 'docx', 'json']
+    : ['markdown', 'html', 'pdf', 'docx'];
 }
 
 /**
- * 会話全体・応答 1 件を書き出すダイアログ（#12。HTML・PDF は #36）。形式を選ぶと保存して閉じる。
+ * 会話全体・応答 1 件を書き出すダイアログ（#12。HTML・PDF・DOCX は #36）。形式を選ぶと保存して閉じる。
  *
- * Markdown・JSON はその場で保存する。HTML・PDF は図を描き・画像を読んでからレポートを組み立てるため、
+ * Markdown・JSON はその場で保存する。HTML・PDF・DOCX は図を描き・画像を読んでからレポートを組み立てるため、
  * その間はボタンを押せなくして「作成中…」を出し、失敗したらダイアログの中にエラーを出す（閉じない）。
  * 開いている間だけ描画する（呼び出し側で条件付きで置く）。外枠は共通の {@link Modal}。
  * 入力が無く失うものが無いため、背景のクリックでも閉じる（作成中は閉じない）。
@@ -96,7 +102,7 @@ export default function ExportDialog({ target, onClose }: ExportDialogProps) {
   const report = useReportExport();
 
   const handleExport = async (format: ExportFormat) => {
-    if (format === 'html' || format === 'pdf') {
+    if (format === 'html' || format === 'pdf' || format === 'docx') {
       const exported = await report.exportReport(
         target.kind === 'conversation'
           ? {

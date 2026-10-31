@@ -1,14 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import type { APIRequestContext, Download, Page } from '@playwright/test';
 import { test, expect } from '@playwright/test';
+import JSZip from 'jszip';
 import {
   cleanupAllConversations,
   createConversation,
   createMessage,
 } from './helpers/test-data';
 
+/** zip の中の、埋め込んだ画像のファイル（フォルダの項目 `word/media/` だけでは数えない） */
+const MEDIA_FILE = /^word\/media\/[^/]+\.(?:png|jpe?g)$/;
+
 /**
- * HTML レポートと PDF の書き出しの E2E（#36。`docs/24-html-report-export.md`）。
+ * HTML レポート・PDF・DOCX の書き出しの E2E（#36。`docs/24-html-report-export.md`・`docs/25-docx-export.md`）。
  *
  * 会話は API で作る（Ollama を使わず、軽量モデル・CI でも動く）。Markdown の変換・安全策（生の HTML・危ない URL・
  * 外部の画像）・図と画像の埋め込みの組み立ては UT（report-html.test.ts）が担い、ここでは実際のブラウザで、
@@ -99,7 +103,10 @@ async function readDownload(download: Download): Promise<string> {
  * @param format - 押す形式のボタン（名前の先頭）
  * @returns ダイアログのロケーター
  */
-async function chooseConversationFormat(page: Page, format: 'HTML' | 'PDF') {
+async function chooseConversationFormat(
+  page: Page,
+  format: 'HTML' | 'PDF' | 'DOCX'
+) {
   await page.getByRole('button', { name: '会話を書き出す' }).click();
   const dialog = page.getByRole('dialog', { name: '会話を書き出す' });
   await dialog.getByRole('button', { name: new RegExp(`^${format}`) }).click();
@@ -148,7 +155,35 @@ async function stubPrint(page: Page, fail = false) {
   }, fail);
 }
 
-test.describe('HTML レポートと PDF の書き出し', () => {
+/**
+ * 保存された DOCX を開き、本文の XML とファイル名の一覧を読む。
+ *
+ * @param download - ダウンロード
+ * @returns `word/document.xml` の中身と、zip の中のファイル名の一覧
+ */
+async function readDocx(download: Download) {
+  const zip = await JSZip.loadAsync(await readFile(await download.path()));
+  return {
+    documentXml: (await zip.file('word/document.xml')?.async('string')) ?? '',
+    files: Object.keys(zip.files),
+  };
+}
+
+/**
+ * 会話全体を DOCX で書き出し、保存されたファイルを受け取る。
+ *
+ * @param page - 対象のページ
+ * @returns ダウンロード
+ */
+async function exportConversationDocx(page: Page) {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    chooseConversationFormat(page, 'DOCX'),
+  ]);
+  return download;
+}
+
+test.describe('HTML レポート・PDF・DOCX の書き出し', () => {
   test.beforeEach(async ({ request }) => {
     await cleanupAllConversations(request);
   });
@@ -246,9 +281,81 @@ test.describe('HTML レポートと PDF の書き出し', () => {
       expect(html).toContain('alt="mermaid の図"');
       expect(html).not.toContain('language-mermaid');
     });
+
+    test('会話を DOCX で書き出すと、見出し・表・コード・添付画像の入った Word のファイルが保存される', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request);
+      await openConversation(page);
+
+      const download = await exportConversationDocx(page);
+
+      expect(download.suggestedFilename()).toMatch(
+        /^レポートの会話_\d{4}-\d{2}-\d{2}_\d{4}\.docx$/
+      );
+      const { documentXml, files } = await readDocx(download);
+      expect(documentXml).toContain('レポートの会話');
+      expect(documentXml).toContain('<w:pStyle w:val="Heading1"/>');
+      expect(documentXml).toContain('<w:pStyle w:val="Heading3"/>');
+      expect(documentXml).toContain('手順');
+      expect(documentXml).toContain('<w:tbl>');
+      expect(documentXml).toContain('const answer = 42;');
+      // 添付画像を埋め込む
+      expect(files.some((name) => MEDIA_FILE.test(name))).toBe(true);
+      await expect(
+        page.getByRole('dialog', { name: '会話を書き出す' })
+      ).toBeHidden();
+    });
+
+    test('Mermaid の図は PNG で埋め込み、応答の「保存」からも DOCX にできる', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(
+        request,
+        '図です。\n\n```mermaid\ngraph TD; A-->B\n```'
+      );
+      await openConversation(page);
+
+      await page.getByRole('button', { name: '保存', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: '応答を保存' });
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        dialog.getByRole('button', { name: /^DOCX/ }).click(),
+      ]);
+
+      const { documentXml, files } = await readDocx(download);
+      expect(documentXml).toContain('図です。');
+      // 応答 1 件なので、質問は入らない
+      expect(documentXml).not.toContain('この画像について教えて');
+      expect(documentXml).not.toContain('graph TD');
+      expect(files.filter((name) => MEDIA_FILE.test(name))).toHaveLength(1);
+    });
   });
 
   test.describe('準正常系', () => {
+    test('PlantUML の図を描けなければ、ソースの文字のまま DOCX に入れる', async ({
+      page,
+      request,
+    }) => {
+      await page.route('**/api/diagrams/plantuml', (route) =>
+        route.fulfill({ status: 502, json: { error: 'PlantUML の失敗' } })
+      );
+      await createReportConversation(
+        request,
+        '```plantuml\n@startuml\nA -> B\n@enduml\n```'
+      );
+      await openConversation(page);
+
+      const { documentXml } = await readDocx(
+        await exportConversationDocx(page)
+      );
+
+      expect(documentXml).toContain('@startuml');
+      expect(documentXml).toContain('Consolas');
+    });
+
     test('PlantUML の図を描けなければ、ソースのコードブロックのまま書き出す', async ({
       page,
       request,

@@ -163,7 +163,7 @@ front/src/
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
-│       │       ├── ExportDialog.tsx # 会話全体・応答 1 件の書き出しの形式（Markdown・HTML・PDF・JSON）を選ぶダイアログ（#12・#36）
+│       │       ├── ExportDialog.tsx # 会話全体・応答 1 件の書き出しの形式（Markdown・HTML・PDF・DOCX・JSON）を選ぶダイアログ（#12・#36）
 │       │       ├── MarkdownContent.tsx # Markdown整形表示（コードブロックのシンタックスハイライト・言語名・コピーボタン付き。mermaid は図）
 │       │       ├── AgentThinking.tsx   # エージェント思考過程の表示（<think> タグ / message.thinking 対応）
 │       │       ├── AgentSteps.tsx      # エージェントの応答の回答より前の流れ（説明 → ツールの結果）を呼んだ順に並べる（#186）
@@ -216,7 +216,7 @@ front/src/
 │   │   ├── useModels.ts       #     利用可能なモデル一覧（画像に対応したモデルを含む）の取得と選択中のモデル
 │   │   ├── useImageAttachments.ts # 送信前の添付画像（追加・前処理・削除・添付できなかった理由。#6）
 │   │   ├── useApprovalCountdown.ts # 承認カードの残り時間を 1 秒ごとに数え直す（#202）
-│   │   ├── useReportExport.ts #     HTML レポート・PDF の書き出し（図を描く・添付画像を読む → 組み立て → 保存 / 印刷。#36）
+│   │   ├── useReportExport.ts #     HTML レポート・PDF・DOCX の書き出し（図を描く・添付画像を読む → 組み立て → 保存 / 印刷。DOCX は docx をそのときだけ読み込む。#36）
 │   │   ├── useConversationFork.ts # 応答から会話を分岐する（返事を待つ間の二度押しの防止・失敗を分岐元の会話に結びつけて持つ。#29）
 │   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
 │   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
@@ -312,6 +312,9 @@ front/src/
 │   │   ├── diagram.ts         #     Mermaid の判定・要素 ID・SVG の data: URI と大きさ・テーマの色の組み立て（#169）
 │   │   ├── image-attachment.ts #    添付画像の選別（形式・大きさ・枚数）とブラウザでの縮小・再エンコード（#6）
 │   │   ├── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
+│   │   ├── document-model.ts  #     書き出しの文書の中間の形（Markdown → 見出し・段落・リスト・表…のブロック。HTML と同じ安全策。#36）
+│   │   ├── report-docx.ts     #     文書の中間の形 → DOCX（docx は引数で受ける。#36）
+│   │   ├── report-assets.ts   #     書き出しの図を描く・添付画像を読む・図を PNG にする（HTML・DOCX で共有。#36）
 │   │   ├── report-html.ts     #     HTML レポートの組み立て（図の拾い出し・Markdown → HTML・生の HTML と危ない URL を外す・図と画像の埋め込み。#36）
 │   │   └── report-style.ts    #     HTML レポートに埋め込む CSS（明るい背景・印刷向け。#36）
 │   ├── conversation/          #   会話
@@ -387,7 +390,7 @@ front/tests/
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）、拡大・保存・ソースとの切り替え
     ├── export.spec.ts             # 応答・会話の書き出し（応答の「保存」の Markdown・会話全体の Markdown / JSON・押せない条件・ファイル名）
-    ├── report-export.spec.ts      # HTML レポートと PDF（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
+    ├── report-export.spec.ts      # HTML レポート・PDF・DOCX（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・DOCX の見出し / 表 / コード / 画像（jszip で中身を読む）・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
     ├── image-attachment.spec.ts   # 画像添付（ファイル選択・D&D・貼り付け・縮小・プレビューと削除・枚数と形式・非対応モデルの案内・保存済みの画像の表示と拡大・送信と復元）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
