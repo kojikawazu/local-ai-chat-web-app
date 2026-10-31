@@ -165,7 +165,8 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
    */
   const handleSuggestionKey = (e: React.KeyboardEvent): boolean => {
     if (!isSuggesting || isComposingRef.current) return false;
-    if (e.key === 'Escape') {
+    // Shift+Escape は入力欄へ移るショートカット（#33）。候補を閉じるのは Escape だけ
+    if (e.key === 'Escape' && !e.shiftKey) {
       setDismissedContent(content);
       return true;
     }
@@ -210,7 +211,13 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
       e.preventDefault();
       return;
     }
-    if (e.key === 'Escape' && isGenerating && !isComposingRef.current) {
+    // Shift+Escape（入力欄へ移るショートカット。#33）では生成を止めない
+    if (
+      e.key === 'Escape' &&
+      !e.shiftKey &&
+      isGenerating &&
+      !isComposingRef.current
+    ) {
       e.preventDefault();
       onStop?.();
       return;

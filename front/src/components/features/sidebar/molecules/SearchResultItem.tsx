@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import type { ConversationSearchResult } from '@/types/conversation/conversation';
 import { splitHighlights } from '@/lib/conversation/search';
 import { cn } from '@/lib/shared/class-names';
+import { LIST_ITEM_ATTRIBUTE } from '@/constants/sidebar/list';
 import HighlightedText from '@/components/common/molecules/HighlightedText';
 
 /** {@link SearchResultItem} の props。 */
@@ -33,6 +34,8 @@ export default function SearchResultItem({
     <button
       onClick={onSelect}
       aria-current={isCurrent ? 'page' : undefined}
+      // 一覧の ↑↓ で移る行の目印（#33）
+      {...{ [LIST_ITEM_ATTRIBUTE]: '' }}
       className={cn(
         'w-full flex gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all',
         isCurrent ? 'bg-white/10' : 'hover:bg-white/5'

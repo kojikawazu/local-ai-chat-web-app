@@ -16,6 +16,7 @@ import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
 import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import PromptTemplateDialog from '@/components/features/prompt-template/organisms/PromptTemplateDialog';
 import BookmarkDialog from '@/components/features/bookmark/organisms/BookmarkDialog';
+import ShortcutHelpDialog from '@/components/features/shortcut/organisms/ShortcutHelpDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
@@ -23,10 +24,13 @@ import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
 import { usePromptTemplates } from '@/hooks/prompt-template/usePromptTemplates';
 import { useMessageBookmark } from '@/hooks/bookmark/useMessageBookmark';
 import { useConversationFork } from '@/hooks/chat/useConversationFork';
+import { useKeyboardShortcuts } from '@/hooks/shortcut/useKeyboardShortcuts';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
 import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
+import { adjacentConversationId } from '@/lib/sidebar/list-navigation';
+import { DESKTOP_MEDIA_QUERY } from '@/constants/sidebar/layout';
 import type { BookmarkListItem } from '@/types/bookmark/bookmark';
 import type { Conversation } from '@/types/conversation/conversation';
 
@@ -46,6 +50,8 @@ import type { Conversation } from '@/types/conversation/conversation';
  * ここで持つ（会話を開いてから、`ChatWindow` がその応答までスクロールする）。
  * 応答から会話を分岐する（#29）のは {@link useConversationFork} が持ち、分岐できたら一覧を読み直して新しい会話を開く。
  * ヘッダーの分岐元のリンクは、ブックマークと同じ移る先の仕組みで、分岐元の会話のその応答へ移る。
+ * ページ全体のショートカット（#33）は {@link useKeyboardShortcuts} が受け、ここで操作（新しい会話・検索・サイドバー・
+ * 入力欄・前後の会話・ヘルプ）に繋ぐ。サイドバー・検索は、デスクトップの幅ではサイドバー、狭い幅ではドロワーを開く。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -64,6 +70,11 @@ export default function Home() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isBookmarkDialogOpen, setIsBookmarkDialogOpen] = useState(false);
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
+  // 検索欄にフォーカスする要求（#33。⌘K）。見えている検索欄がフォーカスしたら null に戻す
+  const [searchFocusRequest, setSearchFocusRequest] = useState<number | null>(
+    null
+  );
   // ブックマークの一覧・分岐元のリンク（#29）から移る先（#30）。その会話を開いている間だけ ChatWindow へ渡す
   const [focusTarget, setFocusTarget] = useState<{
     conversationId: string;
@@ -288,6 +299,62 @@ export default function Home() {
     setTimeout(() => chatBarRef.current?.focus(), 0);
   }, []);
 
+  const handleOpenShortcuts = useCallback(() => {
+    // 設定モーダルから開くときも、ダイアログを重ねない
+    setIsSettingsOpen(false);
+    setIsShortcutHelpOpen(true);
+  }, []);
+
+  const handleSearchFocused = useCallback(
+    () => setSearchFocusRequest(null),
+    []
+  );
+
+  const isDesktop = () => window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+
+  useKeyboardShortcuts({
+    // ドロワーの中のキー（Tab の循環・Escape）はドロワーに任せる。モーダルはフックが <dialog open> で見る
+    blocked: isMenuOpen,
+    handlers: {
+      newConversation: () => {
+        if (!isNewConversationMode) handleNewConversation();
+      },
+      searchConversations: () => {
+        if (isDesktop()) {
+          if (!sidebar.isOpen) sidebar.toggle();
+        } else {
+          setIsMenuOpen(true);
+        }
+        setSearchFocusRequest((n) => (n ?? 0) + 1);
+      },
+      toggleSidebar: () => {
+        if (isDesktop()) {
+          sidebar.toggle();
+        } else {
+          setIsMenuOpen(true);
+        }
+      },
+      focusInput: () => chatBarRef.current?.focus(),
+      previousConversation: () => {
+        const id = adjacentConversationId(
+          conversations.map((c) => c.id),
+          currentConversationId,
+          'previous'
+        );
+        if (id) handleSelectConversation(id);
+      },
+      nextConversation: () => {
+        const id = adjacentConversationId(
+          conversations.map((c) => c.id),
+          currentConversationId,
+          'next'
+        );
+        if (id) handleSelectConversation(id);
+      },
+      showHelp: () => setIsShortcutHelpOpen(true),
+    },
+  });
+
   const sidebarProps = {
     conversations,
     currentConversationId,
@@ -298,6 +365,8 @@ export default function Home() {
     onDeleteConversation: handleDeleteConversation,
     onOpenSettings: () => setIsSettingsOpen(true),
     onOpenBookmarks: () => setIsBookmarkDialogOpen(true),
+    searchFocusRequest,
+    onSearchFocused: handleSearchFocused,
   };
 
   return (
@@ -379,6 +448,9 @@ export default function Home() {
               onClose={handleCloseTemplateDialog}
             />
           )}
+          {isShortcutHelpOpen && (
+            <ShortcutHelpDialog onClose={() => setIsShortcutHelpOpen(false)} />
+          )}
           {isBookmarkDialogOpen && (
             <BookmarkDialog
               onOpenBookmark={handleOpenBookmark}
@@ -406,6 +478,7 @@ export default function Home() {
             agentPromptPresetId={agentPromptPresetId}
             onAgentPromptPresetChange={changeAgentPromptPresetId}
             onOpenPromptTemplates={handleOpenTemplateDialog}
+            onOpenShortcuts={handleOpenShortcuts}
           />
         </>
       }

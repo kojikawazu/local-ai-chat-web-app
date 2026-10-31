@@ -4,6 +4,7 @@ import { Layout, Settings, Plus, History, Bookmark } from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
 import ConversationListItem from '@/components/features/sidebar/molecules/ConversationListItem';
+import { useListNavigation } from '@/hooks/sidebar/useListNavigation';
 import IconButton from '@/components/common/atoms/IconButton';
 
 /**
@@ -30,12 +31,17 @@ type SidebarContentProps = {
   onOpenSettings: () => void;
   /** ブックマークのボタン押下時に呼ばれる（一覧のダイアログを開く。#30） */
   onOpenBookmarks: () => void;
+  /** 検索欄にフォーカスする要求（#33。⌘K・Ctrl+K）。`null` なら要求なし（`ConversationSearch` へ渡す） */
+  searchFocusRequest?: number | null;
+  /** 検索欄にフォーカスしたときに呼ばれる（呼び出し側が要求を消す） */
+  onSearchFocused?: () => void;
 };
 
 /**
  * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・ブックマークと設定のボタン）。
  *
  * 応答を生成中の会話には点滅する印を付ける。履歴の上の検索欄で会話を探せる（#11）。
+ * 履歴の一覧は ↑↓・Home・End で行を移れる（#33）。
  * デスクトップの {@link Sidebar} とモバイルの {@link SidebarDrawer} が共有し、
  * どちらの幅でも同じ操作を提供する。外枠（表示条件・幅・背景）は呼び出し側が持つ。
  *
@@ -52,7 +58,11 @@ export default function SidebarContent({
   onDeleteConversation,
   onOpenSettings,
   onOpenBookmarks,
+  searchFocusRequest = null,
+  onSearchFocused,
 }: SidebarContentProps) {
+  const onListKeyDown = useListNavigation();
+
   return (
     <>
       <div className="p-6">
@@ -79,13 +89,18 @@ export default function SidebarContent({
         <ConversationSearch
           currentConversationId={currentConversationId}
           onSelectConversation={onSelectConversation}
+          searchFocusRequest={searchFocusRequest}
+          onSearchFocused={onSearchFocused}
         >
           <nav className="space-y-1">
             <p className="px-3 mb-4 text-xs font-semibold uppercase tracking-wider text-nord-4/60 flex items-center gap-2">
               <History size={14} />
               History
             </p>
-            <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-380px)]">
+            <div
+              onKeyDown={onListKeyDown}
+              className="space-y-1 overflow-y-auto max-h-[calc(100vh-380px)]"
+            >
               {conversations.map((conv) => (
                 <ConversationListItem
                   key={conv.id}
