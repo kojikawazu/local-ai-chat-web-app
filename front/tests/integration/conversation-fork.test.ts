@@ -27,6 +27,20 @@ const PNG_BYTES = new Uint8Array([
 /** 先頭だけが JPEG の SOI マーカーのバイト列（ツールの画面のコピーの確認用） */
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x04, 0x05]);
 
+/** 応答のトークン数・所要時間（#31）。分岐で metadata ごとコピーされることを確かめる */
+const METRICS = {
+  model: 'qwen3.8:27b',
+  calls: 1,
+  promptTokens: 120,
+  promptCachedTokens: 0,
+  maxPromptTokens: 120,
+  promptDurationMs: 300,
+  outputTokens: 80,
+  outputDurationMs: 2000,
+  loadDurationMs: 0,
+  totalDurationMs: 2400,
+};
+
 /** 分岐の API が返す会話のうち、テストで見る項目 */
 type ForkedConversation = {
   id: string;
@@ -77,6 +91,7 @@ async function createConversation() {
       createdAt: at(1),
       metadata: {
         thinking: '寺を挙げる',
+        metrics: METRICS,
         toolCalls: [
           {
             name: 'browser_navigate',
@@ -194,7 +209,11 @@ describe('POST /api/conversations/[id]/fork', () => {
       expect(copied.map((m) => m.createdAt.toISOString())).toEqual(
         original.slice(0, 2).map((m) => m.createdAt.toISOString())
       );
-      expect(copied[1].metadata).toMatchObject({ thinking: '寺を挙げる' });
+      // 思考過程・トークン数（#31）も metadata ごとコピーする
+      expect(copied[1].metadata).toMatchObject({
+        thinking: '寺を挙げる',
+        metrics: METRICS,
+      });
 
       // 元の会話は変わらない
       expect(await readMessages(source.conversationId)).toHaveLength(4);
