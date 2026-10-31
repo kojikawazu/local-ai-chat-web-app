@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Download,
   Bookmark,
+  GitBranch,
 } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import type { ToolApprovalRequest } from '@/types/agent/tool-call';
@@ -58,6 +59,10 @@ type ChatWindowProps = {
   focusMessageId?: string | null;
   /** 移る先へスクロールし終えたときに呼ぶ（呼び出し側が移る先を忘れる）。 */
   onFocusHandled?: () => void;
+  /** 応答の下の「ここから分岐」のボタンで呼ぶ（#29）。押した応答の ID を受け取る。省略時はボタンを出さない。 */
+  onFork?: (messageId: string) => void;
+  /** 分岐の返事を待っている応答の ID（#29）。この間はどの応答の分岐のボタンも押させない（二度押しで 2 つ作らない）。 */
+  forkingMessageId?: string | null;
 };
 
 // 移った先の応答を枠で示す時間（ms）。読んでいる間ずっと目に入らないよう、短く出して消す
@@ -77,6 +82,7 @@ const FOCUS_HIGHLIGHT_MS = 2000;
  * ツールの実行の承認を待っている間は、実行中の表示の代わりに承認カード（差分と許可・拒否）を一番下に出す（#148 Phase A2）。
  * 保存済みの応答にはブックマークのボタンを付ける（#30）。移る先（`focusMessageId`）がある間は一番下へスクロールせず、
  * その応答が現れたら画面の中央までスクロールし、{@link FOCUS_HIGHLIGHT_MS} だけ枠で示す。
+ * 保存済みの応答には「ここから分岐」のボタンも付ける（#29）。生成中・承認待ち（どちらも `isLoading`）と分岐の返事を待つ間は押させない。
  *
  * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行／再生成コールバックを持つ props
  */
@@ -94,6 +100,8 @@ export default function ChatWindow({
   failedBookmarkId = null,
   focusMessageId = null,
   onFocusHandled,
+  onFork,
+  forkingMessageId = null,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // 移る先を、一番下へのスクロールの effect から依存にせずに読むための写し（#30）。
@@ -180,6 +188,12 @@ export default function ChatWindow({
             // ブックマークできるのは保存済みの応答だけ（#30）。生成中は保存が終わるまで isLoading が続く
             const canBookmark =
               onToggleBookmark !== undefined &&
+              msg.role === 'assistant' &&
+              !msg.saveState &&
+              msg.id !== streamingId;
+            // 分岐できるのも保存済みの応答だけ（#29。保存されていない応答は DB からコピーできない）
+            const canFork =
+              onFork !== undefined &&
               msg.role === 'assistant' &&
               !msg.saveState &&
               msg.id !== streamingId;
@@ -379,6 +393,19 @@ export default function ChatWindow({
                         <TriangleAlert size={14} />
                         ブックマークの更新に失敗しました
                       </span>
+                    )}
+                    {canFork && (
+                      <IconButton
+                        label="ここから分岐"
+                        tone="inherit"
+                        size="xs"
+                        onClick={() => onFork?.(msg.id)}
+                        // 生成中・承認待ちは最後の応答が保存されておらず、どこまでコピーされるか分かりにくい
+                        disabled={isLoading || forkingMessageId !== null}
+                        aria-busy={forkingMessageId === msg.id}
+                      >
+                        <GitBranch size={14} />
+                      </IconButton>
                     )}
                     {onRegenerate && msg.id === regenerableId && (
                       <Button

@@ -13,6 +13,7 @@ globs: "front/src/app/api/**"
 - **添付画像の形式はサーバーが中身で決める。** 保存 API はクライアントの申告を受け取らず、`lib/server/attachment.ts` の `detectImageMimeType()`（マジックナンバー）で PNG / JPEG だけを受け付ける。`/api/chat` は画像を ID で受け、DB から読んで Ollama へ渡す（LLM へ渡す画像の選び方は `lib/server/chat-images.ts`。#6）。
 - **ツールの承認待ちはモジュールの変数に置かない。** `/api/chat` が登録し、承認の API（`/api/agent/approvals/[id]`）が決着させるため、`lib/agent/approvals.ts` が `globalThis` に持つ（route ごとにモジュールが別に読み込まれても共有するため。#148 Phase A2）。
 - **一意制約の重複は 409 で返す。** 事前に数えて確かめず、Prisma の一意制約の違反（`P2002`）を `lib/server/prisma-error.ts` の `isUniqueConstraintError()` で判定する（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット。#28。応答のブックマーク（1 つの応答に 1 つ）。#30）。確認と作成の間に同じ値で作られても食い違わないため。参照先を読んでから作る間に消された場合の外部キーの違反（`P2003`）は、同ファイルの `isForeignKeyConstraintError()` で 404 にする（#30）。
+- **会話を返す API は同じ形にそろえる。** 一覧・作成・役割の変更・分岐は、`lib/server/conversation.ts` の `CONVERSATION_SELECT` で読み、`toConversationResponse()` で分岐元（`forkedFrom`。#29）をまとめて返す。クライアントは役割の変更の応答で一覧の会話を差し替えるため、形がずれると分岐元のリンクが消える。
 - **Route Handler から PlantUML サーバーへ直接 `fetch` しない。** 接続先（`PLANTUML_URL`）の解決とエラーの解釈は `lib/server/plantuml.ts` の `renderPlantUml()` に集約する（#171）。
 
 ## ディレクトリ構成
@@ -33,10 +34,11 @@ front/src/app/api/
 │   ├── route.ts                           # 応答のブックマークの一覧（新しい順・検索・20 件ずつ）・付ける（#30）
 │   └── [id]/route.ts                      # メモの書き換え（PATCH）・外す
 └── conversations/
-    ├── route.ts                           # 会話一覧取得・新規作成
+    ├── route.ts                           # 会話一覧取得・新規作成（分岐元の forkedFrom 付き。#29）
     ├── search/route.ts                    # 会話のキーワード検索
     └── [id]/
         ├── route.ts                       # 会話の役割の変更（PATCH）・会話削除
+        ├── fork/route.ts                  # 応答から会話を分岐する（その応答までを新しい会話にコピー。#29）
         ├── messages/route.ts              # メッセージ取得（付いているブックマークの ID 付き。#30）・保存（assistant はブラウザのツールの画面を添付。#200）
         ├── messages/[messageId]/route.ts  # 応答の置き換え（再生成。旧応答のブックマークは消す）
         └── generate-title/route.ts        # LLM でタイトル自動生成

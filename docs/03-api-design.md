@@ -11,6 +11,7 @@
   - [GET /api/conversations/search](#get-apiconversationssearch)
   - [PATCH /api/conversations/[id]](#patch-apiconversationsid)
   - [DELETE /api/conversations/[id]](#delete-apiconversationsid)
+  - [POST /api/conversations/[id]/fork](#post-apiconversationsidfork)
   - [GET /api/conversations/[id]/messages](#get-apiconversationsidmessages)
   - [POST /api/conversations/[id]/messages](#post-apiconversationsidmessages)
   - [PUT /api/conversations/[id]/messages/[messageId]](#put-apiconversationsidmessagesmessageid)
@@ -116,9 +117,13 @@
     systemPrompt: string | null;  // 会話の役割。役割なしは null（#10）
     createdAt: string;
     updatedAt: string;
+    // 分岐元（#29）。分岐していない会話・分岐元が消えた会話は null
+    forkedFrom: { conversationId: string; messageId: string; title: string } | null;
   }[];
 }
 ```
+
+会話を返す API（一覧・作成・役割の変更・分岐）は、同じ形の会話を返す（`lib/server/conversation.ts` の `CONVERSATION_SELECT`・`toConversationResponse`）。分岐元のタイトルは、分岐した応答から元の会話をたどって 1 回のクエリで引く。
 
 | ステータス | 説明 |
 |-----------|------|
@@ -187,15 +192,7 @@
 
 **レスポンス**
 
-```typescript
-{
-  id: string;
-  title: string;
-  systemPrompt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-```
+[会話一覧](#get-apiconversations)の 1 件と同じ形（`forkedFrom` を含む。作成した会話では `null`）。
 
 | ステータス | 説明 |
 |-----------|------|
@@ -226,15 +223,7 @@
 
 **レスポンス**
 
-```typescript
-{
-  id: string;
-  title: string;
-  systemPrompt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-```
+[会話一覧](#get-apiconversations)の 1 件と同じ形（`forkedFrom` を含む。作成した会話では `null`）。
 
 | ステータス | 説明 |
 |-----------|------|
@@ -247,13 +236,43 @@
 
 ### DELETE /api/conversations/[id]
 
-会話を削除する（関連メッセージもカスケード削除）。
+会話を削除する（関連メッセージもカスケード削除）。この会話の応答から分岐した会話（#29）は残り、その `forkedFrom` は `null` になる。
 
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 削除成功 |
 | 400 | リクエスト不正（無効なUUID） |
 | 404 | 会話が見つからない |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/conversations/[id]/fork
+
+会話の途中の応答から分岐する（#29。`docs/22-conversation-fork.md`）。その応答までのメッセージを新しい会話にコピーし、新しい会話を返す。
+
+**リクエスト**
+
+```typescript
+{
+  messageId: string;  // 必須。分岐する応答（assistant のメッセージ）の UUID
+}
+```
+
+- コピーするのは、表示と同じ順（`createdAt` の昇順）でその応答までのメッセージ（その応答を含む）。本文・role・`createdAt`（元のまま）・metadata・添付画像（中身ごと新しい ID で。metadata の中のツールの画面の ID も書き換える）。ブックマークはコピーしない。
+- 新しい会話のタイトルは `元のタイトル（分岐）`（もう `（分岐）` で終わっていれば足さない。100 文字に収める）。役割（`systemPrompt`）は元のまま。`forkedFromMessageId` に分岐した応答を入れる。
+- 会話・メッセージ・添付画像は 1 回の入れ子の作成（1 トランザクション）で作り、途中で失敗したら何も残さない。
+- user のメッセージは 400。メッセージがその会話に無ければ 404。読んでから作る間に分岐元の応答が消された場合（外部キーの違反 `P2003`）も 404。
+
+**レスポンス**
+
+[会話一覧](#get-apiconversations)の 1 件と同じ形（`forkedFrom` に分岐元の会話の ID・応答の ID・タイトル）。
+
+| ステータス | 説明 |
+|-----------|------|
+| 201 | 作成成功 |
+| 400 | リクエスト不正（無効な会話 UUID・JSON 不正・ボディが非オブジェクト・`messageId` が UUID の文字列でない・user のメッセージ） |
+| 404 | 会話が見つからない・メッセージがその会話に無い |
 | 500 | サーバー内部エラー |
 
 ---

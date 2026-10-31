@@ -30,6 +30,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     systemPrompt: null,
     createdAt: '2026-10-24T09:00:00.000Z',
     updatedAt: '2026-10-24T09:10:00.000Z',
+    forkedFrom: null,
     ...overrides,
   };
 }
@@ -338,7 +339,14 @@ describe('buildConversationExport（JSON）', () => {
       expect(JSON.parse(file.content)).toEqual({
         version: 2,
         exportedAt: EXPORTED_AT.toISOString(),
-        conversation: conv,
+        // 分岐元（#29）は書き出さない（`docs/22-conversation-fork.md`「やらないこと」）
+        conversation: {
+          id: conv.id,
+          title: conv.title,
+          systemPrompt: conv.systemPrompt,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+        },
         messages: [
           {
             id: 'm1',

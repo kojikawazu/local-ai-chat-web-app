@@ -22,11 +22,13 @@ import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
 import { usePromptTemplates } from '@/hooks/prompt-template/usePromptTemplates';
 import { useMessageBookmark } from '@/hooks/bookmark/useMessageBookmark';
+import { useConversationFork } from '@/hooks/chat/useConversationFork';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
 import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
 import type { BookmarkListItem } from '@/types/bookmark/bookmark';
+import type { Conversation } from '@/types/conversation/conversation';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
@@ -42,6 +44,8 @@ import type { BookmarkListItem } from '@/types/bookmark/bookmark';
  * 入力欄の `/` の候補と管理画面のプロンプトテンプレート（#28）は {@link usePromptTemplates} が持つ。
  * 応答のブックマーク（#30）の付け外しは {@link useMessageBookmark} が持ち、一覧のダイアログから移る先の応答は
  * ここで持つ（会話を開いてから、`ChatWindow` がその応答までスクロールする）。
+ * 応答から会話を分岐する（#29）のは {@link useConversationFork} が持ち、分岐できたら一覧を読み直して新しい会話を開く。
+ * ヘッダーの分岐元のリンクは、ブックマークと同じ移る先の仕組みで、分岐元の会話のその応答へ移る。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -60,7 +64,7 @@ export default function Home() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isBookmarkDialogOpen, setIsBookmarkDialogOpen] = useState(false);
-  // ブックマークの一覧から移る先（#30）。その会話を開いている間だけ ChatWindow へ渡す
+  // ブックマークの一覧・分岐元のリンク（#29）から移る先（#30）。その会話を開いている間だけ ChatWindow へ渡す
   const [focusTarget, setFocusTarget] = useState<{
     conversationId: string;
     messageId: string;
@@ -192,6 +196,42 @@ export default function Home() {
     [selectConversation]
   );
 
+  const handleOpenForkSource = useCallback(() => {
+    const source = currentConversation?.forkedFrom;
+    if (!source) return;
+    setFocusTarget({
+      conversationId: source.conversationId,
+      messageId: source.messageId,
+    });
+    selectConversation(source.conversationId);
+  }, [currentConversation, selectConversation]);
+
+  const handleForked = useCallback(
+    (conversation: Conversation) => {
+      setFocusTarget(null);
+      // 一覧に載ってから開く（先に開くと、一覧に無い間だけ役割・分岐元が空で出る）
+      void refreshConversations().finally(() => {
+        selectConversation(conversation.id);
+        setTimeout(() => chatBarRef.current?.focus(), 0);
+      });
+    },
+    [refreshConversations, selectConversation]
+  );
+  const conversationFork = useConversationFork({ onForked: handleForked });
+  const handleFork = useCallback(
+    (messageId: string) => {
+      if (currentConversationId) {
+        void conversationFork.fork(currentConversationId, messageId);
+      }
+    },
+    [conversationFork, currentConversationId]
+  );
+  // 分岐の失敗は、分岐元の会話を開いている間だけ出す
+  const forkError =
+    conversationFork.error?.conversationId === currentConversationId
+      ? conversationFork.error.message
+      : null;
+
   const handleSelectConversation = useCallback(
     (id: string) => {
       // 移る先の会話を開けないまま別の会話を選んだら、移る先を忘れる（後で戻ったときに急に移らない）
@@ -296,9 +336,11 @@ export default function Home() {
           onOpenRole={() => setIsRoleDialogOpen(true)}
           canExport={canExport}
           onOpenExport={() => setIsExportDialogOpen(true)}
+          forkSourceTitle={currentConversation?.forkedFrom?.title ?? null}
+          onOpenForkSource={handleOpenForkSource}
         />
       }
-      notice={error}
+      notice={forkError ?? error}
       composer={
         <ChatBar
           ref={chatBarRef}
@@ -382,6 +424,8 @@ export default function Home() {
         failedBookmarkId={messageBookmark.failedMessageId}
         focusMessageId={focusMessageId}
         onFocusHandled={handleFocusHandled}
+        onFork={currentConversationId ? handleFork : undefined}
+        forkingMessageId={conversationFork.forkingMessageId}
       />
     </ChatLayout>
   );

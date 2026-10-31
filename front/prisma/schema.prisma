@@ -8,24 +8,31 @@ datasource db {
 }
 
 model Conversation {
-  id           String    @id @default(uuid())
-  title        String
-  systemPrompt String? // 会話の役割（システムプロンプト）。null は役割なし
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  messages     Message[]
+  id                  String    @id @default(uuid())
+  title               String
+  systemPrompt        String? // 会話の役割（システムプロンプト）。null は役割なし
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  messages            Message[]
+  // 分岐した応答（#29）。応答から新しい会話にコピーしたときに入れる。分岐していない・分岐元が消えた会話は null
+  forkedFromMessageId String?
+  forkedFromMessage   Message?  @relation("ConversationFork", fields: [forkedFromMessageId], references: [id], onDelete: SetNull)
+
+  @@index([forkedFromMessageId])
 }
 
 model Message {
-  id             String       @id @default(uuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String
-  content        String
-  metadata       Json?        // ツール呼び出し情報等 { toolCalls: ToolCallRecord[] }
-  createdAt      DateTime     @default(now())
-  attachments    Attachment[]
-  bookmark       Bookmark?
+  id                  String         @id @default(uuid())
+  conversationId      String
+  conversation        Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role                String
+  content             String
+  metadata            Json? // ツール呼び出し情報等 { toolCalls: ToolCallRecord[] }
+  createdAt           DateTime       @default(now())
+  attachments         Attachment[]
+  bookmark            Bookmark?
+  // この応答から分岐した会話（#29）
+  forkedConversations Conversation[] @relation("ConversationFork")
 }
 
 // メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）

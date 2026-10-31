@@ -52,6 +52,7 @@ describe('PATCH /api/conversations/[id]（役割の変更）', () => {
       });
       expect(Object.keys(body).sort()).toEqual([
         'createdAt',
+        'forkedFrom',
         'id',
         'systemPrompt',
         'title',

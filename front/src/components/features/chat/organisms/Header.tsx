@@ -5,6 +5,7 @@ import {
   Activity,
   ChevronDown,
   FileDown,
+  GitBranch,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -50,10 +51,16 @@ type HeaderProps = {
   canExport: boolean;
   /** 書き出すボタン押下時のコールバック（書き出しのダイアログを開く）。 */
   onOpenExport: () => void;
+  /**
+   * 開いている会話の分岐元の会話のタイトル（#29）。分岐していない・分岐元が消えた会話では `null`（リンクを出さない）
+   */
+  forkSourceTitle: string | null;
+  /** 分岐元のリンク押下時のコールバック（分岐元の会話を開き、分岐した応答へ移る。#29）。 */
+  onOpenForkSource: () => void;
 };
 
 /**
- * アプリ上部のヘッダー。接続状態の表示・会話の役割の表示と編集の入口・会話の書き出しの入口・モデル選択セレクトボックスを提供する。
+ * アプリ上部のヘッダー。接続状態の表示・分岐元の会話へのリンク（#29）・会話の役割の表示と編集の入口・会話の書き出しの入口・モデル選択セレクトボックスを提供する。
  *
  * モバイル幅（md 未満）ではサイドバーが隠れるため、先頭にメニューボタンを出し、
  * 会話管理・設定を持つドロワーを開けるようにする。デスクトップ幅では、先頭にサイドバーの切り替えボタンを出し、
@@ -64,7 +71,9 @@ type HeaderProps = {
  * 左側も縮めると `whitespace-nowrap` の「Node: Local」が隣の役割ボタンに重なり、
  * 幅指定の無い select は縮んだ親からはみ出すため。
  *
- * @param props - モデル一覧・選択中モデル・変更コールバック・メニューとサイドバーの開閉状態・役割の表示名と編集の入口・書き出しの入口を持つ props
+ * 分岐元のタイトルは役割の名前と同じく、モバイル幅では隠してアイコンだけを出す（長いタイトルは省略し、`title` 属性で全体を見せる）。
+ *
+ * @param props - モデル一覧・選択中モデル・変更コールバック・メニューとサイドバーの開閉状態・分岐元のリンク・役割の表示名と編集の入口・書き出しの入口を持つ props
  */
 export default function Header({
   models,
@@ -83,6 +92,8 @@ export default function Header({
   onOpenRole,
   canExport,
   onOpenExport,
+  forkSourceTitle,
+  onOpenForkSource,
 }: HeaderProps) {
   const displayName = selectedModel.replace(/:latest$/, '');
 
@@ -156,6 +167,20 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 min-w-0">
+        {forkSourceTitle !== null && (
+          <button
+            type="button"
+            onClick={onOpenForkSource}
+            aria-label={`分岐元の会話を開く: ${forkSourceTitle}`}
+            title={`分岐元: ${forkSourceTitle}`}
+            className="flex items-center gap-1.5 shrink-0 px-2 md:px-3 py-1.5 rounded-lg text-xs border border-nord-3 bg-nord-2 text-nord-4 hover:bg-nord-3 hover:text-nord-6 transition-colors focus:outline-none focus:ring-2 focus:ring-nord-frost-1/50"
+          >
+            <GitBranch size={14} className="text-nord-frost-1" />
+            <span className="hidden md:inline max-w-40 truncate">
+              分岐元: {forkSourceTitle}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenRole}

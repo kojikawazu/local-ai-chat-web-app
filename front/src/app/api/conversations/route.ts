@@ -1,5 +1,9 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import {
+  CONVERSATION_SELECT,
+  toConversationResponse,
+} from '@/lib/server/conversation';
 import { prisma } from '@/lib/server/prisma';
 import {
   parseCreateConversationBody,
@@ -9,7 +13,8 @@ import {
 /**
  * 会話一覧を更新日時の降順（最新順）で取得する。
  *
- * 一覧表示に必要な `id` / `title` / `systemPrompt`（会話の役割。#10）/ `createdAt` / `updatedAt` のみを選択して返す。
+ * 一覧表示に必要な `id` / `title` / `systemPrompt`（会話の役割。#10）/ `createdAt` / `updatedAt` と、
+ * 分岐元（`forkedFrom`。#29。分岐していなければ `null`）を返す（{@link toConversationResponse}）。
  *
  * @returns 成功時は会話配列を含む JSON（`{ conversations }`）。取得失敗は 500 の JSON エラーレスポンス
  */
@@ -17,16 +22,12 @@ export async function GET() {
   try {
     const conversations = await prisma.conversation.findMany({
       orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        systemPrompt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: CONVERSATION_SELECT,
     });
 
-    return NextResponse.json({ conversations });
+    return NextResponse.json({
+      conversations: conversations.map(toConversationResponse),
+    });
   } catch (error) {
     console.error('Failed to fetch conversations:', error);
     return NextResponse.json(
@@ -46,7 +47,7 @@ export async function GET() {
  * （{@link parseCreateConversationBody}）。
  *
  * @param request - 任意の `title`（最大 `MAX_TITLE_LENGTH` 文字）と `systemPrompt`（最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）を含む JSON ボディを持つリクエスト（ボディ省略可）
- * @returns 成功時は作成された会話の JSON（ステータス 201）。JSON 構文・形・型の不正と長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
+ * @returns 成功時は作成された会話の JSON（一覧の 1 件と同じ形。`forkedFrom` は `null`。ステータス 201）。JSON 構文・形・型の不正と長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
   const raw = await readJsonBody(request, { allowEmpty: true });
@@ -60,9 +61,13 @@ export async function POST(request: NextRequest) {
   try {
     const conversation = await prisma.conversation.create({
       data: { title, systemPrompt },
+      select: CONVERSATION_SELECT,
     });
 
-    return NextResponse.json(conversation, { status: 201 });
+    // 一覧の 1 件と同じ形にする（作った会話はそのまま一覧に足される）
+    return NextResponse.json(toConversationResponse(conversation), {
+      status: 201,
+    });
   } catch (error) {
     console.error('Failed to create conversation:', error);
     return NextResponse.json(

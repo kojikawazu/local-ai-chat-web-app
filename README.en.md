@@ -34,6 +34,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders, create / edit files after you approve the diff) with visible reasoning and system-prompt presets
 - **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Response bookmarks**: bookmark answers and jump back to them from a cross-conversation list with keyword search and notes
+- **Conversation forks**: "Fork from here" on an answer copies the exchange up to that point into a new conversation so you can take it in a different direction (with a link back to the source)
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text
 - **Responsive design**: desktop and mobile

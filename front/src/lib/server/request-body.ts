@@ -1,4 +1,5 @@
 import type { Prisma } from '@/generated/prisma/client';
+import { DEFAULT_CONVERSATION_TITLE } from '@/constants/conversation/title';
 import type { AttachmentMimeType } from '@/lib/server/attachment';
 import {
   base64DecodedLength,
@@ -151,9 +152,6 @@ export type PromptTemplateBody = {
 
 /** 会話履歴・保存で許可する role。`system` は `systemPrompt`、`tool` はサーバー内のエージェントループだけが作る */
 const MESSAGE_ROLES = ['user', 'assistant'] as const;
-
-/** タイトル未指定時に使う会話タイトル。 */
-const DEFAULT_CONVERSATION_TITLE = '新しい会話';
 
 const INVALID_JSON_ERROR = 'リクエストボディのJSON形式が不正です';
 const NOT_OBJECT_ERROR = 'リクエストボディはJSONオブジェクトで指定してください';
@@ -788,6 +786,31 @@ export function parsePromptTemplateBody(
     ok: true,
     value: { name: trimmedName, shortcut: normalizedShortcut, content },
   };
+}
+
+/** `POST /api/conversations/[id]/fork` の検証済みボディ（#29）。 */
+export type ForkConversationBody = {
+  /** 分岐する応答（assistant のメッセージ）の ID */
+  messageId: string;
+};
+
+/**
+ * `POST /api/conversations/[id]/fork`（応答から会話を分岐する。#29）のボディを検証する。
+ *
+ * メッセージがその会話の応答か・存在するかは DB を読まないと分からないため、route が確かめる。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`messageId` が UUID の文字列でなければ失敗
+ */
+export function parseForkConversationBody(
+  body: unknown
+): ParseResult<ForkConversationBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  const { messageId } = body;
+  if (typeof messageId !== 'string' || !isValidUUID(messageId)) {
+    return { ok: false, error: '無効なメッセージIDです' };
+  }
+  return { ok: true, value: { messageId } };
 }
 
 /** `POST /api/bookmarks` の検証済みボディ（#30）。 */

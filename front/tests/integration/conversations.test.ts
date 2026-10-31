@@ -150,9 +150,10 @@ describe('GET /api/conversations（一覧）', () => {
       expect(conversations).toHaveLength(2);
       expect(conversations[0].id).toBe(second.id);
       expect(conversations[1].id).toBe(first.id);
-      // 一覧は id/title/systemPrompt/createdAt/updatedAt のみ返す
+      // 一覧は id/title/systemPrompt/createdAt/updatedAt と分岐元（#29）のみ返す
       expect(Object.keys(conversations[0]).sort()).toEqual([
         'createdAt',
+        'forkedFrom',
         'id',
         'systemPrompt',
         'title',
