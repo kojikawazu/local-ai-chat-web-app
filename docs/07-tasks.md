@@ -1151,6 +1151,14 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] UT（`prompt-template.test.ts` 29 件）・IT（`prompt-templates.test.ts` 22 件。`helpers/db.ts` の `resetDb` でテンプレートも消す）・E2E（`prompt-templates.spec.ts` 12 件。開始時のテンプレートを控えて最後に作り直す）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`20`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,error-handling,documentation}.md`）
 
+## フェーズ50: ロードマップへの Step 4 の追加
+
+後回しの欄（大型・調査が必要なもの）から優先度の高い 3 件を上げ、Step 3 の後の Step 4 として並べる。 — #209（2026-10-31 着手）
+
+- [x] 順番を決める（Step 3 の残り #30 → #29 → #33 の後に、Step 4: #36 → #17 → #26）
+- [x] `docs/10-roadmap.md` に Step 4 を足し、後回しの表から 3 件を外す
+- [x] 新しく起票した #208（MCP サーバーへの接続）を後回しの表に載せる（順番は未定。#34 との関係は #208 の設計で決める）
+
 ## フェーズ51: 応答のブックマーク（#30 Phase A・B）
 
 役に立った応答にブックマークを付け、会話をまたいだ一覧から探して、元の会話のその応答へ戻れるようにする。設計は [21-bookmarks.md](./21-bookmarks.md)。 — #30・サブ issue #211（2026-10-31 着手）
