@@ -9,6 +9,7 @@ import type {
   MessageSaveState,
 } from '@/types/chat/message';
 import type { PreparedImage } from '@/types/chat/attachment';
+import type { ResponseMetrics } from '@/types/chat/metrics';
 import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
 import { toConversationHistory } from '@/lib/chat/conversation-history';
@@ -400,6 +401,8 @@ export function useChat({
       // done イベントで届く実行統計。表示と保存の両方に使う
       let agentRounds: number | undefined;
       let agentDurationMs: number | undefined;
+      // done イベントで届くトークン数・所要時間（#31）。停止した応答には届かない
+      let metrics: ResponseMetrics | undefined;
       const toolCallRecords: ToolCallInfo[] = [];
       // tool_call_result で届いたスクリーンショットの中身（ID → Base64。#200）。done の記録（中身なし）に戻し、保存で送る
       const screenshotData = new Map<string, string>();
@@ -440,6 +443,7 @@ export function useChat({
             agentRounds,
             agentDurationMs,
             interrupted,
+            metrics,
           }),
           onSaved: generateTitle,
           replace: replacing !== undefined,
@@ -481,7 +485,7 @@ export function useChat({
         const decoder = new TextDecoder();
 
         if (isNdjson) {
-          // --- エージェントモード: NDJSON イベントストリーム ---
+          // --- NDJSON イベントストリーム（エージェント・通常のチャット。通常のチャットは text_delta と done だけ。#31） ---
           let lineBuffer = '';
 
           while (true) {
@@ -643,12 +647,14 @@ export function useChat({
                   }
                   agentRounds = event.metadata?.agentRounds;
                   agentDurationMs = event.metadata?.agentDurationMs;
+                  metrics = event.metadata?.metrics;
                   // 保存時と同じ関数で組み立て、表示と DB の内容を揃える（#94）
                   const finalMetadata = buildMessageMetadata({
                     toolCalls: [...toolCallRecords],
                     thinkingText,
                     agentRounds,
                     agentDurationMs,
+                    metrics,
                   });
                   setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
@@ -668,7 +674,7 @@ export function useChat({
             }
           }
         } else {
-          // --- 通常モード: プレーンテキストストリーミング（後方互換） ---
+          // --- 文字列のストリーミング（後方互換。トークン数は届かない） ---
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;

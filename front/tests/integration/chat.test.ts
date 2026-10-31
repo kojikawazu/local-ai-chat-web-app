@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { POST } from '@/app/api/chat/route';
+import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { jsonRequest } from './helpers/db';
 import {
   ollamaChunksResponse,
@@ -15,6 +16,31 @@ import {
  */
 const URL = 'http://localhost/api/chat';
 
+/**
+ * 応答の NDJSON をイベントの列にする（通常チャットも `text_delta` と `done` を送る。#31）。
+ *
+ * @param res - `/api/chat` の応答
+ * @returns 受け取ったイベント（受信順）
+ */
+async function eventsOf(res: Response): Promise<AgentStreamEvent[]> {
+  return (await res.text())
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line) as AgentStreamEvent);
+}
+
+/**
+ * イベントの列から本文をつなげる。
+ *
+ * @param events - イベントの列
+ * @returns `text_delta` の中身をつなげた本文
+ */
+function textOf(events: AgentStreamEvent[]): string {
+  return events
+    .map((event) => (event.type === 'text_delta' ? event.content : ''))
+    .join('');
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -22,14 +48,52 @@ afterEach(() => {
 
 describe('POST /api/chat（通常チャット）', () => {
   describe('正常系', () => {
-    it('Ollama のストリーミング応答を中継して 200 とテキストを返す', async () => {
+    it('Ollama のストリーミング応答を、本文の text_delta と終わりの done の NDJSON で中継する', async () => {
       stubFetch(() => ollamaStreamResponse(['こん', 'にちは']));
 
       const res = await POST(
         jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
       );
       expect(res.status).toBe(200);
-      expect(await res.text()).toBe('こんにちは');
+      expect(res.headers.get('Content-Type')).toBe('application/x-ndjson');
+      const events = await eventsOf(res);
+      expect(textOf(events)).toBe('こんにちは');
+      expect(events.at(-1)?.type).toBe('done');
+    });
+
+    it('Ollama の終わりのチャンクのトークン数・所要時間を、done の metrics に載せる（#31）', async () => {
+      stubFetch(() =>
+        ollamaStreamResponse(['こんにちは'], {
+          prompt_eval_count: 44,
+          prompt_eval_cached_count: 43,
+          prompt_eval_duration: 4_500_000,
+          eval_count: 10,
+          eval_duration: 250_000_000,
+          load_duration: 2_000_000,
+          total_duration: 260_000_000,
+        })
+      );
+
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
+      expect((await eventsOf(res)).at(-1)).toEqual({
+        type: 'done',
+        metadata: {
+          metrics: {
+            model: 'test',
+            calls: 1,
+            promptTokens: 44,
+            promptCachedTokens: 43,
+            maxPromptTokens: 44,
+            promptDurationMs: 4.5,
+            outputTokens: 10,
+            outputDurationMs: 250,
+            loadDurationMs: 2,
+            totalDurationMs: 260,
+          },
+        },
+      });
     });
 
     it('Ollama に think: false を送り、思考させずに答えさせる', async () => {
@@ -170,7 +234,16 @@ describe('POST /api/chat（通常チャット）', () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
       );
-      expect(await res.text()).toBe('こんにちは');
+      expect(textOf(await eventsOf(res))).toBe('こんにちは');
+    });
+
+    it('Ollama が終わりのチャンクにトークン数を返さなければ、done は metrics を持たない（#31）', async () => {
+      stubFetch(() => ollamaStreamResponse(['こんにちは']));
+
+      const res = await POST(
+        jsonRequest(URL, 'POST', { message: 'やあ', enableTools: false })
+      );
+      expect((await eventsOf(res)).at(-1)).toEqual({ type: 'done' });
     });
   });
 

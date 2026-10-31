@@ -1,4 +1,5 @@
 import type { ToolCallInfo } from '@/types/agent/tool-call';
+import type { ResponseMetrics } from './metrics';
 
 /**
  * 永続化に失敗したメッセージのクライアント側の状態。API・DB には存在しない。
@@ -51,6 +52,8 @@ export type Message = {
     agentDurationMs?: number;
     /** ユーザーが生成を停止した応答なら true（本文は停止までの途中のもの） */
     interrupted?: boolean;
+    /** 応答のトークン数・所要時間（#31）。停止した応答・この機能より前の応答は持たない */
+    metrics?: ResponseMetrics;
   } | null;
   /**
    * 保存に失敗したときだけ付く状態（{@link MessageSaveState}）。省略時は保存済み。

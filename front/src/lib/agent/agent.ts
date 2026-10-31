@@ -8,12 +8,14 @@ import {
   hasVisionTools,
 } from './tools/index';
 import { waitForApproval } from './approvals';
+import { addMetrics, metricsFromDoneChunk } from '@/lib/llm/metrics';
 import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
 import type {
   ToolApproval,
   ToolCallInfo,
   ToolScreenshot,
 } from '@/types/agent/tool-call';
+import type { ResponseMetrics } from '@/types/chat/metrics';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
@@ -393,11 +395,12 @@ async function runWithApproval(
 // テキスト応答の場合は各チャンクを逐次ストリームに流してリアルタイム表示を維持する。
 // 思考過程は 2 通りの返し方に対応する: 本文中の <think> タグ（qwen3 等）と、
 // 本文とは別の message.thinking フィールド（qwen3.8 等。#116）。
+// 終わりのチャンクのトークン数・所要時間も返す（#31。届かなければ undefined）。
 async function readOllamaResponse(
   response: Response,
   onTextChunk: (text: string) => void,
   onThinking: (text: string) => void
-): Promise<{ toolCalls: OllamaToolCall[] }> {
+): Promise<{ toolCalls: OllamaToolCall[]; metrics?: ResponseMetrics }> {
   if (!response.body) {
     throw new Error('Ollama からのレスポンスが空です');
   }
@@ -406,6 +409,7 @@ async function readOllamaResponse(
   const decoder = new TextDecoder();
   let lineBuffer = '';
   const toolCalls: OllamaToolCall[] = [];
+  let metrics: ResponseMetrics | undefined;
 
   // <think>...</think> をストリーム全体にわたって検出するためのバッファ
   let contentBuffer = '';
@@ -432,6 +436,7 @@ async function readOllamaResponse(
       if (!line.trim()) continue;
       try {
         const chunk: OllamaStreamChunk = JSON.parse(line);
+        if (chunk.done) metrics = metricsFromDoneChunk(chunk);
 
         if (chunk.message?.thinking) {
           thinkingFieldBuffer += chunk.message.thinking;
@@ -509,17 +514,22 @@ async function readOllamaResponse(
     }
   }
 
-  return { toolCalls };
+  return { toolCalls, metrics };
 }
 
 // 1 回分の Ollama 応答を読み、本文を text_delta・思考過程を thinking イベントとして中継する。
-// 中継した本文の有無は、最大ラウンド到達後の最終回答が空だったかの判定に使う
+// 中継した本文の有無は、最大ラウンド到達後の最終回答が空だったかの判定に使う。
+// トークン数・所要時間（#31）は呼び出し側がラウンドを合計する
 async function relayOllamaResponse(
   send: (event: AgentStreamEvent) => void,
   response: Response
-): Promise<{ toolCalls: OllamaToolCall[]; hasText: boolean }> {
+): Promise<{
+  toolCalls: OllamaToolCall[];
+  hasText: boolean;
+  metrics?: ResponseMetrics;
+}> {
   let hasText = false;
-  const { toolCalls } = await readOllamaResponse(
+  const { toolCalls, metrics } = await readOllamaResponse(
     response,
     (text) => {
       // テキストチャンクをリアルタイムに送信（バッファなし）
@@ -534,7 +544,7 @@ async function relayOllamaResponse(
       }
     }
   );
-  return { toolCalls, hasText };
+  return { toolCalls, hasText, metrics };
 }
 
 /**
@@ -636,6 +646,8 @@ export function runAgentLoop(
       // システムプロンプトがあれば先頭に追加
       const history = withSystemPrompt(messages, systemPrompt);
       const loopStartTime = Date.now();
+      // ラウンド（Ollama への問い合わせ）ごとのトークン数・所要時間の合計（#31）
+      let metrics: ResponseMetrics | undefined;
 
       // 完了イベント（ツール呼び出し記録・実行統計付き）を送ってストリームを閉じる。
       // agentRounds は Ollama への問い合わせ回数（最終回答の問い合わせを含む）
@@ -646,6 +658,7 @@ export function runAgentLoop(
             toolCalls: toolCallRecords,
             agentRounds,
             agentDurationMs: Date.now() - loopStartTime,
+            ...(metrics && { metrics }),
           },
         });
         close();
@@ -677,10 +690,9 @@ export function runAgentLoop(
             return;
           }
 
-          const { toolCalls } = await relayOllamaResponse(
-            sendEvent,
-            ollamaResponse
-          );
+          const relayed = await relayOllamaResponse(sendEvent, ollamaResponse);
+          const { toolCalls } = relayed;
+          metrics = addMetrics(metrics, relayed.metrics);
 
           // ツール呼び出しなし → テキスト応答のストリーミングは中継時に完了済み
           if (toolCalls.length === 0) {
@@ -811,11 +823,9 @@ export function runAgentLoop(
           const finalResponse = await streamChat(history, model, undefined, {
             signal: loopSignal,
           });
-          const { hasText } = await relayOllamaResponse(
-            sendEvent,
-            finalResponse
-          );
-          if (!hasText) throw new Error('応答が空でした');
+          const relayed = await relayOllamaResponse(sendEvent, finalResponse);
+          metrics = addMetrics(metrics, relayed.metrics);
+          if (!relayed.hasText) throw new Error('応答が空でした');
         } catch (e) {
           if (loopSignal.aborted) return;
           // 最終回答だけが失敗した場合も error にはしない。error を受けたクライアントは

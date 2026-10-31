@@ -1124,3 +1124,16 @@ Tier 0〜3（2026-04-04 の計画）がほぼ完了し、ロードマップに�
 - [x] 画面（`approval-countdown.ts`・`useApprovalCountdown`・`ApprovalCard` の残り時間と時間切れ）
 - [x] UT（`approval-countdown.test.ts` 13 件）・IT（`chat-agent-approval.test.ts` に待ち時間の上限）・E2E（`command-approval.spec.ts` に 1 件と、許可のテストに残り時間。大モデルのみ）
 - [x] ドキュメント（`docs/02`・`03`・`06`・`09`・`12`・`15`、`CLAUDE.md`）
+
+## フェーズ48: 応答のトークン数・生成速度の表示（#31 Phase A・B）
+
+Ollama の応答の終わりのチャンクのメトリクスを集め、応答ごとにトークン数・生成速度を表示する。設計は [19-token-metrics.md](./19-token-metrics.md)。 — #31・サブ issue #204（2026-10-31 着手）
+
+- [x] 前提の調査（終わりのチャンクの値・キャッシュの分は `prompt_eval_cached_count`・思考は `eval_count` に入る・停止した応答には値が無い）
+- [x] 設計（`docs/19-token-metrics.md`。通常のチャットも NDJSON に・`metadata.metrics` に保存・エージェントはラウンドの合計と最大の文脈・停止した応答には出さない・要約を押すと内訳）
+- [x] 設計のレビュー（推奨どおり）
+- [x] 収集（`lib/llm/metrics.ts`）・通常のチャットの NDJSON・エージェントの `done`（ラウンドの合計）
+- [x] 保存・読み込みの検証（`metadata.metrics`。`parseMessageMetadata`）
+- [x] 表示（`ResponseMetrics`。エージェントのラウンド数の行に並べる）
+- [x] UT（`token-metrics.test.ts` 23 件）・IT（`chat.test.ts` に 2 件・`chat-agent.test.ts` に 3 件・`messages.test.ts` に 1 件。通常チャットの NDJSON に合わせて `chat.test.ts`・`chat-stop.test.ts` を直した）・E2E（`token-metrics.spec.ts` 6 件。実際の生成の 1 件は CI でスキップ）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`09`・`10`・`12`・`19`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,documentation}.md`）

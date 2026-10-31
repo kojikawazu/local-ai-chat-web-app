@@ -119,7 +119,7 @@ Browser -> Next.js Route Handlers -> Ollama API (localhost:11434)
 ```
 
 - The frontend never talks to Ollama directly (always via Route Handlers).
-- Streaming is relayed via `ReadableStream` (plain text in normal mode, NDJSON events in agent mode).
+- Streaming is relayed via `ReadableStream` as NDJSON events (the final event carries token counts and timings).
 - Agent mode runs a loop inside the Route Handler, feeding tool results back to the LLM.
 - CSS-variable-based theme system (switched via the `data-theme` attribute).
 

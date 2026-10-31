@@ -4,6 +4,7 @@ import type {
   ToolScreenshot,
 } from '@/types/agent/tool-call';
 import type { Message } from '@/types/chat/message';
+import type { ResponseMetrics } from '@/types/chat/metrics';
 import { isValidUUID } from '@/lib/shared/validation';
 
 /** メッセージに付く metadata（`null` を除いた形）。 */
@@ -94,6 +95,41 @@ function parseScreenshot(value: unknown): ToolScreenshot | null {
   };
 }
 
+/** 応答のトークン数・所要時間のうち、0 以上の数の項目（`model`・`calls` 以外。#31） */
+const METRICS_NUMBER_KEYS = [
+  'promptTokens',
+  'promptCachedTokens',
+  'maxPromptTokens',
+  'promptDurationMs',
+  'outputTokens',
+  'outputDurationMs',
+  'loadDurationMs',
+  'totalDurationMs',
+] as const satisfies readonly (keyof ResponseMetrics)[];
+
+/**
+ * 保存済みの応答のトークン数・所要時間を検証する（#31。`docs/19-token-metrics.md`「保存と読み込み」）。
+ *
+ * 1 項目でも形が合わなければ全体を捨てる（一部だけの値では、速さや内訳が誤って見えるため）。
+ *
+ * @param value - 保存済みの値（外部入力）
+ * @returns `model` が空でない文字列・`calls` が 1 以上の整数・ほかが 0 以上の有限な数なら値、そうでなければ `undefined`
+ */
+function parseMetrics(value: unknown): ResponseMetrics | undefined {
+  if (!isRecord(value)) return undefined;
+  const { model, calls } = value;
+  if (typeof model !== 'string' || !model || !isPositiveInteger(calls)) {
+    return undefined;
+  }
+  if (!METRICS_NUMBER_KEYS.every((key) => isNonNegativeNumber(value[key]))) {
+    return undefined;
+  }
+  const numbers = Object.fromEntries(
+    METRICS_NUMBER_KEYS.map((key) => [key, value[key]])
+  ) as Omit<ResponseMetrics, 'model' | 'calls'>; // 上の every で、どのキーも 0 以上の数だと確かめた
+  return { model, calls, ...numbers };
+}
+
 /**
  * 保存済みのツール呼び出し 1 件を検証して {@link ToolCallInfo} に戻す。
  *
@@ -145,7 +181,7 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
  * 値のある項目だけを含める（空のツール呼び出し一覧・空の思考過程は含めない）。
  * 表示用の state と保存 API へ渡す値を同じ関数で作り、片方だけ項目が欠けるのを防ぐ（#94）。
  *
- * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間・停止の有無（いずれも任意）
+ * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間・停止の有無・トークン数（いずれも任意）
  * @returns 組み立てた metadata。値のある項目が 1 つも無ければ `null`（通常チャットの応答など）
  */
 export function buildMessageMetadata(
@@ -161,8 +197,9 @@ export function buildMessageMetadata(
     ...(fields.agentDurationMs !== undefined && {
       agentDurationMs: fields.agentDurationMs,
     }),
-    // 停止していない応答に false を持たせない（通常チャットの応答は metadata 自体を null に保つ）
+    // 停止していない応答に false を持たせない（値の無い通常チャットの応答は metadata 自体を null に保つ）
     ...(fields.interrupted && { interrupted: true }),
+    ...(fields.metrics && { metrics: fields.metrics }),
   };
   return Object.keys(metadata).length > 0 ? metadata : null;
 }
@@ -178,8 +215,14 @@ export function buildMessageMetadata(
  */
 export function parseMessageMetadata(value: unknown): MessageMetadata | null {
   if (!isRecord(value)) return null;
-  const { toolCalls, thinkingText, agentRounds, agentDurationMs, interrupted } =
-    value;
+  const {
+    toolCalls,
+    thinkingText,
+    agentRounds,
+    agentDurationMs,
+    interrupted,
+    metrics,
+  } = value;
   return buildMessageMetadata({
     toolCalls: Array.isArray(toolCalls)
       ? toolCalls
@@ -192,5 +235,6 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
       ? agentDurationMs
       : undefined,
     interrupted: interrupted === true,
+    metrics: parseMetrics(metrics),
   });
 }

@@ -175,7 +175,7 @@ describe('POST /api/chat（ツールの承認）', () => {
       });
       const done = events.at(-1);
       expect(
-        done?.type === 'done' && done.metadata?.toolCalls[0]
+        done?.type === 'done' && done.metadata?.toolCalls?.[0]
       ).toMatchObject({
         approval: 'approved',
       });

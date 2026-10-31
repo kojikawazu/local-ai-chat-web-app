@@ -8,6 +8,8 @@ import {
   withSystemPrompt,
 } from '@/lib/llm/ollama';
 import { runAgentLoop } from '@/lib/agent/agent';
+import type { AgentStreamEvent } from '@/lib/agent/tools/types';
+import { metricsFromDoneChunk } from '@/lib/llm/metrics';
 import { getLocalTimeZone, withCurrentDate } from '@/lib/llm/current-date';
 import { initializeTools } from '@/lib/agent/tools/registry';
 import type { ChatBody } from '@/lib/server/request-body';
@@ -121,9 +123,10 @@ async function buildMessages(body: ChatBody): Promise<BuildResult> {
  * `systemPrompt`（会話の役割と、エージェントモードならそのプリセットを連結したもの。#10）があれば、
  * どちらのモードでも会話履歴の先頭に system メッセージとして付ける。その後ろには現在の日時の節を
  * 必ず足す（{@link withCurrentDate}。#154）ため、`systemPrompt` が空でも system メッセージは付く。
- * 通常モードでは Ollama の生成テキストをそのまま `text/event-stream` で逐次返す。
+ * 応答は `AgentStreamEvent` の NDJSON（`application/x-ndjson`）で逐次返す。
+ * 通常モードは本文の `text_delta` と、終わりにトークン数・所要時間（`metrics`。#31）付きの `done` を送る。
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
- * 最終応答を `AgentStreamEvent` の NDJSON（`application/x-ndjson`）として送信する。
+ * 最終応答のイベントを送る。
  *
  * ボディは {@link parseChatBody} で検証し、不正なら Ollama を呼ばずに 400 を返す。
  * 添付画像の ID（`imageIds`・履歴の各要素の `imageIds`。#6）は DB から読んで Ollama の `images` へ渡す
@@ -132,7 +135,7 @@ async function buildMessages(body: ChatBody): Promise<BuildResult> {
  * Ollama への接続を切って生成を止める。
  *
  * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
- * @returns 成功時はストリーミング `Response`（通常: text/event-stream、エージェント: NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時は 502、添付の読み込み失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
+ * @returns 成功時はストリーミング `Response`（NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時は 502、添付の読み込み失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
  */
 export async function POST(request: NextRequest) {
   const raw = await readJsonBody(request);
@@ -210,10 +213,19 @@ export async function POST(request: NextRequest) {
 
   const reader = ollamaResponse.body.getReader();
   const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
   let cancelled = false;
 
   const stream = new ReadableStream({
     async start(controller) {
+      /**
+       * イベントを NDJSON の 1 行として送る。
+       *
+       * @param event - 送るイベント
+       */
+      const send = (event: AgentStreamEvent) => {
+        controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'));
+      };
       try {
         let buffer = '';
 
@@ -231,11 +243,15 @@ export async function POST(request: NextRequest) {
             try {
               const chunk: OllamaStreamChunk = JSON.parse(line);
               if (chunk.message?.content) {
-                controller.enqueue(
-                  new TextEncoder().encode(chunk.message.content)
-                );
+                send({ type: 'text_delta', content: chunk.message.content });
               }
               if (chunk.done) {
+                // 終わりのチャンクのトークン数・所要時間を載せる（届かなければ載せない。#31）
+                const metrics = metricsFromDoneChunk(chunk);
+                send({
+                  type: 'done',
+                  ...(metrics && { metadata: { metrics } }),
+                });
                 controller.close();
                 return;
               }
@@ -270,7 +286,7 @@ export async function POST(request: NextRequest) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
+      'Content-Type': 'application/x-ndjson',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     },

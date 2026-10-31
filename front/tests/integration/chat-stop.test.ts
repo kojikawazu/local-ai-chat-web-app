@@ -130,7 +130,11 @@ describe('POST /api/chat の生成停止（通常チャット）', () => {
       );
       const reader = res.body!.getReader();
       const first = await reader.read();
-      expect(new TextDecoder().decode(first.value)).toBe('途中まで');
+      // 通常チャットも NDJSON の text_delta で本文を送る（#31）
+      expect(JSON.parse(new TextDecoder().decode(first.value))).toEqual({
+        type: 'text_delta',
+        content: '途中まで',
+      });
 
       await reader.cancel();
 

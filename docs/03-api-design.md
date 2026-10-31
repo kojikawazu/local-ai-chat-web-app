@@ -72,8 +72,8 @@
 
 **レスポンス**
 
-- 通常モード（`enableTools: false`）: Content-Type `text/event-stream`。ストリーミングで逐次テキストチャンクを返す。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。
-- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。
+- 通常モード（`enableTools: false`）: Content-Type `application/x-ndjson`。本文を `text_delta` で逐次返し、終わりに `done` を送る。`done` の `metadata.metrics` は Ollama の終わりのチャンクのトークン数・所要時間（#31。`docs/19-token-metrics.md`。Ollama が返さなければ `metadata` を持たない）。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。#31 より前は本文の文字列を `text/event-stream` で返していた。
+- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31）。
 
 **停止・切断**: ブラウザが停止・切断すると（応答ストリームの cancel・`request.signal` の abort）、Ollama への接続を切って生成を止める（#8）。エージェントモードでは実行中のツールも中断し、次のラウンドへ進まず、イベントを送らずにストリームを閉じる（`error` は送らない）。停止はエラーとして記録しない。
 
