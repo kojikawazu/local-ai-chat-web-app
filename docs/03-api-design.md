@@ -25,6 +25,10 @@
   - [PUT /api/prompt-templates/[id]](#put-apiprompt-templatesid)
   - [DELETE /api/prompt-templates/[id]](#delete-apiprompt-templatesid)
   - [POST /api/prompt-templates/examples](#post-apiprompt-templatesexamples)
+  - [GET /api/bookmarks](#get-apibookmarks)
+  - [POST /api/bookmarks](#post-apibookmarks)
+  - [PATCH /api/bookmarks/[id]](#patch-apibookmarksid)
+  - [DELETE /api/bookmarks/[id]](#delete-apibookmarksid)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
@@ -273,6 +277,7 @@
       width: number;
       height: number;
     }[];
+    bookmark: { id: string } | null; // 付いているブックマーク（#30）。付いていなければ null
   }[];
 }
 ```
@@ -366,7 +371,7 @@
 | 404 | その会話に属する assistant の応答が見つからない（user のメッセージ・別の会話のメッセージも 404） |
 | 500 | サーバー内部エラー |
 
-本文・metadata とあわせて `createdAt` を現在時刻にする（表示する時刻を再生成した時刻にするため。再生成できるのは最後の応答だけなので、並び順は変わらない）。会話の `updatedAt` の更新と同一トランザクションで行う。旧応答の画面（添付）は同じトランザクションで消し、`attachments` に入れ替える（#200）。
+本文・metadata とあわせて `createdAt` を現在時刻にする（表示する時刻を再生成した時刻にするため。再生成できるのは最後の応答だけなので、並び順は変わらない）。会話の `updatedAt` の更新と同一トランザクションで行う。旧応答の画面（添付）は同じトランザクションで消し、`attachments` に入れ替える（#200）。旧応答に付けたブックマーク（#30）も同じトランザクションで消す（付けたのは前の本文のため）。
 
 クライアントは生成し終えてから置き換える。生成に失敗した場合・本文が出る前に停止した場合は呼ばず、旧応答の表示に戻す。
 
@@ -622,6 +627,117 @@ Ollamaで利用可能なモデル一覧を取得する。
 |-----------|------|
 | 201 | 作成成功 |
 | 409 | 一覧が空でない |
+| 500 | サーバー内部エラー |
+
+---
+
+### GET /api/bookmarks
+
+応答のブックマーク（#30。`docs/21-bookmarks.md`）の一覧を、付けた日時の新しい順に 20 件ずつ返す。
+
+**クエリパラメータ**
+
+| 名前 | 説明 |
+|------|------|
+| `q` | 任意。空白（全角を含む）で区切ったキーワード。最大 100 文字・5 語。すべての語を、メモ・応答の本文・会話のタイトルのどこかに含むものに絞る（語ごとに OR、語どうしは AND）。大文字・小文字を区別しない部分一致で、`%`・`_` は文字そのもの。空なら絞り込まない |
+| `offset` | 任意。何件目から返すか（0 以上の整数。省略時 0） |
+
+解釈は会話の検索（`GET /api/conversations/search`）と同じ（`parseSearchQuery` の `allowEmpty`）。思考過程・ツールの結果（`metadata`）は対象外。
+
+**レスポンス**
+
+```typescript
+{
+  bookmarks: {
+    id: string;
+    note: string | null;        // メモ（無ければ null）
+    createdAt: string;          // 付けた日時
+    messageId: string;          // 応答の ID（移る先）
+    conversationId: string;     // 会話の ID（開く会話）
+    conversationTitle: string;
+    snippet: string;            // 応答の抜粋。語が本文に現れればその前後、無ければ先頭から 120 文字（改行・連続する空白は 1 つに）
+  }[];
+  hasMore: boolean;             // 続きがあるか
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 取得成功（0 件なら空配列） |
+| 400 | リクエスト不正（`q` が長すぎる・語が多すぎる、`offset` が 0 以上の整数でない） |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/bookmarks
+
+応答（assistant のメッセージ）にブックマークを付ける（#30）。メモは付けない（`PATCH` で後から書く）。
+
+**リクエスト**
+
+```typescript
+{
+  messageId: string;  // 必須。応答の UUID
+}
+```
+
+- user のメッセージは 400。メッセージが無ければ 404。メッセージを読んでから作る間に消された場合（外部キーの違反 `P2003`）も 404。
+- もう付いている応答は、一意制約の違反（`P2002`）で判定して 409 を返す（事前の確認では判定しない）。
+
+**レスポンス**
+
+```typescript
+{
+  id: string;
+  messageId: string;
+  note: null;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 201 | 作成成功 |
+| 400 | リクエスト不正（JSON 不正・ボディが非オブジェクト・`messageId` が UUID の文字列でない・user のメッセージ） |
+| 404 | メッセージが見つからない |
+| 409 | もうブックマークしている |
+| 500 | サーバー内部エラー |
+
+---
+
+### PATCH /api/bookmarks/[id]
+
+ブックマークのメモを書き換える（#30）。存在しないブックマークは UPDATE の更新件数で 404 と判定する。
+
+**リクエスト**
+
+```typescript
+{
+  note: string | null;  // 必須。前後の空白を除いて保存する。最大 500 文字。null・空白だけはメモを消す（null にする）
+}
+```
+
+**レスポンス**: 書き換えたブックマーク（`POST` のレスポンスと同じ形）
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 書き換え成功 |
+| 400 | リクエスト不正（無効なUUID・JSON 不正・ボディが非オブジェクト・`note` が無い / 文字列と null 以外・500 文字超） |
+| 404 | ブックマークが見つからない |
+| 500 | サーバー内部エラー |
+
+---
+
+### DELETE /api/bookmarks/[id]
+
+ブックマークを外す（#30）。応答は残る。存在しないブックマークは削除件数で 404 と判定する。
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 削除成功（`{ success: true }`） |
+| 400 | リクエスト不正（無効なUUID） |
+| 404 | ブックマークが見つからない |
 | 500 | サーバー内部エラー |
 
 ---

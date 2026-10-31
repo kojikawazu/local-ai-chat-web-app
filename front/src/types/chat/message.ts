@@ -62,6 +62,8 @@ export type Message = {
   saveState?: MessageSaveState;
   /** 添付した画像（並び順。#6）。user のメッセージだけが持ち、無ければ省略 */
   images?: MessageImage[];
+  /** 付いているブックマークの ID（#30）。保存済みの応答だけが持ち、付いていなければ省略 */
+  bookmarkId?: string;
 };
 
 /** LLM へ渡す会話履歴の 1 件（`/api/chat` の `conversationHistory` の要素）。 */

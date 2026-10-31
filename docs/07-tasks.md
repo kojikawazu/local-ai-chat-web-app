@@ -1150,3 +1150,16 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 管理画面（`PromptTemplateDialog`。設定モーダルと候補から開く）
 - [x] UT（`prompt-template.test.ts` 29 件）・IT（`prompt-templates.test.ts` 22 件。`helpers/db.ts` の `resetDb` でテンプレートも消す）・E2E（`prompt-templates.spec.ts` 12 件。開始時のテンプレートを控えて最後に作り直す）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`20`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,error-handling,documentation}.md`）
+
+## フェーズ51: 応答のブックマーク（#30 Phase A・B）
+
+役に立った応答にブックマークを付け、会話をまたいだ一覧から探して、元の会話のその応答へ戻れるようにする。設計は [21-bookmarks.md](./21-bookmarks.md)。 — #30・サブ issue #211（2026-10-31 着手）
+
+- [x] 設計（`docs/21-bookmarks.md`。DB の `Bookmark`（`messageId` を一意・カスケード削除）・保存済みの応答だけ・押すだけで付く・一覧はダイアログ（メモ・応答の本文・会話のタイトルのキーワード検索、新しい順に 20 件ずつ）・再生成の置き換えで外す・タグは入れない）
+- [x] 設計のレビュー（推奨どおり）
+- [x] DB（`Bookmark`）・マイグレーション（`20261031044103_add_bookmark`）
+- [x] API（`/api/bookmarks`・`[id]`）・メッセージ一覧の `bookmark`・再生成の置き換えでの削除（外部キーの違反の判定を `lib/server/prisma-error.ts` に足し、一覧のクエリは `parseSearchQuery` の `allowEmpty` で会話の検索と共有）
+- [x] 応答の下のブックマークのボタン（`useMessageBookmark`・`useChat` の `setMessageBookmark`）
+- [x] 一覧のダイアログ（`BookmarkDialog`・`BookmarkListItem`・`useBookmarks`。検索・さらに表示・メモ・2 段階の外す）と、元の応答へ移る（`ChatWindow` の `focusMessageId`）。キーワードの強調は共通の `HighlightedText` に切り出した
+- [x] UT（`bookmark.test.ts` 33 件）・IT（`bookmarks.test.ts` 38 件）・E2E（`bookmarks.spec.ts` 9 件。保存に失敗した応答の 1 件は CI でスキップ）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`21`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,error-handling,documentation}.md`）

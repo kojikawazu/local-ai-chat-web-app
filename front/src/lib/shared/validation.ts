@@ -136,6 +136,12 @@ export const MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH = 32;
  */
 export const MAX_PROMPT_TEMPLATES = 100;
 /**
+ * 応答のブックマークのメモの最大文字数（#30）。
+ *
+ * ブックマークの一覧の 1 行で読み切れる長さ。
+ */
+export const MAX_BOOKMARK_NOTE_LENGTH = 500;
+/**
  * ショートカットに使える形（#28）。英小文字・数字・`-`・`_` で、先頭は英小文字か数字。長さは別に見る。
  *
  * 日本語を許さないのは、日本語入力の `/` が全角の `／` になりやすく、`/翻訳` が打ちにくいため（日本語は名前で探せる）。

@@ -97,6 +97,10 @@ front/src/
 │       │   └── route.ts       #     ツールの実行前の承認に許可・拒否を渡す（#148 Phase A2）
 │       ├── attachments/[id]/
 │       │   └── route.ts       #     添付画像の取得（#6）
+│       ├── bookmarks/
+│       │   ├── route.ts       #     応答のブックマークの一覧（新しい順・キーワード検索・20 件ずつ）・付ける（#30）
+│       │   └── [id]/
+│       │       └── route.ts   #     メモの書き換え（PATCH）・外す
 │       ├── chat/
 │       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可。添付画像は ID で受ける）
 │       ├── diagrams/plantuml/
@@ -120,13 +124,13 @@ front/src/
 │               ├── generate-title/
 │               │   └── route.ts #   LLMで会話タイトル自動生成
 │               └── messages/
-│                   ├── route.ts #   メッセージ取得・保存
+│                   ├── route.ts #   メッセージ取得（付いているブックマークの ID 付き。#30）・保存
 │                   └── [messageId]/
-│                       └── route.ts # 応答の置き換え（再生成）
+│                       └── route.ts # 応答の置き換え（再生成。旧応答のブックマークは消す）
 ├── components/                # UIコンポーネント（Atomic Design。#163）
 │   ├── common/                #   共通の部品（ドメインを知らない）
 │   │   ├── atoms/             #     Button・IconButton・ToggleChip・Switch・TextInput・TextArea・Select・Mark・StatusDot・LoadingDots
-│   │   ├── molecules/         #     Modal（ネイティブの <dialog> の外枠。幅は md / wide）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）・CodeBlockFrame（コードブロックの枠と見出し行）
+│   │   ├── molecules/         #     Modal（ネイティブの <dialog> の外枠。幅は md / wide）・SearchBox（検索欄）・CopyButton（コピーと結果の一時表示）・CodeBlockFrame（コードブロックの枠と見出し行）・HighlightedText（一致した片の強調。#30）
 │   │   └── templates/
 │   │       └── ChatLayout.tsx #     画面の枠（サイドバー・ドロワー・ヘッダー・本文・お知らせ・入力欄・フッター）。中身は props で受け取る
 │   └── features/              #   機能の部品
@@ -148,7 +152,7 @@ front/src/
 │       │   │   └── DiagramZoomDialog.tsx # 図の拡大（倍率の変更）と SVG / PNG での保存のダイアログ（#176）
 │       │   └── organisms/
 │       │       ├── ChatBar.tsx    # メッセージ入力（IME対応・画像の添付ボタン / ドラッグ＆ドロップ / 貼り付け・先頭の `/` でテンプレートの候補とキー操作。#28）
-│       │       ├── ChatWindow.tsx # メッセージ一覧表示
+│       │       ├── ChatWindow.tsx # メッセージ一覧表示（応答のブックマークのボタン・ブックマークから移る先へのスクロールと枠。#30）
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
 │       │       ├── RoleDialog.tsx # 会話の役割（システムプロンプト）の編集ダイアログ（プリセット・自由入力）
@@ -164,11 +168,16 @@ front/src/
 │       │   └── organisms/
 │       │       ├── Sidebar.tsx    # デスクトップのサイドバー（md 以上。隠すと幅 0・inert。#24）
 │       │       ├── SidebarDrawer.tsx # モバイルのサイドバードロワー（md 未満）
-│       │       ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
+│       │       ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、ブックマーク・設定のボタン）。上記 2 つが共有
 │       │       └── ConversationSearch.tsx # 会話の検索欄と検索結果
 │       ├── prompt-template/
 │       │   └── organisms/
 │       │       └── PromptTemplateDialog.tsx # プロンプトテンプレートの一覧・作成・編集・削除（2 段階）のダイアログ（#28）
+│       ├── bookmark/
+│       │   ├── molecules/
+│       │   │   └── BookmarkListItem.tsx # ブックマークの 1 件（タイトル・抜粋・メモの強調・メモの編集・2 段階の外す。#30）
+│       │   └── organisms/
+│       │       └── BookmarkDialog.tsx # ブックマークの一覧のダイアログ（検索・さらに表示・押すと元の応答へ移る。#30）
 │       └── settings/
 │           └── organisms/
 │               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テンプレートの管理の入口・テーマ切替）
@@ -195,6 +204,9 @@ front/src/
 │   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
 │   ├── prompt-template/
 │   │   └── usePromptTemplates.ts #  プロンプトテンプレートの一覧の読み込み・作成・置き換え・削除・例の追加（変更の後は読み直す。#28）
+│   ├── bookmark/
+│   │   ├── useBookmarks.ts    #     ブックマークの一覧の読み込み・検索（入力の待ち合わせ・前の要求の中断）・さらに表示・メモ・外す（#30）
+│   │   └── useMessageBookmark.ts #  応答の下のボタンで付ける・外す（返事を待つ間の表示・失敗で戻す。#30）
 │   ├── settings/
 │   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
 │   ├── sidebar/
@@ -262,7 +274,7 @@ front/src/
 │   │   ├── current-date.ts    #     システムプロンプトの後ろに足す「現在の日時」の節（#154）
 │   │   └── metrics.ts         #     Ollama の終わりのチャンクからトークン数・所要時間を集める・ラウンドの合計（#31）
 │   ├── chat/                  #   チャット（チャットの部品・useChat から使う）
-│   │   ├── chat-state.ts      #     会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147）
+│   │   ├── chat-state.ts      #     会話ごとのチャット状態の更新（切り替え・読み込み・不要な状態の破棄。#147。ブックマークの反映。#30）
 │   │   ├── conversation-history.ts # 表示中のメッセージから /api/chat へ渡す会話履歴を組み立てる（上限内に収める）
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
@@ -277,7 +289,9 @@ front/src/
 │   │   ├── image-attachment.ts #    添付画像の選別（形式・大きさ・枚数）とブラウザでの縮小・再エンコード（#6）
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
-│   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   │   └── search.ts          #     会話検索のキーワードの解釈（ブックマークの一覧と共有。#30）・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   ├── bookmark/              #   ブックマーク
+│   │   └── snippet.ts         #     一覧に出す応答の抜粋（一致した箇所の前後か先頭の 120 文字。#30）
 │   ├── prompt-template/       #   プロンプトテンプレート
 │   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
 │   ├── sidebar/               #   サイドバー
@@ -288,7 +302,7 @@ front/src/
 │   │   ├── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
 │   │   ├── attachment.ts      #     添付画像の形式の判定（マジックナンバー）・Base64 の復号（#6）
 │   │   ├── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
-│   │   └── prisma-error.ts    #     Prisma の一意制約の違反の判定（409 にする。メッセージの id・テンプレートのショートカット。#28）
+│   │   └── prisma-error.ts    #     Prisma の一意制約の違反（409。メッセージの id・テンプレートのショートカット・ブックマーク。#28・#30）と外部キーの違反（404。#30）の判定
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID・テンプレートのショートカットの形の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
@@ -308,6 +322,8 @@ front/src/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
     ├── prompt-template/
     │   └── prompt-template.ts #     PromptTemplate（#28）
+    ├── bookmark/
+    │   └── bookmark.ts        #     Bookmark・BookmarkListItem（ブックマークと一覧の 1 件。#30）
     └── theme/
         └── theme.ts           #     テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
 ```
@@ -363,6 +379,7 @@ front/tests/
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
+    ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
@@ -400,6 +417,18 @@ Conversation           Message                     Attachment
 削除は Conversation → Message → Attachment とカスケードする。
 
 ```
+Bookmark（#30。応答 1 つに 1 つまで）
+┌──────────────────────┐
+│ id (UUID PK)         │
+│ messageId (UNIQUE FK)│  Message（assistant）を参照。メッセージの削除でカスケード
+│ note                 │  メモ（null はメモなし）
+│ createdAt / updatedAt│
+└──────────────────────┘
+```
+
+Conversation → Message → Bookmark ともカスケードする。再生成で応答を置き換えると、その応答のブックマークは消す。
+
+```
 PromptTemplate（#28。会話とはリレーションを持たない）
 ┌──────────────────────┐
 │ id (UUID PK)         │
@@ -431,6 +460,7 @@ model Message {
   metadata       Json?        // ツール呼び出し情報・思考過程等（nullable）
   createdAt      DateTime     @default(now())
   attachments    Attachment[]
+  bookmark       Bookmark?
 }
 
 // メッセージに添付した画像（#6）。user メッセージだけが持つ
@@ -455,6 +485,16 @@ model PromptTemplate {
   name      String   // 表示名（候補・管理画面）
   shortcut  String   @unique // `/` の後ろに打つ名前（先頭の `/` は含めない。小文字で保存する）
   content   String   // 入力欄に入れる本文（前後の空白・改行も書いたまま）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 応答（assistant のメッセージ）のブックマーク（#30）。1 つの応答に 1 つまで。user のメッセージに付けさせないことは API で検証する
+model Bookmark {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note      String?  // メモ。null はメモなし（空白だけのメモも null にする）
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -509,6 +549,14 @@ model PromptTemplate {
 2. 入力欄の先頭で `/` を打つと、`ChatBar` が `lib/prompt-template/suggest.ts` で絞り込み、入力欄の上に候補（`PromptTemplateSuggestions`）を出す
 3. ↑↓・Enter・Tab・クリックで選ぶと、入力欄の `/…` をテンプレートの本文に置き換える。送信・`/api/chat` には何も足さない（本文は普通の user メッセージとして送る）
 4. 管理画面（`PromptTemplateDialog`）での作成・置き換え・削除・例の追加は `/api/prompt-templates` の各 API を呼び、成功したら一覧を読み直す
+
+### 応答のブックマークのフロー（#30）
+
+1. 会話を開くと、`GET /api/conversations/[id]/messages` の各メッセージの `bookmark`（付いていればその ID）を `useChat` が `Message.bookmarkId` にする
+2. 応答の下のボタンを押すと、`useMessageBookmark` が `POST /api/bookmarks`（付ける）か `DELETE /api/bookmarks/[id]`（外す）を呼ぶ。返事を待つ間はボタンを向かう先の状態で出して押させず、成功したら `useChat` の `setMessageBookmark` で表示に反映する。失敗したら元の表示に戻して失敗を出す
+3. サイドバーのボタンで一覧のダイアログ（`BookmarkDialog`）を開くと、`useBookmarks` が `GET /api/bookmarks` で新しい順に 20 件ずつ読む。キーワードは入力が止まって 300ms 後に読み直す（メモ・応答の本文・会話のタイトル。会話の検索と同じ解釈）
+4. 一覧の行を押すと、page が移る先（会話の ID・応答の ID）を持ってその会話を開き、`ChatWindow` がメッセージ一覧に移る先が現れたら画面の中央までスクロールして 2 秒だけ枠で示す（その間は一番下へのスクロールをしない）
+5. 一覧で外すと、開いている会話のその応答の印も `setMessageBookmark` で消す
 
 ### 会話管理フロー
 

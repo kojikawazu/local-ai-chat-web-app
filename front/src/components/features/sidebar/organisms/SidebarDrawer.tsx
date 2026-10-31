@@ -26,7 +26,7 @@ type SidebarDrawerProps = Omit<
  * モバイル幅（md 未満）でサイドバーの中身を提供する左ドロワー。
  *
  * デスクトップの {@link Sidebar} が隠れる幅でも、会話の選択・新規会話・削除・設定へ
- * 到達できるようにする（#93）。会話の選択・新規会話・設定を開く操作では閉じ、
+ * 到達できるようにする（#93）。会話の選択・新規会話・設定やブックマーク（#30）を開く操作では閉じ、
  * 削除では続けて操作できるよう開いたままにする。背景のクリック・Escape でも閉じる。
  *
  * @param props - 開閉状態・パネル id とサイドバーの表示データ・イベントハンドラー
@@ -38,6 +38,7 @@ export default function SidebarDrawer({
   onSelectConversation,
   onNewConversation,
   onOpenSettings,
+  onOpenBookmarks,
   ...contentProps
 }: SidebarDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -84,6 +85,11 @@ export default function SidebarDrawer({
           onOpenSettings={() => {
             onClose();
             onOpenSettings();
+          }}
+          // ダイアログをドロワーに重ねない（#30）
+          onOpenBookmarks={() => {
+            onClose();
+            onOpenBookmarks();
           }}
         />
       </div>

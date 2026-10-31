@@ -8,7 +8,7 @@ import { isValidUUID } from '@/lib/shared/validation';
 /**
  * 指定した会話に紐づくメッセージ一覧を作成日時の昇順で取得する。
  *
- * 各メッセージには添付画像の情報（ID・形式・寸法。#6）を並び順で付ける。画像の中身は含めず、
+ * 各メッセージには添付画像の情報（ID・形式・寸法。#6）を並び順で付け、付いているブックマークの ID（`bookmark: { id } | null`。#30）を付ける。画像の中身は含めず、
  * `GET /api/attachments/[id]` で取得させる（一覧を画像の中身ごと返すと、1 会話で数十 MB になりうるため）。
  *
  * @param _request - リクエスト（本エンドポイントでは本文を参照しないため未使用）
@@ -45,6 +45,8 @@ export async function GET(
           select: { id: true, mimeType: true, width: true, height: true },
           orderBy: { position: 'asc' },
         },
+        // どの応答に印が付いているかを、会話を開くときの 1 回の取得で分かるようにする（#30）
+        bookmark: { select: { id: true } },
       },
     });
 
