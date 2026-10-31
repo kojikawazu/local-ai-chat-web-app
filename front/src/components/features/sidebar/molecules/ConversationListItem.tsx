@@ -2,6 +2,7 @@
 
 import { GitBranch, MessageSquare, Trash2 } from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
+import { LIST_ITEM_ATTRIBUTE } from '@/constants/sidebar/list';
 import { cn } from '@/lib/shared/class-names';
 import IconButton from '@/components/common/atoms/IconButton';
 import StatusDot from '@/components/common/atoms/StatusDot';
@@ -47,6 +48,8 @@ export default function ConversationListItem({
       <button
         onClick={onSelect}
         aria-current={isCurrent ? 'page' : undefined}
+        // 一覧の ↑↓ で移る行の目印（#33。削除のボタンは飛ばす）
+        {...{ [LIST_ITEM_ATTRIBUTE]: '' }}
         className="flex-1 flex items-center gap-3 px-3 py-2.5 text-left text-sm text-nord-6 min-w-0"
       >
         {conversation.forkedFrom ? (

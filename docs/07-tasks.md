@@ -1193,3 +1193,15 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 応答の下の分岐のボタン（`ChatWindow`）・ヘッダーの分岐元のリンク（`Header`）・サイドバーの印（`ConversationListItem`）・`useConversationFork`
 - [x] UT（`conversation-fork.test.ts` 18 件）・IT（`conversation-fork.test.ts` 12 件。思考過程・トークン数を含む metadata のコピーも確かめる。一覧・役割の変更のキーの確認に `forkedFrom` を足した）・E2E（`conversation-fork.spec.ts` 6 件。続けて質問する 1 件は CI でスキップ）。書き出し（JSON）は分岐元を含めないため、`export.test.ts` の期待値を会話の 5 項目にした
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`22`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,documentation}.md`）
+
+## フェーズ54: ショートカットキー（#33 Phase A〜C）
+
+マウスを使わずに主な操作をできるようにし、ショートカットの一覧をヘルプで見られるようにする。設計は [23-keyboard-shortcuts.md](./23-keyboard-shortcuts.md)。 — #33・サブ issue #217（2026-10-31 着手）
+
+- [x] 設計（`docs/23-keyboard-shortcuts.md`。新しい会話は ⌘⇧O（⌘N はブラウザが止めさせない）・検索 ⌘K・サイドバー ⌘B・入力欄 Shift+Esc・前後の会話 Ctrl+Shift+↑↓（端で止まる）・ヘルプ ⌘/ と入力欄の外の `?`・修飾キー付きは入力欄の中でも効く・IME とモーダルの間は効かない・サイドバーの一覧の ↑↓・Home・End・カスタマイズはしない）
+- [x] 設計のレビュー（推奨どおり）
+- [x] キーの判定（`lib/shortcut/match.ts`）・定義（`constants/shortcut/shortcuts.ts`）・ページ全体のショートカット（`useKeyboardShortcuts`。関数の入れ替えは `useLayoutEffect`）。入力欄・検索欄の Escape は Shift+Escape で動かさない
+- [x] サイドバーの会話一覧・検索の結果の ↑↓・Home・End での移動（`useListNavigation`・`lib/sidebar/list-navigation.ts`）。デスクトップの幅のメディアクエリを `constants/sidebar/layout.ts` へ昇格
+- [x] ショートカットの一覧のヘルプ（`ShortcutHelpDialog`。設定モーダルの「一覧」からも開く）
+- [x] UT（`keyboard-shortcuts.test.ts` 23 件）・E2E（`keyboard-shortcuts.spec.ts` 10 件。⌘ と Ctrl はアプリの判定から選ぶ）。IT は API・DB を変えないため対象なし
+- [x] ドキュメント（`docs/01`・`02`・`04`・`06`・`07`・`10`・`12`・`23`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{testing,documentation}.md`）

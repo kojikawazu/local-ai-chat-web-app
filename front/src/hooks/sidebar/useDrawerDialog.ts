@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { useEffect, useRef } from 'react';
+import { DESKTOP_MEDIA_QUERY } from '@/constants/sidebar/layout';
 
 // フォーカストラップの循環対象。無効化された要素と tabindex="-1"（プログラムからのみフォーカス）は除く
 const FOCUSABLE_SELECTOR = [
@@ -10,10 +11,6 @@ const FOCUSABLE_SELECTOR = [
   'textarea:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
-
-// Tailwind の md ブレークポイント（既定 768px）。ドロワーは md:hidden で消えるため、
-// この幅以上に広がったら state 上も閉じ、body のスクロール固定を残さない
-const DESKTOP_MEDIA_QUERY = '(min-width: 768px)';
 
 /**
  * {@link useDrawerDialog} の引数。
@@ -97,6 +94,7 @@ export function useDrawerDialog({
     };
     document.addEventListener('keydown', handleKeyDown);
 
+    // ドロワーは md:hidden で消えるため、デスクトップの幅に広がったら state 上も閉じ、body のスクロール固定を残さない
     const desktopQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
     const handleMediaChange = (e: MediaQueryListEvent) => {
       if (e.matches) onCloseRef.current();

@@ -14,6 +14,7 @@ const UI_FEATURES = [
   'settings',
   'prompt-template',
   'bookmark',
+  'shortcut',
 ];
 
 /** 自分より上の階層（相対・エイリアスどちらの import も、パスの途中の階層名で判定する） */

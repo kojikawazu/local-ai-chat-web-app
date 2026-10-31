@@ -185,9 +185,12 @@ front/src/
 │       │   │   └── BookmarkListItem.tsx # ブックマークの 1 件（タイトル・抜粋・メモの強調・メモの編集・2 段階の外す。#30）
 │       │   └── organisms/
 │       │       └── BookmarkDialog.tsx # ブックマークの一覧のダイアログ（検索・さらに表示・押すと元の応答へ移る。#30）
+│       ├── shortcut/
+│       │   └── organisms/
+│       │       └── ShortcutHelpDialog.tsx # ショートカットの一覧のダイアログ（定義から作り、開いている端末の表記で <kbd> に出す。#33）
 │       └── settings/
 │           └── organisms/
-│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テンプレートの管理の入口・テーマ切替）
+│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テンプレートの管理とショートカットの一覧の入口・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
 │   ├── agent/
 │   │   ├── approval.ts        #     承認の待ち時間の上限（5 分。エージェントループと承認待ちで共有。#202）
@@ -197,6 +200,11 @@ front/src/
 │   │   └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
 │   ├── conversation/
 │   │   └── title.ts           #     タイトル未指定のときの会話タイトル（会話の作成と分岐のタイトルで共有。#29）
+│   ├── shortcut/
+│   │   └── shortcuts.ts       #     ページ全体のショートカットの定義（判定とヘルプで共有。#33）
+│   ├── sidebar/
+│   │   ├── list.ts            #     一覧の行の目印の属性（↑↓ で移る行。#33）
+│   │   └── layout.ts          #     デスクトップの幅のメディアクエリ（ドロワーとショートカットで共有。#33）
 │   └── prompt-template/
 │       └── errors.ts          #     ショートカットの重複のエラーメッセージ（作成・置き換えの route で共有。#28）
 ├── generated/
@@ -219,10 +227,14 @@ front/src/
 │   │   └── useMessageBookmark.ts #  応答の下のボタンで付ける・外す（返事を待つ間の表示・失敗で戻す。#30）
 │   ├── settings/
 │   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
+│   ├── shortcut/
+│   │   ├── useKeyboardShortcuts.ts # ページ全体のショートカットを受け、操作ごとの関数を呼ぶ（モーダル・ドロワー・IME の間は受けない。#33）
+│   │   └── useIsMac.ts        #     開いている端末が Mac か（⌘ と Ctrl の出し分け。#33）
 │   ├── sidebar/
 │   │   ├── useConversations.ts #    会話CRUD管理
 │   │   ├── useConversationSearch.ts # 会話検索（入力の待ち合わせ・前の要求の中断・さらに表示）
 │   │   ├── useDrawerDialog.ts #     ドロワーのフォーカス管理・Escape・スクロール固定
+│   │   ├── useListNavigation.ts #   一覧（会話の履歴・検索の結果）の行を ↑↓・Home・End で移る（#33）
 │   │   └── useSidebarVisibility.ts # デスクトップのサイドバーの表示・非表示と localStorage への保存（#24）
 │   └── theme/
 │       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
@@ -305,8 +317,11 @@ front/src/
 │   │   └── snippet.ts         #     一覧に出す応答の抜粋（一致した箇所の前後か先頭の 120 文字。#30）
 │   ├── prompt-template/       #   プロンプトテンプレート
 │   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
+│   ├── shortcut/              #   ショートカット
+│   │   └── match.ts           #     キーの判定（修飾キーのちょうど一致・効かせない場面）・端末の表記（#33）
 │   ├── sidebar/               #   サイドバー
-│   │   └── visibility.ts      #     サイドバーの表示状態の保存値の解釈（#24）
+│   │   ├── visibility.ts      #     サイドバーの表示状態の保存値の解釈（#24）
+│   │   └── list-navigation.ts #     一覧の移る先（↑↓・Home・End・前後の会話。端で止まる。#33）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
 │   │   ├── prisma.ts          #     Prismaクライアントインスタンス
 │   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
@@ -336,6 +351,8 @@ front/src/
     │   └── prompt-template.ts #     PromptTemplate（#28）
     ├── bookmark/
     │   └── bookmark.ts        #     Bookmark・BookmarkListItem（ブックマークと一覧の 1 件。#30）
+    ├── shortcut/
+    │   └── shortcut.ts        #     ShortcutId・ShortcutBinding・ShortcutDefinition（#33）
     └── theme/
         └── theme.ts           #     テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
 ```
@@ -393,6 +410,7 @@ front/tests/
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
+    ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）
     ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）

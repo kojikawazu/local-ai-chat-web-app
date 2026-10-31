@@ -70,6 +70,8 @@ src/
 │       ├── bookmark/           # 応答のブックマーク（#30）
 │       │   ├── molecules/
 │       │   └── organisms/
+│       ├── shortcut/           # ショートカットキー（#33）
+│       │   └── organisms/
 │       └── settings/
 │           └── organisms/
 ├── constants/<機能>/            # 機能内で共有する・機能をまたぐ定数（例: constants/chat/toolLabels.ts）
@@ -155,7 +157,7 @@ src/
 
 | 部品 | props | 使っている箇所 |
 |---|---|---|
-| `SearchBox` | `value`・`onValueChange`・`onClear`・`label`（入力欄の名前とプレースホルダー）・`clearLabel`（× の名前）と素の `<input>` の props。虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。入力がある間の Escape はクリアだけにして外へ伝えない（ドロワーを閉じさせない） | `ConversationSearch` の検索欄 |
+| `SearchBox` | `value`・`onValueChange`・`onClear`・`label`（入力欄の名前とプレースホルダー）・`clearLabel`（× の名前）と素の `<input>` の props。虫眼鏡アイコン + `TextInput` + クリアの `IconButton`。入力がある間の Escape はクリアだけにして外へ伝えない（Shift+Escape はクリアに使わない。入力欄へ移るショートカット。#33）（ドロワーを閉じさせない） | `ConversationSearch` の検索欄 |
 | `Modal` | `title`・`label`（省略時はタイトルを名前にする）・`onClose`・`closeDisabled`・`closeOnBackdropClick`（既定 false）・`size`（`md`（既定。`max-w-lg`）/ `wide`（画面いっぱいから 1rem ずつ引いた大きさ）。#176 で追加）・`footer`・`children`。外枠（タイトルと × ・本文・フッター）。本文だけがスクロールする | `SettingsModal`・`ExportDialog`（背景のクリックで閉じる）・`RoleDialog`（閉じない。保存中は閉じさせない） |
 | `CopyButton` | `text`・`label`・`className`。コピーと結果の一時表示。中のボタンは `IconButton`（`inherit`・`xs`） | 応答・コードブロックのコピー。フック（`useCopyFeedback`）は `hooks/clipboard/`、コピー処理（`clipboard.ts`）は `lib/shared/` へ移した（チャットに依存しないため） |
 | `HighlightedText`（#30） | `parts`（元の順に並べた文字列の片。`match` の片を強調する）。片を並べ、一致した片だけを `Mark` で囲む（HTML を組み立てない）。分け方（キーワードの解釈）は呼び出し側が決める | `SearchResultItem`・`BookmarkListItem`（`splitHighlights` で分けて渡す）。#30 で `SearchResultItem` の中から切り出した（機能の部品どうしは import できないため） |
@@ -182,12 +184,13 @@ src/
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した。`ChatWindow` には #30 で応答のブックマークのボタンと、移る先（`focusMessageId`）へのスクロールと枠を足した。#29 で応答の下の「ここから分岐」のボタン（`onFork`・`forkingMessageId`）を足した。`Header` には #29 で分岐元の会話へのリンク（`forkSourceTitle`・`onOpenForkSource`）を足した） | `features/chat/components/` |
 | `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる） | — |
-| `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した）・`ConversationSearch` | `features/sidebar/components/` |
+| `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン。#29 で分岐した会話の先頭のアイコンを分岐の印にした）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
-| `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した） | `components/settings/` |
+| `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した。#33 でショートカットの「一覧」ボタン `onOpenShortcuts` を足した） | `components/settings/` |
 | `prompt-template` | organisms | `PromptTemplateDialog`（#28 で追加。テンプレートの一覧・作成・編集・2 段階の削除・例の追加） | — |
 | `bookmark` | organisms | `BookmarkDialog`（#30 で追加。ブックマークの一覧・検索・さらに表示。一覧のフック `useBookmarks` を呼ぶ。行を押すと `onOpenBookmark`、外すと `onRemoved` で page に伝える） | — |
 | `bookmark` | molecules | `BookmarkListItem`（#30 で追加。1 件の表示・メモの編集・2 段階の外す） | — |
+| `shortcut` | organisms | `ShortcutHelpDialog`（#33 で追加。ショートカットの一覧。定義（`constants/shortcut/shortcuts.ts`）から作り、開いている端末の表記で `<kbd>` に出す） | — |
 
 切り出した molecules の props:
 

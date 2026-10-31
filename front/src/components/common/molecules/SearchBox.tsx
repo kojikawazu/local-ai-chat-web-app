@@ -54,7 +54,8 @@ export default function SearchBox({
         onChange={(e) => onValueChange(e.target.value)}
         onKeyDown={(e) => {
           onKeyDown?.(e);
-          if (e.key === 'Escape' && value) {
+          // Shift+Escape は入力欄へ移るショートカット（#33）のため、検索の取り消しに使わない
+          if (e.key === 'Escape' && !e.shiftKey && value) {
             e.stopPropagation();
             onClear();
           }

@@ -1,6 +1,13 @@
 'use client';
 
-import { Bot, Palette, Wrench, BrainCircuit, FileText } from 'lucide-react';
+import {
+  Bot,
+  Palette,
+  Wrench,
+  BrainCircuit,
+  FileText,
+  Keyboard,
+} from 'lucide-react';
 import type { ThemeId } from '@/types/theme/theme';
 import { THEMES } from '@/types/theme/theme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
@@ -38,10 +45,12 @@ interface SettingsModalProps {
   onAgentPromptPresetChange: (id: string) => void;
   /** プロンプトテンプレートの「管理」で呼ばれる（#28。設定モーダルを閉じてから管理画面を開く） */
   onOpenPromptTemplates: () => void;
+  /** 「キーボードショートカット」の「一覧」で呼ばれる（#33。設定モーダルを閉じてからショートカットの一覧を開く） */
+  onOpenShortcuts: () => void;
 }
 
 /**
- * モデル・ツール使用・エージェントプロンプト・テーマを設定し、プロンプトテンプレートの管理画面（#28）を開くモーダル。
+ * モデル・ツール使用・エージェントプロンプト・テーマを設定し、プロンプトテンプレートの管理画面（#28）・ショートカットの一覧（#33）を開くモーダル。
  *
  * `isOpen` が false の間は何も描画しない。ツール使用が有効なときのみ
  * エージェントプロンプトの選択欄を表示する。外枠は共通の {@link Modal}（ネイティブの `<dialog>`）で、
@@ -62,6 +71,7 @@ export default function SettingsModal({
   agentPromptPresetId,
   onAgentPromptPresetChange,
   onOpenPromptTemplates,
+  onOpenShortcuts,
 }: SettingsModalProps) {
   if (!isOpen) return null;
 
@@ -176,6 +186,26 @@ export default function SettingsModal({
               className="shrink-0"
             >
               管理
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-nord-6">
+            <Keyboard size={16} className="text-nord-frost-1" />
+            Keyboard Shortcuts
+          </p>
+          <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg border bg-nord-2 border-nord-3">
+            <p className="text-xs text-nord-4/60">
+              新しい会話・検索・会話の切り替えなどのキーを見ます
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onOpenShortcuts}
+              className="shrink-0"
+            >
+              一覧
             </Button>
           </div>
         </div>
