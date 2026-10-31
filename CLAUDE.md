@@ -173,7 +173,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 - **`.github/workflows/`** — GitHub Actions CI定義（Quality / UT / IT / E2E の4ジョブ。ドキュメントのみの変更では発火しない。加えて Workflow Lint・Secret scan を常時実行）。アクションの版更新は `.github/dependabot.yml`（Dependabot・週次）
 - **`base/`** — UIデザインリファレンス（読み取り専用。編集禁止）
-- **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価）
+- **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価、`docs/diagrams/` は draw.io の構成図。正準は `architecture.drawio`）
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
 - **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）・PlantUML（図の描画）のコンテナ定義（プロジェクトルート）

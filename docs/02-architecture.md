@@ -26,6 +26,10 @@
 
 ## システム構成
 
+図（draw.io）は [`diagrams/`](./diagrams/README.md) にある。全体アーキテクチャのほか、Ollama とアプリの責務の分担（パターン表・シーケンス図）も描いている。
+
+![全体アーキテクチャ](./diagrams/01-architecture.png)
+
 ```
 ブラウザ (Next.js Frontend)
     ↓ fetch (streaming)
@@ -64,6 +68,7 @@ local-ai-chat-web-app/
 │       └── secret-scan.yml    #   鍵・.env の追跡を検出（常時実行）
 ├── base/                      # UIデザインリファレンス（読み取り専用・編集禁止）
 ├── docs/                      # プロジェクトドキュメント
+│   └── diagrams/              #   draw.io の構成図（architecture.drawio と各ページの PNG）
 ├── manuals/                   # セットアップガイド等のマニュアル
 │   └── setup-guide-macos.md   #   macOS向けセットアップ手順書
 ├── front/                     # Next.jsアプリケーション本体（開発はここで行う）
