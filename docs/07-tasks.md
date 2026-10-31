@@ -1171,3 +1171,13 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 一覧のダイアログ（`BookmarkDialog`・`BookmarkListItem`・`useBookmarks`。検索・さらに表示・メモ・2 段階の外す）と、元の応答へ移る（`ChatWindow` の `focusMessageId`）。キーワードの強調は共通の `HighlightedText` に切り出した
 - [x] UT（`bookmark.test.ts` 33 件）・IT（`bookmarks.test.ts` 38 件）・E2E（`bookmarks.spec.ts` 9 件。保存に失敗した応答の 1 件は CI でスキップ）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`06`・`07`・`10`・`12`・`21`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,error-handling,documentation}.md`）
+
+## フェーズ52: 構成図（draw.io）の追加
+
+全体アーキテクチャと、Ollama とアプリの責務の分担を draw.io の図にする。置き場所は [diagrams/](./diagrams/README.md)。 — #213（2026-10-31 着手）
+
+- [x] 全体アーキテクチャ（ブラウザ・Next.js サーバー・ホストのプロセス・Docker Compose・インターネット。承認が要るツールは橙）
+- [x] Ollama とアプリの責務のパターン表（10 パターン。承認・その後の応答への制約・対応するシーケンス）
+- [x] シーケンス A（基本の往復）・B（ツールの往復）・C（承認を挟む往復）。ブラウザとサーバーは色を分ける
+- [x] ページごとの PNG と更新の手順（`docs/diagrams/README.md`）
+- [x] ドキュメント（`docs/02`・`07`・`09`・`README.md`、`CLAUDE.md`）

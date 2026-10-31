@@ -238,6 +238,8 @@ front/src/
 
 ## データフロー
 
+Ollama とアプリの責務の分担（Ollama はツールを提案するだけで、実行・承認・応答への制約はアプリが持つ）は、図で [`diagrams/`](./diagrams/README.md) にまとめている。パターン表（[02-ollama-responsibilities.png](./diagrams/02-ollama-responsibilities.png)）、ツールの往復（[04-sequence-b-tools.png](./diagrams/04-sequence-b-tools.png)）、承認を挟む往復（[05-sequence-c-approval.png](./diagrams/05-sequence-c-approval.png)）。
+
 ### エージェント対応チャット送信フロー
 
 ```

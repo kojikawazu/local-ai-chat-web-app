@@ -64,6 +64,18 @@
 | [qwen3-coder-next:latest](./models/qwen3-coder-next.md) | 旧既定モデル |
 | [qwen2.5:0.5b](./models/qwen2.5-0.5b.md) | E2E の既定モデル |
 
+## 構成図（`diagrams/`）
+
+draw.io の図。連番ではなくディレクトリで管理する。正準は `architecture.drawio`（5 ページ）で、PNG は閲覧用の写し。更新の手順は [`diagrams/README.md`](./diagrams/README.md)。
+
+| ページ | 概要 |
+|---|---|
+| [全体アーキテクチャ](./diagrams/01-architecture.png) | ブラウザ・Next.js サーバー・ホストのプロセス・Docker Compose・インターネットと、その間の通信 |
+| [Ollama とアプリの責務（パターン表）](./diagrams/02-ollama-responsibilities.png) | 10 のパターンごとの Ollama とアプリの仕事・承認・その後の応答への制約 |
+| [シーケンス A 基本の往復](./diagrams/03-sequence-a-basic.png) | 通常のチャット・画像の添付・タイトルの生成 |
+| [シーケンス B ツールの往復](./diagrams/04-sequence-b-tools.png) | 承認なしのツール（エージェントのループの骨格） |
+| [シーケンス C 承認を挟む往復](./diagrams/05-sequence-c-approval.png) | 書き込み・コマンド・GitHub への投稿・ブラウザの操作 |
+
 ## 関連
 
 - 開発ルール: [`../CLAUDE.md`](../CLAUDE.md) と [`../.claude/rules/`](../.claude/rules/)
