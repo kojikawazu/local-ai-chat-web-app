@@ -36,6 +36,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 - **プロンプトテンプレート**: よく使うプロンプトを保存し、入力欄の先頭で `/` を打って呼び出す（`/translate` 等。設定から作成・編集・削除）
 - **応答のブックマーク**: 応答に印を付け、会話をまたいだ一覧（キーワード検索・メモ）から元の会話のその応答へ戻る
 - **会話の分岐**: 応答の「ここから分岐」で、そこまでのやり取りを新しい会話にコピーして別の方向で続ける（分岐元へのリンク付き）
+- **HTML レポート・PDF**: 応答・会話を、図・画像を埋め込んだ 1 ファイルの HTML で保存する。同じレポートを印刷の画面で開いて PDF にできる
 - **ショートカットキー**: 新しい会話（⌘⇧O）・会話の検索（⌘K）・サイドバーの開閉（⌘B）・入力欄へのフォーカス（Shift+Esc）・前後の会話（Ctrl+Shift+↑↓）。⌘/ で一覧を表示
 - **テーマ切替**: Nordic Frost / Aurora Borealis / Midnight Ocean の3テーマ
 - **IME対応**: 日本語入力中のEnter確定で誤送信されない
@@ -48,7 +49,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | フレームワーク | Next.js 16 (App Router) + TypeScript 5 |
 | React | React 19（React Compiler有効） |
 | スタイリング | TailwindCSS 4 |
-| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid |
+| Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid（HTML レポートは unified + hast-util-to-html） |
 | 差分 | diff（jsdiff。書き込みの承認の差分） |
 | LLM | Ollama（ローカル実行） |
 | DB | PostgreSQL 16（Docker Compose） |

@@ -33,6 +33,7 @@ import { adjacentConversationId } from '@/lib/sidebar/list-navigation';
 import { DESKTOP_MEDIA_QUERY } from '@/constants/sidebar/layout';
 import type { BookmarkListItem } from '@/types/bookmark/bookmark';
 import type { Conversation } from '@/types/conversation/conversation';
+import type { Message } from '@/types/chat/message';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
@@ -68,6 +69,8 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  // 応答の下の「保存」で書き出す応答（#36）。ダイアログを開いている間だけ持つ
+  const [exportMessage, setExportMessage] = useState<Message | null>(null);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isBookmarkDialogOpen, setIsBookmarkDialogOpen] = useState(false);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
@@ -433,9 +436,22 @@ export default function Home() {
         <>
           {isExportDialogOpen && currentConversation && (
             <ExportDialog
-              conversation={currentConversation}
-              messages={messages}
+              target={{
+                kind: 'conversation',
+                conversation: currentConversation,
+                messages,
+              }}
               onClose={() => setIsExportDialogOpen(false)}
+            />
+          )}
+          {exportMessage && (
+            <ExportDialog
+              target={{
+                kind: 'message',
+                message: exportMessage,
+                title: currentConversation?.title ?? '',
+              }}
+              onClose={() => setExportMessage(null)}
             />
           )}
           {isTemplateDialogOpen && (
@@ -489,7 +505,7 @@ export default function Home() {
         isLoading={isLoading}
         onRetrySave={retrySave}
         onRegenerate={regenerate}
-        conversationTitle={currentConversation?.title}
+        onSaveMessage={setExportMessage}
         pendingApprovals={pendingApprovals}
         onRespondApproval={respondToApproval}
         onToggleBookmark={messageBookmark.toggleBookmark}

@@ -77,6 +77,11 @@
   - カスタムコンポーネント（code, table, blockquote等）でNordテーマのスタイルを適用
   - コードブロックのシンタックスハイライトは `rehype-highlight` で行う。構文木（hast）を書き換えるだけで HTML 文字列を作らないため、コード内の `<script>` 等は文字のまま表示される。色は CSS クラスで付け、インラインの `style` 属性も作らない
   - Mermaid の図（#169）は、mermaid が返す SVG の文字列を `data:image/svg+xml` の URI にして `<img>` で表示する。DOM に SVG を直接入れない（`innerHTML` / `dangerouslySetInnerHTML` を使わない）。画像としての SVG はスクリプト・イベント属性を実行せず、外部の資源も読み込まない。そのうえで mermaid の `securityLevel: 'strict'` でラベルを消毒し、`click` 文を無効にする。CSP は変えない（`img-src 'self' data:` で足りる）
+- HTML レポート・PDF の書き出し（#36。`docs/24-html-report-export.md`）は、ブラウザで開くファイル・印刷する文書を作るため、画面と同じ考え方で安全にする
+  - Markdown は unified（remark → rehype）で構文木にし、`hast-util-to-html` で文字列にする（HTML を文字列の連結で作らない）。本文の生の HTML はタグにせず文字として出す（react-markdown と同じ）
+  - リンクは react-markdown と同じ `defaultUrlTransform` で検査し、危ない URL（`javascript:` 等）は `href` を外す。本文の画像（`![](…)`）は埋め込まずリンクにする（開いたときに外部へ読みに行かせない）
+  - 図は SVG を `data:` URI の `<img>` で、添付画像は `data:image/png|jpeg;base64` の形のものだけを埋め込む。レポートにスクリプトは入れない
+  - PDF は、同じ HTML をアプリと同じオリジンの `srcdoc` の iframe で開いて印刷する。iframe の文書はアプリの CSP を受け継ぐ（スクリプトが無く、`data:` の画像・インラインの CSS だけを使うため、CSP は変えない）
 
 ## Content Security Policy（CSP）
 

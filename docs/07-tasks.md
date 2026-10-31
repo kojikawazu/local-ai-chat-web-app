@@ -1205,3 +1205,15 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] ショートカットの一覧のヘルプ（`ShortcutHelpDialog`。設定モーダルの「一覧」からも開く）
 - [x] UT（`keyboard-shortcuts.test.ts` 23 件）・E2E（`keyboard-shortcuts.spec.ts` 10 件。⌘ と Ctrl はアプリの判定から選ぶ）。IT は API・DB を変えないため対象なし
 - [x] ドキュメント（`docs/01`・`02`・`04`・`06`・`07`・`10`・`12`・`23`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{testing,documentation}.md`）
+
+## フェーズ55: HTML レポートと PDF の書き出し（#36 Phase A・E）
+
+応答・会話をスタイル付きの 1 ファイルの HTML で保存し、同じ HTML をブラウザの印刷で PDF にする。設計は [24-html-report-export.md](./24-html-report-export.md)。 — #36・サブ issue #219（2026-10-31 着手）
+
+- [x] 設計（`docs/24-html-report-export.md`。ブラウザの中で作る・unified（remark → rehype）で変換・生の HTML と危ない URL と外部の画像を入れない・図は書き出すときに描いて data: URI の img・添付画像を埋め込む・中身は Markdown の書き出しと同じ・明るい印刷向けのテンプレート 1 つ・PDF は iframe で印刷・入口は応答の「保存」と会話の書き出しのダイアログ）
+- [x] 設計のレビュー（推奨どおり）
+- [x] Markdown → HTML の変換・レポートのテンプレート（`lib/chat/report-html.ts`・`report-style.ts`。`unified`・`remark-parse`・`remark-rehype`・`hast-util-to-html`（9.0.5。最新の 9.0.6 は公開から 2 日のため避けた）を直接の依存に足した）
+- [x] 図・添付画像の埋め込み（`useReportExport`。Mermaid は明るいテーマで描く。図のフォントと PlantUML の API のパスを `constants/chat/diagram.ts` へ昇格）
+- [x] 書き出しのダイアログ（応答 1 件・会話）に HTML・PDF（`ExportDialog` の `target`。応答の「Markdown で保存」を「保存」に替えた）・PDF の印刷（`lib/shared/print.ts`。`srcdoc` の iframe が CSP で止められないことを E2E で確かめた）
+- [x] UT（`report-html.test.ts` 17 件）・E2E（`report-export.spec.ts` 8 件。`export.spec.ts` の応答の保存を新しいダイアログに合わせた）。IT は API・DB を変えないため対象なし
+- [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`24`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）
