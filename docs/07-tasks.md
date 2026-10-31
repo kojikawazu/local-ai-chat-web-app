@@ -1217,3 +1217,15 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 書き出しのダイアログ（応答 1 件・会話）に HTML・PDF（`ExportDialog` の `target`。応答の「Markdown で保存」を「保存」に替えた）・PDF の印刷（`lib/shared/print.ts`。`srcdoc` の iframe が CSP で止められないことを E2E で確かめた）
 - [x] UT（`report-html.test.ts` 17 件）・E2E（`report-export.spec.ts` 8 件。`export.spec.ts` の応答の保存を新しいダイアログに合わせた）。IT は API・DB を変えないため対象なし
 - [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`24`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）
+
+## フェーズ56: DOCX の書き出し（#36 Phase C）
+
+応答・会話を Word で開ける DOCX で保存する。設計は [25-docx-export.md](./25-docx-export.md)。 — #36・サブ issue #221（2026-10-31 着手）
+
+- [x] 設計（`docs/25-docx-export.md`。ブラウザの中で作る・npm の docx を DOCX を選んだときだけ読み込む・Markdown → 文書の中間の形 → DOCX の 2 段・HTML レポートと同じ解釈と安全策・コードは色付けしない・図は PNG にして埋め込む・画像は本文の幅に収める・メッセージの見出しは見出し 1、本文の見出しは 2〜4）
+- [x] 設計のレビュー（推奨どおり）
+- [x] 文書の中間の形（`lib/chat/document-model.ts`。`@types/mdast` を dev に足した）
+- [x] 中間の形 → DOCX（`lib/chat/report-docx.ts`。`docx` 9.12.0 を足し、`@types/node` の版の違いで型が衝突しないことを確かめた）・図の PNG・添付画像（`lib/chat/report-assets.ts` に HTML と共通の処理を切り出した）
+- [x] 書き出しのダイアログに DOCX（DOCX を選んだときだけ `import('docx')`）
+- [x] UT（`document-model.test.ts` 14 件・`report-docx.test.ts` 6 件）・E2E（`report-export.spec.ts` に DOCX の 3 件。`jszip` 3.10.1 を dev に足して中身を読む。zip のフォルダの項目を画像と数えないよう、画像のファイルだけを数える）
+- [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`25`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）

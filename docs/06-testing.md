@@ -181,8 +181,9 @@ describe('機能名', () => {
 - 準正常系: 新しい会話では「会話を書き出す」を押せない。キャンセルでは保存せずに閉じる。応答の生成中は押せず、止めると押せる（実際の Ollama で長い応答を生成させる）
 - 異常系: ファイル名に使えない文字（`/`・`:`・`*`・`?`）を含むタイトルでも、保存するファイル名に残らない
 
-**HTML レポートと PDF（`report-export.spec.ts`、#36）**（会話は API で作るため Ollama を使わず、CI でも動く。変換・安全策の細かい決まりは UT（`report-html.test.ts`）が担う）
+**HTML レポート・PDF・DOCX（`report-export.spec.ts`、#36）**（会話は API で作るため Ollama を使わず、CI でも動く。変換・安全策の細かい決まりは UT（`report-html.test.ts`）が担う）
 - 正常系: 会話を HTML で書き出すと、見出し・表・コードの色付け・添付画像の `data:` URI が入った 1 ファイルが保存され、スクリプトは入らない。応答の「保存」で HTML を選ぶと、その応答だけのレポートになる（応答 1 件には JSON を出さない）。PDF を選ぶと、レポートを読み込んだ iframe で印刷が開く（`print` をブラウザの API の境界で差し替え、呼ばれた回数と印刷した文書の見出し・CSS を確かめる。`srcdoc` の iframe がアプリの CSP で止められないことも、これで確かめている）。Mermaid の図は描いた SVG が `<img>` で入る
+- DOCX（#36 Phase C）: 会話を DOCX で書き出すと、見出し 1・見出し 3（本文の `##`）・表・コード・添付画像（`word/media/` の画像のファイル）の入ったファイルが保存される。Mermaid の図は PNG で 1 枚埋め込まれ、応答の「保存」からも DOCX にできる（質問は入らない）。PlantUML の図を描けなければソースの文字のまま入る。保存した DOCX は `jszip` で開いて `word/document.xml` を確かめる
 - 準正常系: PlantUML の図を描けない（`page.route` で 502）ときはソースのコードブロックのまま書き出す。添付画像を読めない（`page.route` で 500）ときは注記にして書き出す
 - 異常系: 応答の中の生の HTML・`javascript:` のリンクは、レポートでもタグ・リンクにならない。印刷を開けない（`print` を失敗させる）ときはダイアログにエラーを出して閉じず、選び直せる
 
@@ -454,6 +455,8 @@ front/tests/
 │   ├── diagram.test.ts           # 図の種類の判定（mermaid / plantuml / puml）・要素 ID・SVG の data: URI（記号・日本語）と大きさ（viewBox）・テーマの色の組み立て・PlantUML の API の応答の解釈・拡大の倍率の段階・保存の背景・PNG の大きさ（#176）
 │   ├── plantuml.test.ts          # PlantUML のエラーの理由と行番号（0 始まり→1 始まり）からメッセージを作る処理
 │   ├── export.test.ts            # 書き出しのファイル名（置き換え・切り詰め・絵文字）と、会話全体の Markdown / JSON の形（添付画像の注記を含む）
+│   ├── document-model.test.ts    # 書き出しの文書の中間の形（見出し・強調・リスト・タスク・表の揃え・コード・引用・区切り線・図・本文の画像と危ない URL・生の HTML・添付画像の変換・中断の注記。#36）
+│   ├── report-docx.test.ts       # 中間の形 → DOCX（node の docx で作り jszip で読む。見出しのスタイル・表・ハイパーリンク・コードのフォント・画像・番号の数え直し・注記・XML のエスケープ。#36）
 │   ├── report-html.test.ts       # HTML レポートの図の拾い出し・Markdown の変換（見出し・表・コードの色付け）・図と添付画像の埋め込み・描けない図と読めない画像・生の HTML と危ない URL と本文の画像を外す・タイトルのエスケープ・応答 1 件（#36）
 │   ├── image-attachment.test.ts  # 添付するファイルの選別（形式・大きさ・枚数）・縮小の大きさ・出力の形式・data: URI の Base64（#6）
 │   ├── system-prompt.test.ts     # 役割とエージェントのプリセットの連結・表示名の逆引き・上限の不変条件・system メッセージの付与
@@ -528,7 +531,7 @@ front/tests/
     ├── copy.spec.ts              # 応答・コードブロックのコピー・結果表示・代わりのコピー・失敗表示
     ├── diagram.spec.ts           # Mermaid の図（img での表示・ソースのコピー・複数・テーマ追従・生成後の描画・構文の誤り・空・大文字・XSS の非実行・失敗の局所化）、PlantUML の図（実サーバーでの描画・@startuml なし・構文の誤りと行番号・空・SANDBOX の include 拒否・API の失敗の注入）、図の共通の操作（ソースとの切り替え・拡大の倍率・SVG / PNG の保存の中身・描けない図にボタンを出さない・倍率の端・PNG の変換の失敗の注入）
     ├── export.spec.ts            # 応答・会話の書き出し（応答の「保存」の Markdown・会話全体の Markdown / JSON・押せない条件・ファイル名）
-    ├── report-export.spec.ts     # HTML レポートと PDF（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
+    ├── report-export.spec.ts     # HTML レポート・PDF・DOCX（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・DOCX の見出し / 表 / コード / 画像（jszip で中身を読む）・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
     ├── image-attachment.spec.ts  # 画像添付（ファイル選択・D&D・貼り付け・縮小・プレビューと削除・枚数と形式・非対応モデルの案内・保存済みの画像の表示と拡大・送信と復元）
     ├── system-prompt.spec.ts     # 会話の役割（新規会話での保存と送信への付与・既存会話の変更・役割なし・キャンセル/Escape・新規会話で持ち越さない・エージェントでの連結・保存失敗・上限）
     ├── syntax-highlight.spec.ts  # シンタックスハイライト（テーマ変数の色・テーマ追従・言語指定なし・未登録の言語（COBOL）・インラインコード・HTML タグの非実行・閉じていないフェンス）

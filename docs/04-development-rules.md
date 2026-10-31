@@ -82,7 +82,7 @@ front/tests/
     ├── copy.spec.ts               # 応答・コードブロックのコピーと結果表示テスト
     ├── diagram.spec.ts            # Mermaid・PlantUML の図（img での表示・複数・テーマ追従・生成後の描画・構文の誤り・空・XSS の非実行・SANDBOX・API の失敗）、拡大・保存・ソースとの切り替え
     ├── export.spec.ts             # 応答・会話の書き出し（応答の「保存」の Markdown・会話全体の Markdown / JSON・押せない条件・ファイル名）
-    ├── report-export.spec.ts      # HTML レポートと PDF（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
+    ├── report-export.spec.ts      # HTML レポート・PDF・DOCX（会話・応答の HTML の中身・添付画像の埋め込み・PDF の印刷（print を差し替え）・Mermaid の図・DOCX の見出し / 表 / コード / 画像（jszip で中身を読む）・PlantUML の失敗・画像を読めない・生の HTML と危ない URL・印刷の失敗）
     ├── image-attachment.spec.ts   # 画像添付（ファイル選択・D&D・貼り付け・縮小・プレビューと削除・枚数と形式・非対応モデルの案内・保存済みの画像の表示と拡大・送信と復元）
     ├── syntax-highlight.spec.ts   # コードブロックのシンタックスハイライト・言語名ラベル・テーマ追従テスト
     ├── system-prompt.spec.ts      # 会話の役割（保存・送信への付与・役割なし・取り消し・エージェントでの連結・保存失敗）テスト
