@@ -65,6 +65,8 @@ src/
 │       ├── sidebar/
 │       │   ├── molecules/
 │       │   └── organisms/
+│       ├── prompt-template/    # プロンプトテンプレート（#28）
+│       │   └── organisms/
 │       └── settings/
 │           └── organisms/
 ├── constants/<機能>/            # 機能内で共有する・機能をまたぐ定数（例: constants/chat/toolLabels.ts）
@@ -174,11 +176,12 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`・`ConversationSearch` | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
-| `settings` | organisms | `SettingsModal` | `components/settings/` |
+| `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した） | `components/settings/` |
+| `prompt-template` | organisms | `PromptTemplateDialog`（#28 で追加。テンプレートの一覧・作成・編集・2 段階の削除・例の追加） | — |
 
 切り出した molecules の props:
 
@@ -193,6 +196,7 @@ src/
 | `AttachmentPreview`（#6） | `images`・`preparingCount`・`errors`・`unsupportedModel`（非対応ならモデル名、対応・不明なら `null`）・`onRemove`。サムネイルと削除ボタン・準備中の枠・添付できなかった理由・非対応モデルの案内（画像を添付しているときだけ）を出す。どれも無ければ何も描かない |
 | `MessageImages`（#6） | `images`（`MessageImage[]`）。高さ 120px のサムネイルを並べ、押すと `ImageZoomDialog` を開く（開閉は UI の状態として持つ）。`width` / `height` を渡して、読み込み前から枠を確保する |
 | `ImageZoomDialog`（#6） | `image`・`alt`（見出しにも使う）・`onClose`。共通の `Modal`（`wide`・背景のクリックで閉じる）に、収まる大きさで画像を出す。添付画像は縮小済みのため倍率の切り替えは置かない |
+| `PromptTemplateSuggestions`（#28） | `listId`（入力欄の `aria-controls`・`aria-activedescendant` と揃える）・`matches`（絞り込んだ候補）・`hasTemplates`（無ければ「例を追加」、あれば「一致するものが無い」）・`activeIndex`・`onSelect`・`onManage`・`onAddExamples`。キー操作は `ChatBar` が受け、ここは描画と押したときの処理だけ。押しても入力欄のフォーカスを外さないよう `mousedown` の既定の動作を止める。テンプレートの型（`types/`）だけを受け取り、管理画面（`prompt-template` の部品）は import しない |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
 - 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。

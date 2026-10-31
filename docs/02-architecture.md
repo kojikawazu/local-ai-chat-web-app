@@ -103,6 +103,12 @@ front/src/
 │       │   └── route.ts       #     PlantUML の図の描画（PlantUML サーバーへ中継。#171）
 │       ├── models/
 │       │   └── route.ts       #     利用可能モデル一覧取得
+│       ├── prompt-templates/
+│       │   ├── route.ts       #     プロンプトテンプレートの一覧（ショートカットの昇順）・作成（#28）
+│       │   ├── [id]/
+│       │   │   └── route.ts   #     テンプレートの置き換え（PUT）・削除
+│       │   └── examples/
+│       │       └── route.ts   #     一覧が空のときに例の 3 件を作る
 │       ├── tools/
 │       │   └── route.ts       #     エージェントの利用可能ツール一覧取得
 │       └── conversations/
@@ -135,12 +141,13 @@ front/src/
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
 │       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
 │       │   │   ├── ResponseMetrics.tsx   # 応答のトークン数・生成の速さの要約と、押して開く内訳（#31）
+│       │   │   ├── PromptTemplateSuggestions.tsx # 入力欄の上に重ねるプロンプトテンプレートの候補（例を追加・管理の入口。#28）
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
 │       │   │   ├── DiagramView.tsx       # 描画の状態に応じて図（data: URI の img）かソースとエラーを表示。ソースとの切り替え・拡大のボタン（#169・#171・#176）
 │       │   │   └── DiagramZoomDialog.tsx # 図の拡大（倍率の変更）と SVG / PNG での保存のダイアログ（#176）
 │       │   └── organisms/
-│       │       ├── ChatBar.tsx    # メッセージ入力（IME対応・画像の添付ボタン / ドラッグ＆ドロップ / 貼り付け）
+│       │       ├── ChatBar.tsx    # メッセージ入力（IME対応・画像の添付ボタン / ドラッグ＆ドロップ / 貼り付け・先頭の `/` でテンプレートの候補とキー操作。#28）
 │       │       ├── ChatWindow.tsx # メッセージ一覧表示
 │       │       ├── Footer.tsx     # フッター
 │       │       ├── Header.tsx     # ヘッダー（サイドバーの切り替え・会話の役割の表示と編集の入口・モデル選択ドロップダウン）
@@ -159,16 +166,21 @@ front/src/
 │       │       ├── SidebarDrawer.tsx # モバイルのサイドバードロワー（md 未満）
 │       │       ├── SidebarContent.tsx # サイドバーの中身（会話一覧、新規会話、設定ボタン）。上記 2 つが共有
 │       │       └── ConversationSearch.tsx # 会話の検索欄と検索結果
+│       ├── prompt-template/
+│       │   └── organisms/
+│       │       └── PromptTemplateDialog.tsx # プロンプトテンプレートの一覧・作成・編集・削除（2 段階）のダイアログ（#28）
 │       └── settings/
 │           └── organisms/
-│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テーマ切替）
+│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テンプレートの管理の入口・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
 │   ├── agent/
 │   │   ├── approval.ts        #     承認の待ち時間の上限（5 分。エージェントループと承認待ちで共有。#202）
 │   │   └── github.ts          #     GitHub のツールで共通の引数の定義（kind・number）・一覧の件数の上限（#148 Phase C）
-│   └── chat/
-│       ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
-│       └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
+│   ├── chat/
+│   │   ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
+│   │   └── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
+│   └── prompt-template/
+│       └── errors.ts          #     ショートカットの重複のエラーメッセージ（作成・置き換えの route で共有。#28）
 ├── generated/
 │   └── prisma/                #   Prisma自動生成クライアント（出力先カスタマイズ）
 ├── hooks/                     # カスタムフック（機能ごとのディレクトリ）
@@ -181,6 +193,8 @@ front/src/
 │   │   └── usePlantUmlDiagram.ts #  /api/diagrams/plantuml で PlantUML の図を描かせる（#171）
 │   ├── clipboard/
 │   │   └── useCopyFeedback.ts #     コピーの実行と結果表示（copied / failed）の自動リセット
+│   ├── prompt-template/
+│   │   └── usePromptTemplates.ts #  プロンプトテンプレートの一覧の読み込み・作成・置き換え・削除・例の追加（変更の後は読み直す。#28）
 │   ├── settings/
 │   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
 │   ├── sidebar/
@@ -264,6 +278,8 @@ front/src/
 │   │   └── export.ts          #     応答・会話の書き出し（ファイル名・Markdown / JSON の中身。#12）
 │   ├── conversation/          #   会話
 │   │   └── search.ts          #     会話検索のキーワードの解釈・抜粋の切り出し・強調の分割・LIKE のエスケープ（#11）
+│   ├── prompt-template/       #   プロンプトテンプレート
+│   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
 │   ├── sidebar/               #   サイドバー
 │   │   └── visibility.ts      #     サイドバーの表示状態の保存値の解釈（#24）
 │   ├── server/                #   サーバー専用（app/api/** から使う）
@@ -271,9 +287,10 @@ front/src/
 │   │   ├── request-body.ts    #     Route Handler の JSON ボディの実行時検証（parseChatBody 等）
 │   │   ├── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
 │   │   ├── attachment.ts      #     添付画像の形式の判定（マジックナンバー）・Base64 の復号（#6）
-│   │   └── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
+│   │   ├── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
+│   │   └── prisma-error.ts    #     Prisma の一意制約の違反の判定（409 にする。メッセージの id・テンプレートのショートカット。#28）
 │   └── shared/                #   サーバー・クライアント共通
-│       ├── validation.ts      #     入力の上限値・UUID の検証（フロントと API が同じ定数を使う）
+│       ├── validation.ts      #     入力の上限値・UUID・テンプレートのショートカットの形の検証（フロントと API が同じ定数を使う）
 │       ├── class-names.ts     #     条件付きのクラス名の連結（cn。UI の atoms が使う）
 │       ├── clipboard.ts       #     クリップボードへのコピー（Clipboard API → execCommand の代わりのコピー）
 │       ├── download.ts        #     Blob・文字列をファイルとして保存させる（<a download>）
@@ -289,6 +306,8 @@ front/src/
     │   └── diagram.ts         #     DiagramKind・DiagramState（図の種類と描画の状態）
     ├── conversation/
     │   └── conversation.ts    #     Conversation・ConversationSearchResult
+    ├── prompt-template/
+    │   └── prompt-template.ts #     PromptTemplate（#28）
     └── theme/
         └── theme.ts           #     テーマ定義（THEMES を as const、ThemeId/ThemeOption を導出）
 ```
@@ -343,6 +362,7 @@ front/tests/
     ├── command-approval.spec.ts # コマンドの実行の承認（一覧への登録・承認カードのコマンドと作業フォルダ・許可で実行・拒否で実行しない・失敗の終了コード（大モデルのみ））
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
+    ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
     ├── browser-tools.spec.ts      # ブラウザのツール（一覧への登録・確認用のページの合言葉を読む・ボタンを押す前の承認カードの許可と拒否・許可していない手元のサーバー・名前を引けないホスト（大モデルのみ））
     ├── screenshot.spec.ts         # スクリーンショットテスト（CIスキップ）
     └── screenshot.spec.ts-snapshots/ # ベースラインスナップショット（OS別）
@@ -378,6 +398,17 @@ Conversation           Message                     Attachment
 ```
 
 削除は Conversation → Message → Attachment とカスケードする。
+
+```
+PromptTemplate（#28。会話とはリレーションを持たない）
+┌──────────────────────┐
+│ id (UUID PK)         │
+│ name                 │
+│ shortcut (UNIQUE)    │  `/` の後ろに打つ名前（小文字）
+│ content              │
+│ createdAt / updatedAt│
+└──────────────────────┘
+```
 
 ### Prismaスキーマ
 
@@ -416,6 +447,16 @@ model Attachment {
   createdAt DateTime @default(now())
 
   @@index([messageId])
+}
+
+// 入力欄の `/` で呼び出すプロンプトのテンプレート（#28）。会話とはリレーションを持たない
+model PromptTemplate {
+  id        String   @id @default(uuid())
+  name      String   // 表示名（候補・管理画面）
+  shortcut  String   @unique // `/` の後ろに打つ名前（先頭の `/` は含めない。小文字で保存する）
+  content   String   // 入力欄に入れる本文（前後の空白・改行も書いたまま）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 ```
 
@@ -461,6 +502,13 @@ model Attachment {
 4. `/api/chat` は通常・エージェントとも、後ろに「現在の日時」の節を足し（`withCurrentDate`。#154）、会話履歴の先頭に `role: 'system'` として付ける（`withSystemPrompt`）。役割が無くても日時の節だけは付ける
 
 役割は会話ごとに本文だけを保存する（プリセットの ID は保存しない）。途中で変えた役割は以降の送信（再生成を含む）から効く。
+
+### プロンプトテンプレートのフロー（#28）
+
+1. 画面を開くと `usePromptTemplates` が `GET /api/prompt-templates` で一覧を読む（読めなければ候補を出さない）
+2. 入力欄の先頭で `/` を打つと、`ChatBar` が `lib/prompt-template/suggest.ts` で絞り込み、入力欄の上に候補（`PromptTemplateSuggestions`）を出す
+3. ↑↓・Enter・Tab・クリックで選ぶと、入力欄の `/…` をテンプレートの本文に置き換える。送信・`/api/chat` には何も足さない（本文は普通の user メッセージとして送る）
+4. 管理画面（`PromptTemplateDialog`）での作成・置き換え・削除・例の追加は `/api/prompt-templates` の各 API を呼び、成功したら一覧を読み直す
 
 ### 会話管理フロー
 

@@ -117,3 +117,40 @@ export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
  * 一眼レフ・スマートフォンの写真（数 MB〜十数 MB）は通す。
  */
 export const MAX_IMAGE_SOURCE_BYTES = 20 * 1024 * 1024;
+/**
+ * プロンプトテンプレートの名前の最大文字数（#28）。
+ *
+ * 入力欄の上の候補の 1 行に、ショートカットと並べて収まる長さ。
+ */
+export const MAX_PROMPT_TEMPLATE_NAME_LENGTH = 50;
+/**
+ * プロンプトテンプレートのショートカット（`/` の後ろに打つ名前）の最大文字数（#28）。
+ *
+ * 打って呼び出す名前として十分な長さ。本文の上限は、入力欄に入れる本文なので {@link MAX_MESSAGE_LENGTH} を使う。
+ */
+export const MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH = 32;
+/**
+ * 保存できるプロンプトテンプレートの最大件数（#28）。
+ *
+ * 一覧の取得・候補の描画をページに分けずに済む数。個人の利用で超えることは考えにくい。
+ */
+export const MAX_PROMPT_TEMPLATES = 100;
+/**
+ * ショートカットに使える形（#28）。英小文字・数字・`-`・`_` で、先頭は英小文字か数字。長さは別に見る。
+ *
+ * 日本語を許さないのは、日本語入力の `/` が全角の `／` になりやすく、`/翻訳` が打ちにくいため（日本語は名前で探せる）。
+ */
+const PROMPT_TEMPLATE_SHORTCUT_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
+
+/**
+ * プロンプトテンプレートのショートカットが使える形かを判定する（#28）。小文字にしてから渡す。
+ *
+ * @param shortcut - 前後の空白を除き、小文字にしたショートカット（先頭の `/` は含めない）
+ * @returns 1〜{@link MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH} 文字で、使える文字だけなら true
+ */
+export function isValidPromptTemplateShortcut(shortcut: string): boolean {
+  return (
+    shortcut.length <= MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH &&
+    PROMPT_TEMPLATE_SHORTCUT_REGEX.test(shortcut)
+  );
+}

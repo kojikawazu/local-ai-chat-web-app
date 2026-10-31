@@ -130,7 +130,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -153,6 +153,11 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 | GET | `/api/attachments/[id]` | 添付画像の中身を返す |
 | POST | `/api/agent/approvals/[id]` | エージェントのツールの実行前の承認に、許可か拒否かを渡す（`approved`。#148 Phase A2） |
+| GET | `/api/prompt-templates` | プロンプトテンプレートの一覧（ショートカットの昇順。#28） |
+| POST | `/api/prompt-templates` | テンプレートの作成（100 件まで。ショートカットの重複は 409） |
+| PUT | `/api/prompt-templates/[id]` | テンプレートの置き換え（名前・ショートカット・本文） |
+| DELETE | `/api/prompt-templates/[id]` | テンプレートの削除 |
+| POST | `/api/prompt-templates/examples` | 一覧が空のときに例の 3 件を作る（空でなければ 409） |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -181,18 +186,20 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/diagrams/plantuml/` — PlantUML の図の描画（PlantUML サーバーへ中継）
   - `api/attachments/[id]/` — 添付画像の取得
   - `api/agent/approvals/[id]/` — ツールの実行前の承認（許可・拒否）
+  - `api/prompt-templates/` — プロンプトテンプレートの CRUD（`[id]/`）・例の作成（`examples/`）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, PromptTemplateSuggestions / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`）
+  - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`prompt-template/errors.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`prompt-template/usePromptTemplates`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -203,10 +210,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts, metrics.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
+  - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
-  - `lib/server/` — サーバー専用（prisma.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
@@ -252,10 +260,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/17-github-tools.md` | GitHub のツール 設計書 |
 | `docs/18-browser-tools.md` | ブラウザのツール 設計書 |
 | `docs/19-token-metrics.md` | トークン数・生成速度の表示 設計書 |
+| `docs/20-prompt-templates.md` | プロンプトテンプレート 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`20-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`21-`〜）を付与する。
 
 ## Instruction Shortcuts
 

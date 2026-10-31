@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Palette, Wrench, BrainCircuit } from 'lucide-react';
+import { Bot, Palette, Wrench, BrainCircuit, FileText } from 'lucide-react';
 import type { ThemeId } from '@/types/theme/theme';
 import { THEMES } from '@/types/theme/theme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
@@ -36,10 +36,12 @@ interface SettingsModalProps {
   agentPromptPresetId: string;
   /** プロンプトプリセット選択が変わったときに呼ばれる。引数はプリセット ID */
   onAgentPromptPresetChange: (id: string) => void;
+  /** プロンプトテンプレートの「管理」で呼ばれる（#28。設定モーダルを閉じてから管理画面を開く） */
+  onOpenPromptTemplates: () => void;
 }
 
 /**
- * モデル・ツール使用・エージェントプロンプト・テーマを設定するモーダル。
+ * モデル・ツール使用・エージェントプロンプト・テーマを設定し、プロンプトテンプレートの管理画面（#28）を開くモーダル。
  *
  * `isOpen` が false の間は何も描画しない。ツール使用が有効なときのみ
  * エージェントプロンプトの選択欄を表示する。外枠は共通の {@link Modal}（ネイティブの `<dialog>`）で、
@@ -59,6 +61,7 @@ export default function SettingsModal({
   onEnableToolsChange,
   agentPromptPresetId,
   onAgentPromptPresetChange,
+  onOpenPromptTemplates,
 }: SettingsModalProps) {
   if (!isOpen) return null;
 
@@ -156,6 +159,26 @@ export default function SettingsModal({
             </div>
           </div>
         )}
+
+        <div className="space-y-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-nord-6">
+            <FileText size={16} className="text-nord-frost-1" />
+            Prompt Templates
+          </p>
+          <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-lg border bg-nord-2 border-nord-3">
+            <p className="text-xs text-nord-4/60">
+              入力欄の先頭の「/」で呼び出すプロンプトを管理します
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onOpenPromptTemplates}
+              className="shrink-0"
+            >
+              管理
+            </Button>
+          </div>
+        </div>
 
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">

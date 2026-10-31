@@ -56,9 +56,20 @@ model Attachment {
 
   @@index([messageId])
 }
+
+// 入力欄の `/` で呼び出すプロンプトのテンプレート（#28）。会話とはリレーションを持たない
+model PromptTemplate {
+  id        String   @id @default(uuid())
+  name      String   // 表示名（候補・管理画面）
+  shortcut  String   @unique // `/` の後ろに打つ名前（先頭の `/` は含めない。小文字で保存する）
+  content   String   // 入力欄に入れる本文（前後の空白・改行も書いたまま）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 ```
 
 - 添付画像は DB（`bytea`）に置く（ファイルに置かない）。assistant の画像（ブラウザのツールの画面。#200）は `metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
+- 一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット）は、事前の確認ではなく制約の違反（`P2002`）で判定して 409 を返す（`lib/server/prisma-error.ts`）。確認と作成の間に同じ値で作られても食い違わないため。
 
 ## Prisma クライアント
 

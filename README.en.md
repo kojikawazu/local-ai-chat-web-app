@@ -32,6 +32,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Markdown rendering**: code blocks, tables, lists, etc. in AI responses
 - **Image attachments**: attach images with the paperclip button, drag & drop or paste, and ask a vision-capable model (e.g. the default `qwen3.8:27b`); images are downscaled to 1,280px on the long edge in the browser before sending
 - **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders, create / edit files after you approve the diff) with visible reasoning and system-prompt presets
+- **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
 - **IME-aware input**: no accidental send while composing Japanese text
 - **Responsive design**: desktop and mobile

@@ -20,6 +20,11 @@
   - [POST /api/diagrams/plantuml](#post-apidiagramsplantuml)
   - [GET /api/attachments/[id]](#get-apiattachmentsid)
   - [POST /api/agent/approvals/[id]](#post-apiagentapprovalsid)
+  - [GET /api/prompt-templates](#get-apiprompt-templates)
+  - [POST /api/prompt-templates](#post-apiprompt-templates)
+  - [PUT /api/prompt-templates/[id]](#put-apiprompt-templatesid)
+  - [DELETE /api/prompt-templates/[id]](#delete-apiprompt-templatesid)
+  - [POST /api/prompt-templates/examples](#post-apiprompt-templatesexamples)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
@@ -36,7 +41,7 @@
 - ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
 - 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
 - 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
-- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、添付画像の `MAX_IMAGES_PER_MESSAGE` / `MAX_IMAGES_PER_REQUEST` / `MAX_IMAGE_LONG_EDGE` / `MAX_IMAGE_BYTES`）
+- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、添付画像の `MAX_IMAGES_PER_MESSAGE` / `MAX_IMAGES_PER_REQUEST` / `MAX_IMAGE_LONG_EDGE` / `MAX_IMAGE_BYTES`、プロンプトテンプレートの `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_PROMPT_TEMPLATES`）
 
 ### POST /api/chat
 
@@ -512,6 +517,112 @@ Ollamaで利用可能なモデル一覧を取得する。
 | 404 | 待っている承認が無い（知らない ID・決着済み・5 分の時間切れ・停止済み） |
 
 **備考**: 承認待ちはサーバーのメモリ（`lib/agent/approvals.ts`。`globalThis`）に持つ。ストリームを開いたまま待つため、サーバーのプロセスが 1 つであることが前提（localhost の個人利用）。
+
+---
+
+### GET /api/prompt-templates
+
+プロンプトテンプレート（#28。`docs/20-prompt-templates.md`）の一覧を、ショートカットの昇順で返す。最大 100 件のため、ページに分けない。
+
+**レスポンス**
+
+```typescript
+{
+  templates: {
+    id: string;
+    name: string;
+    shortcut: string;   // `/` の後ろに打つ名前（先頭の `/` は含めない。小文字）
+    content: string;    // 入力欄に入れる本文（前後の空白・改行も書いたまま）
+    createdAt: string;
+    updatedAt: string;
+  }[];
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 取得成功（0 件なら空配列） |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/prompt-templates
+
+プロンプトテンプレートを作成する（#28）。
+
+**リクエスト**
+
+```typescript
+{
+  name: string;      // 必須。前後の空白は除く。最大 50 文字
+  shortcut: string;  // 必須。前後の空白を除いて小文字にする。英小文字・数字・`-`・`_` で、英小文字か数字で始める。最大 32 文字
+  content: string;   // 必須。空白だけは不可。前後の空白・改行は残す。最大 10,000 文字
+}
+```
+
+- 件数の上限（100 件）は作成の前に数える。
+- ショートカットの重複は、一意制約の違反（Prisma の `P2002`）で判定して 409 を返す（事前の確認では判定しない）。
+
+**レスポンス**: 作成したテンプレート（`GET` の 1 件と同じ形）
+
+| ステータス | 説明 |
+|-----------|------|
+| 201 | 作成成功 |
+| 400 | リクエスト不正（JSON 不正・ボディが非オブジェクト・文字列でない・名前が空 / 50 文字超・ショートカットの形・本文が空白だけ / 10,000 文字超・100 件に達している） |
+| 409 | ショートカットが既に使われている |
+| 500 | サーバー内部エラー |
+
+---
+
+### PUT /api/prompt-templates/[id]
+
+プロンプトテンプレートを置き換える（#28）。ボディは `POST /api/prompt-templates` と同じ（名前・ショートカット・本文をすべて送る）。
+
+- 存在しないテンプレートは、UPDATE の更新件数で 404 と判定する（会話の役割の変更と同じ）。
+- 自分自身と同じショートカットのままの置き換えは重複にならない。
+
+**レスポンス**: 置き換えたテンプレート
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 置き換え成功 |
+| 400 | リクエスト不正（無効なUUID・ボディは POST と同じ） |
+| 404 | テンプレートが見つからない |
+| 409 | ショートカットが別のテンプレートで使われている |
+| 500 | サーバー内部エラー |
+
+---
+
+### DELETE /api/prompt-templates/[id]
+
+プロンプトテンプレートを削除する（#28）。存在しないテンプレートは削除件数で 404 と判定する。
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 削除成功（`{ success: true }`） |
+| 400 | リクエスト不正（無効なUUID） |
+| 404 | テンプレートが見つからない |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/prompt-templates/examples
+
+一覧が空のときだけ、例のテンプレート 3 件（`translate`・`review`・`summarize`）を作る（#28。既定のテンプレートは持たない）。ボディは無い。
+
+- 空かの確認と作成を 1 つのトランザクションで行う。二度押しで同時に届いた 2 回目は、確認をすり抜けてもショートカットの一意制約で失敗するため、どちらも 409 にして何も作らない。
+
+**レスポンス**
+
+```typescript
+{ templates: PromptTemplate[] }  // 作った 3 件（ショートカットの昇順）
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 201 | 作成成功 |
+| 409 | 一覧が空でない |
+| 500 | サーバー内部エラー |
 
 ---
 
