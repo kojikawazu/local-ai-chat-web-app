@@ -6,8 +6,8 @@ globs:
 # エラーハンドリング
 
 - **バリデーション必須**: ユーザー入力・外部入力は必ずバリデーションする（フロントエンド + API 両方）。
-- **入力制限**: 上限値の定義は `lib/shared/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` / `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
-- **HTTP ステータスコード**: 適切なステータスコードで返す（400/401/403/404/409/500）。409 は一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット。#28）に使う。
+- **入力制限**: 上限値の定義は `lib/shared/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` / `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_BOOKMARK_NOTE_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
+- **HTTP ステータスコード**: 適切なステータスコードで返す（400/401/403/404/409/500）。409 は一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット。#28。応答のブックマーク。#30）に使う。
 - **ログ**: エラー時はスタックトレースを含むログを出力する。センシティブ情報はログに含めない。
 - **ローカル利用のため**: エラー詳細をクライアントに返してよい（本番向けサービスでは要注意）。
 

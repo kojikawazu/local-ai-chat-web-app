@@ -15,15 +15,18 @@ import SettingsModal from '@/components/features/settings/organisms/SettingsModa
 import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
 import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import PromptTemplateDialog from '@/components/features/prompt-template/organisms/PromptTemplateDialog';
+import BookmarkDialog from '@/components/features/bookmark/organisms/BookmarkDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
 import { usePromptTemplates } from '@/hooks/prompt-template/usePromptTemplates';
+import { useMessageBookmark } from '@/hooks/bookmark/useMessageBookmark';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
 import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
+import type { BookmarkListItem } from '@/types/bookmark/bookmark';
 
 /**
  * チャット画面のトップページ。サイドバー（モバイルではドロワー）・チャット領域・設定モーダルを統合する。
@@ -37,6 +40,8 @@ import { getRoleLabel } from '@/lib/chat/system-prompt';
  * デスクトップのサイドバーの表示・非表示（#24）は {@link useSidebarVisibility} が持つ。
  * 送信前に添付している画像（#6）は {@link useImageAttachments} が持ち、送信したら空にする。
  * 入力欄の `/` の候補と管理画面のプロンプトテンプレート（#28）は {@link usePromptTemplates} が持つ。
+ * 応答のブックマーク（#30）の付け外しは {@link useMessageBookmark} が持ち、一覧のダイアログから移る先の応答は
+ * ここで持つ（会話を開いてから、`ChatWindow` がその応答までスクロールする）。
  */
 export default function Home() {
   const chatBarRef = useRef<ChatBarHandle>(null);
@@ -54,6 +59,12 @@ export default function Home() {
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [isBookmarkDialogOpen, setIsBookmarkDialogOpen] = useState(false);
+  // ブックマークの一覧から移る先（#30）。その会話を開いている間だけ ChatWindow へ渡す
+  const [focusTarget, setFocusTarget] = useState<{
+    conversationId: string;
+    messageId: string;
+  } | null>(null);
   const promptTemplates = usePromptTemplates();
   // 会話を作る前に選んだ役割。最初の送信で会話と同時に保存する
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
@@ -124,6 +135,7 @@ export default function Home() {
     clearMessages,
     loadMessages,
     discardConversation,
+    setMessageBookmark,
   } = useChat({
     conversationId: currentConversationId,
     model: selectedModel,
@@ -161,7 +173,36 @@ export default function Home() {
   const canExport =
     currentConversation !== undefined && messages.length > 0 && !isLoading;
 
+  const messageBookmark = useMessageBookmark({ onChange: setMessageBookmark });
+  const focusMessageId =
+    focusTarget?.conversationId === currentConversationId
+      ? focusTarget.messageId
+      : null;
+  const handleFocusHandled = useCallback(() => setFocusTarget(null), []);
+
+  const handleOpenBookmark = useCallback(
+    (bookmark: BookmarkListItem) => {
+      setIsBookmarkDialogOpen(false);
+      setFocusTarget({
+        conversationId: bookmark.conversationId,
+        messageId: bookmark.messageId,
+      });
+      selectConversation(bookmark.conversationId);
+    },
+    [selectConversation]
+  );
+
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      // 移る先の会話を開けないまま別の会話を選んだら、移る先を忘れる（後で戻ったときに急に移らない）
+      setFocusTarget(null);
+      selectConversation(id);
+    },
+    [selectConversation]
+  );
+
   const handleNewConversation = useCallback(() => {
+    setFocusTarget(null);
     selectConversation(null);
     clearMessages();
     setDraftSystemPrompt('');
@@ -212,10 +253,11 @@ export default function Home() {
     currentConversationId,
     generatingConversationIds,
     isNewConversationMode,
-    onSelectConversation: selectConversation,
+    onSelectConversation: handleSelectConversation,
     onNewConversation: handleNewConversation,
     onDeleteConversation: handleDeleteConversation,
     onOpenSettings: () => setIsSettingsOpen(true),
+    onOpenBookmarks: () => setIsBookmarkDialogOpen(true),
   };
 
   return (
@@ -295,6 +337,13 @@ export default function Home() {
               onClose={handleCloseTemplateDialog}
             />
           )}
+          {isBookmarkDialogOpen && (
+            <BookmarkDialog
+              onOpenBookmark={handleOpenBookmark}
+              onRemoved={(messageId) => setMessageBookmark(messageId, null)}
+              onClose={() => setIsBookmarkDialogOpen(false)}
+            />
+          )}
           {isRoleDialogOpen && (
             <RoleDialog
               initialPrompt={systemPrompt}
@@ -328,6 +377,11 @@ export default function Home() {
         conversationTitle={currentConversation?.title}
         pendingApprovals={pendingApprovals}
         onRespondApproval={respondToApproval}
+        onToggleBookmark={messageBookmark.toggleBookmark}
+        pendingBookmarks={messageBookmark.pending}
+        failedBookmarkId={messageBookmark.failedMessageId}
+        focusMessageId={focusMessageId}
+        onFocusHandled={handleFocusHandled}
       />
     </ChatLayout>
   );

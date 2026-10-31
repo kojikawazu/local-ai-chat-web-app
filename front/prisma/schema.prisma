@@ -25,6 +25,7 @@ model Message {
   metadata       Json?        // ツール呼び出し情報等 { toolCalls: ToolCallRecord[] }
   createdAt      DateTime     @default(now())
   attachments    Attachment[]
+  bookmark       Bookmark?
 }
 
 // メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）
@@ -49,6 +50,16 @@ model PromptTemplate {
   name      String // 表示名（候補・管理画面）
   shortcut  String   @unique // `/` の後ろに打つ名前（先頭の `/` は含めない。小文字で保存する）
   content   String // 入力欄に入れる本文（前後の空白・改行も書いたまま）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 応答（assistant のメッセージ）のブックマーク（#30）。1 つの応答に 1 つまで。user のメッセージに付けさせないことは API で検証する
+model Bookmark {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note      String? // メモ。null はメモなし（空白だけのメモも null にする）
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

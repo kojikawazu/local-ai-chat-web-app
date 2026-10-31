@@ -1,6 +1,6 @@
 'use client';
 
-import { Layout, Settings, Plus, History } from 'lucide-react';
+import { Layout, Settings, Plus, History, Bookmark } from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
 import ConversationListItem from '@/components/features/sidebar/molecules/ConversationListItem';
@@ -28,10 +28,12 @@ type SidebarContentProps = {
   onDeleteConversation: (id: string) => void;
   /** 設定ボタン押下時に呼ばれる */
   onOpenSettings: () => void;
+  /** ブックマークのボタン押下時に呼ばれる（一覧のダイアログを開く。#30） */
+  onOpenBookmarks: () => void;
 };
 
 /**
- * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・設定ボタン）。
+ * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・ブックマークと設定のボタン）。
  *
  * 応答を生成中の会話には点滅する印を付ける。履歴の上の検索欄で会話を探せる（#11）。
  * デスクトップの {@link Sidebar} とモバイルの {@link SidebarDrawer} が共有し、
@@ -49,6 +51,7 @@ export default function SidebarContent({
   onNewConversation,
   onDeleteConversation,
   onOpenSettings,
+  onOpenBookmarks,
 }: SidebarContentProps) {
   return (
     <>
@@ -101,6 +104,9 @@ export default function SidebarContent({
 
       <div className="mt-auto p-6">
         <div className="flex gap-2 justify-center">
+          <IconButton label="ブックマークを開く" onClick={onOpenBookmarks}>
+            <Bookmark size={20} />
+          </IconButton>
           <IconButton label="設定を開く" onClick={onOpenSettings}>
             <Settings size={20} />
           </IconButton>

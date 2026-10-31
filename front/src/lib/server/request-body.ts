@@ -10,6 +10,7 @@ import {
   isValidPromptTemplateShortcut,
   isValidUUID,
   MAX_ASSISTANT_MESSAGE_LENGTH,
+  MAX_BOOKMARK_NOTE_LENGTH,
   MAX_DIAGRAM_SOURCE_LENGTH,
   MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH,
   MAX_HISTORY_MESSAGES,
@@ -787,4 +788,62 @@ export function parsePromptTemplateBody(
     ok: true,
     value: { name: trimmedName, shortcut: normalizedShortcut, content },
   };
+}
+
+/** `POST /api/bookmarks` の検証済みボディ（#30）。 */
+export type CreateBookmarkBody = {
+  /** ブックマークを付ける応答（assistant のメッセージ）の UUID */
+  messageId: string;
+};
+
+/**
+ * `POST /api/bookmarks`（応答にブックマークを付ける。#30）のボディを検証する。
+ *
+ * メッセージが応答か・存在するかは DB を読まないと分からないため、route が確かめる。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`messageId` が UUID の文字列でなければ失敗
+ */
+export function parseCreateBookmarkBody(
+  body: unknown
+): ParseResult<CreateBookmarkBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  const { messageId } = body;
+  if (typeof messageId !== 'string' || !isValidUUID(messageId)) {
+    return { ok: false, error: '無効なメッセージIDです' };
+  }
+  return { ok: true, value: { messageId } };
+}
+
+/** `PATCH /api/bookmarks/[id]` の検証済みボディ（#30）。 */
+export type BookmarkNoteBody = {
+  /** 前後の空白を除いたメモ。空（空白だけを含む）なら `null`（メモなし） */
+  note: string | null;
+};
+
+/**
+ * `PATCH /api/bookmarks/[id]`（ブックマークのメモの書き換え。#30）のボディを検証する。
+ *
+ * `note` は必須で、`null` を送るとメモを消す。空白だけのメモも `null` にする（一覧で「メモなし」と区別しないため）。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`note` が無い・文字列と `null` 以外・上限超過なら失敗
+ */
+export function parseBookmarkNoteBody(
+  body: unknown
+): ParseResult<BookmarkNoteBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  const { note } = body;
+  if (note === null) return { ok: true, value: { note: null } };
+  if (typeof note !== 'string') {
+    return { ok: false, error: 'noteは文字列かnullで指定してください' };
+  }
+  const trimmed = note.trim();
+  if (trimmed.length > MAX_BOOKMARK_NOTE_LENGTH) {
+    return {
+      ok: false,
+      error: `メモは${MAX_BOOKMARK_NOTE_LENGTH}文字以内で入力してください`,
+    };
+  }
+  return { ok: true, value: { note: trimmed || null } };
 }

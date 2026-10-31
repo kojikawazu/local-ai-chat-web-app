@@ -16,7 +16,7 @@ const SNIPPET_RADIUS = 40;
 
 /** 会話検索の API（`GET /api/conversations/search`）の検証済みのクエリ。 */
 export type SearchQuery = {
-  /** 空白で区切ったキーワード（重複を除く）。すべてを含む会話を探す（AND） */
+  /** 空白で区切ったキーワード（重複を除く）。すべてを含むものを探す（AND）。`allowEmpty` で空の `q` を受けたときは空 */
   terms: string[];
   /** 何件目から返すか（0 始まり）。「さらに表示」で使う */
   offset: number;
@@ -49,17 +49,23 @@ export function parseSearchTerms(query: string): string[] {
 }
 
 /**
- * 会話検索の API のクエリパラメータ（`q`・`offset`）を検証する。
+ * 検索の API のクエリパラメータ（`q`・`offset`）を検証する。
+ *
+ * 会話の検索（#11）と、ブックマークの一覧（#30。`allowEmpty`）で同じ解釈にそろえる。
  *
  * @param params - リクエストの URL のクエリパラメータ
- * @returns 検証済みのキーワードと開始位置。空・長すぎる・語が多すぎる `q`、
+ * @param options - `allowEmpty` が true なら、空の `q` を「絞り込まない」（`terms` が空）として受け付ける。省略時は false
+ * @returns 検証済みのキーワードと開始位置。空（`allowEmpty` でないとき）・長すぎる・語が多すぎる `q`、
  *   0 以上の整数でない `offset` はエラーメッセージを返す
  */
 export function parseSearchQuery(
-  params: URLSearchParams
+  params: URLSearchParams,
+  options: { allowEmpty?: boolean } = {}
 ): ParseResult<SearchQuery> {
   const query = (params.get('q') ?? '').trim();
-  if (!query) return { ok: false, error: 'キーワードを入力してください' };
+  if (!query && !options.allowEmpty) {
+    return { ok: false, error: 'キーワードを入力してください' };
+  }
   if (query.length > MAX_SEARCH_QUERY_LENGTH) {
     return {
       ok: false,

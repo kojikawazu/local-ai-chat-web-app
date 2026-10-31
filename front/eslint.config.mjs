@@ -8,7 +8,13 @@ import jsdoc from 'eslint-plugin-jsdoc';
 // 下の階層は上を import しない・共通の部品は機能の部品を import しない・機能の部品は他の機能を
 // import しない。flat config では同じファイルに当たる設定の no-restricted-imports は後勝ちで
 // 置き換わる（合成されない）ため、ディレクトリの組み合わせごとに禁止を全部まとめて 1 つの設定にする。
-const UI_FEATURES = ['chat', 'sidebar', 'settings', 'prompt-template'];
+const UI_FEATURES = [
+  'chat',
+  'sidebar',
+  'settings',
+  'prompt-template',
+  'bookmark',
+];
 
 /** 自分より上の階層（相対・エイリアスどちらの import も、パスの途中の階層名で判定する） */
 const ABOVE = {

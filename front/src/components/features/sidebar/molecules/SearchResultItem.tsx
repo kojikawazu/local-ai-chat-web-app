@@ -4,7 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import type { ConversationSearchResult } from '@/types/conversation/conversation';
 import { splitHighlights } from '@/lib/conversation/search';
 import { cn } from '@/lib/shared/class-names';
-import Mark from '@/components/common/atoms/Mark';
+import HighlightedText from '@/components/common/molecules/HighlightedText';
 
 /** {@link SearchResultItem} の props。 */
 type SearchResultItemProps = {
@@ -17,27 +17,6 @@ type SearchResultItemProps = {
   /** 押したときに呼ばれる */
   onSelect: () => void;
 };
-
-/**
- * 文字列のうち、キーワードに一致した箇所を {@link Mark} で強調して描く。
- *
- * HTML を組み立てずに、分割した片を React の要素として並べる（XSS 対策。`security.md`）。
- *
- * @param props - 描く文字列とキーワード
- */
-function Highlighted({ text, terms }: { text: string; terms: string[] }) {
-  return (
-    <>
-      {splitHighlights(text, terms).map((part, i) =>
-        part.match ? (
-          <Mark key={i}>{part.text}</Mark>
-        ) : (
-          <span key={i}>{part.text}</span>
-        )
-      )}
-    </>
-  );
-}
 
 /**
  * 会話検索の結果の 1 件（#163 で `ConversationSearch` から切り出し）。タイトルと一致箇所の抜粋を、キーワードを強調して出す。
@@ -62,11 +41,11 @@ export default function SearchResultItem({
       <MessageSquare size={16} className="mt-0.5 shrink-0 text-nord-4/60" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-nord-6">
-          <Highlighted text={result.title} terms={terms} />
+          <HighlightedText parts={splitHighlights(result.title, terms)} />
         </span>
         {result.snippet && (
           <span className="mt-0.5 line-clamp-2 text-xs text-nord-4/70">
-            <Highlighted text={result.snippet} terms={terms} />
+            <HighlightedText parts={splitHighlights(result.snippet, terms)} />
           </span>
         )}
       </span>

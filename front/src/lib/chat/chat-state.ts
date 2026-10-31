@@ -175,3 +175,42 @@ export function generatingConversationIds(chats: ChatStates): string[] {
     .filter(([key, chat]) => key !== NEW_CONVERSATION_KEY && chat.isLoading)
     .map(([key]) => key);
 }
+
+/**
+ * メッセージに付いたブックマーク（#30）を、そのメッセージを持つ会話の状態に反映する。
+ *
+ * 応答の下のボタンと、ブックマークの一覧（別の会話の応答のこともある）の両方から使う。
+ * そのメッセージを持たない会話（読み込んでいない会話）の状態は作らない（開いたときに DB から読む）。
+ *
+ * @param chats - 会話ごとの状態
+ * @param messageId - ブックマークを付けた・外したメッセージの ID
+ * @param bookmarkId - 付いたブックマークの ID。外したときは `null`
+ * @returns 反映後の会話ごとの状態。どの会話にもそのメッセージが無ければ `chats` をそのまま返す
+ */
+export function applyMessageBookmark(
+  chats: ChatStates,
+  messageId: string,
+  bookmarkId: string | null
+): ChatStates {
+  let changed = false;
+  const next: ChatStates = {};
+  for (const [key, chat] of Object.entries(chats)) {
+    if (!chat.messages.some((msg) => msg.id === messageId)) {
+      next[key] = chat;
+      continue;
+    }
+    changed = true;
+    next[key] = {
+      ...chat,
+      messages: chat.messages.map((msg) => {
+        if (msg.id !== messageId) return msg;
+        if (bookmarkId) return { ...msg, bookmarkId };
+        // 外したときはプロパティごと消す（DB から読み直したメッセージと同じ形にする）
+        const removed = { ...msg };
+        delete removed.bookmarkId;
+        return removed;
+      }),
+    };
+  }
+  return changed ? next : chats;
+}

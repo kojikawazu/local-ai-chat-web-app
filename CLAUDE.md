@@ -130,7 +130,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -146,9 +146,9 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt` を指定可） |
 | PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）の変更 |
 | DELETE | `/api/conversations/[id]` | 会話削除（メッセージもカスケード削除） |
-| GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得（添付画像の情報付き。中身は含めない） |
+| GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得（添付画像の情報・付いているブックマークの ID 付き。中身は含めない） |
 | POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可。`attachments` は user の添付画像、assistant はブラウザのツールが撮った画面（#200）） |
-| PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成。旧応答の画面は `attachments` に入れ替える） |
+| PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成。旧応答の画面は `attachments` に入れ替え、旧応答のブックマークは消す） |
 | POST | `/api/conversations/[id]/generate-title` | LLMで会話タイトル自動生成 |
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 | GET | `/api/attachments/[id]` | 添付画像の中身を返す |
@@ -158,6 +158,10 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | PUT | `/api/prompt-templates/[id]` | テンプレートの置き換え（名前・ショートカット・本文） |
 | DELETE | `/api/prompt-templates/[id]` | テンプレートの削除 |
 | POST | `/api/prompt-templates/examples` | 一覧が空のときに例の 3 件を作る（空でなければ 409） |
+| GET | `/api/bookmarks` | 応答のブックマークの一覧（付けた日時の新しい順・20 件ずつ。`q` でメモ・応答の本文・会話のタイトルを AND で絞り込む。#30） |
+| POST | `/api/bookmarks` | 応答にブックマークを付ける（`messageId`。user のメッセージは 400・もう付いていれば 409） |
+| PATCH | `/api/bookmarks/[id]` | ブックマークのメモの書き換え（`note`。null・空白だけで消す。500 文字まで） |
+| DELETE | `/api/bookmarks/[id]` | ブックマークを外す |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -187,19 +191,21 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/attachments/[id]/` — 添付画像の取得
   - `api/agent/approvals/[id]/` — ツールの実行前の承認（許可・拒否）
   - `api/prompt-templates/` — プロンプトテンプレートの CRUD（`[id]/`）・例の作成（`examples/`）
+  - `api/bookmarks/` — 応答のブックマークの一覧・付ける・メモの書き換え・外す（`[id]/`）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
-  - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame
+  - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame, HighlightedText
   - `common/templates/` — ChatLayout（画面の枠）
   - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, PromptTemplateSuggestions / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
+  - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
 - **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`prompt-template/errors.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`prompt-template/usePromptTemplates`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility}`・`settings/useAgentSettings`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -211,10 +217,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts）
   - `lib/conversation/` — 会話（search.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
+  - `lib/bookmark/` — ブックマーク（snippet.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts）
   - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, plantuml.ts, attachment.ts, chat-images.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
@@ -261,10 +268,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/18-browser-tools.md` | ブラウザのツール 設計書 |
 | `docs/19-token-metrics.md` | トークン数・生成速度の表示 設計書 |
 | `docs/20-prompt-templates.md` | プロンプトテンプレート 設計書 |
+| `docs/21-bookmarks.md` | 応答のブックマーク 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`21-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`22-`〜）を付与する。
 
 ## Instruction Shortcuts
 

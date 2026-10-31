@@ -36,6 +36,7 @@ import {
   NEW_CONVERSATION_KEY,
   EMPTY_CHAT,
   applyLoadedMessages,
+  applyMessageBookmark,
   chatKey,
   generatingConversationIds,
   getChat,
@@ -165,7 +166,8 @@ async function saveMessage(
  *   止める関数、`regenerate` は最後の応答を ID 指定で再生成する関数、`retrySave` は保存に失敗した
  *   メッセージを ID 指定で再送する関数、`clearMessages` は新規会話の画面の状態を初期化する関数、
  *   `loadMessages` は指定会話のメッセージを読み込む関数、`discardConversation` は削除した会話の
- *   生成を止めて状態を捨てる関数（応答は保存しない）
+ *   生成を止めて状態を捨てる関数（応答は保存しない）、`setMessageBookmark` はメッセージに付いた・外した
+ *   ブックマーク（#30）を表示に反映する関数
  */
 export function useChat({
   conversationId,
@@ -318,10 +320,13 @@ export function useChat({
           metadata?: unknown;
           createdAt: string;
           attachments?: Omit<MessageImage, 'src'>[];
+          // 付いているブックマーク（#30）。付いていなければ null
+          bookmark?: { id: string } | null;
         }) => {
-          const { attachments = [], ...rest } = msg;
+          const { attachments = [], bookmark, ...rest } = msg;
           return {
             ...rest,
+            ...(bookmark && { bookmarkId: bookmark.id }),
             metadata: parseMessageMetadata(msg.metadata),
             createdAt: new Date(msg.createdAt),
             // 画像の中身は一覧に含まれないため、取得 API の URL で表示する（#6）。
@@ -997,6 +1002,18 @@ export function useChat({
     setChats((prev) => removeChat(prev, convId));
   }, []);
 
+  /**
+   * メッセージに付いた・外したブックマーク（#30）を、そのメッセージを持つ会話の表示に反映する。
+   *
+   * @param messageId - ブックマークを付けた・外したメッセージの ID
+   * @param bookmarkId - 付いたブックマークの ID。外したときは `null`
+   */
+  const setMessageBookmark = useCallback(
+    (messageId: string, bookmarkId: string | null) =>
+      setChats((prev) => applyMessageBookmark(prev, messageId, bookmarkId)),
+    []
+  );
+
   return {
     messages,
     isLoading,
@@ -1012,5 +1029,6 @@ export function useChat({
     clearMessages,
     loadMessages,
     discardConversation,
+    setMessageBookmark,
   };
 }

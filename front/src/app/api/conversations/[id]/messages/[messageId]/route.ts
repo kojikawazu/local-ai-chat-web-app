@@ -16,6 +16,7 @@ import { isValidUUID } from '@/lib/shared/validation';
  * metadata は消す（思考過程・ツール結果が別の応答のものとして残らないように）。
  * 会話の `updatedAt` の更新と同じトランザクションで行う。旧応答の添付画像（ブラウザのツールが撮った画面。#200）は消し、
  * `attachments` に入れ替える（旧応答の記録から参照されなくなった画像を残さないため）。
+ * 旧応答に付けたブックマーク（#30）も消す（付けたのは前の本文のため）。
  *
  * 対象は「この会話に属する assistant のメッセージ」に限る。条件を `updateMany` の where に含め、
  * 更新件数 0 を 404 とする（存在確認と更新の間に削除されても食い違わない）。
@@ -61,6 +62,8 @@ export async function PUT(
       });
       if (count === 0) return null;
       await tx.attachment.deleteMany({ where: { messageId } });
+      // ブックマークを付けたのは前の本文。新しい本文に印を残すと、一覧の抜粋と移った先が食い違う（#30）
+      await tx.bookmark.deleteMany({ where: { messageId } });
       if (attachments.length > 0) {
         await tx.attachment.createMany({
           data: attachments.map((attachment, position) => ({

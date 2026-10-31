@@ -9,6 +9,7 @@ import {
   CircleStop,
   RefreshCw,
   Download,
+  Bookmark,
 } from 'lucide-react';
 import type { Message } from '@/types/chat/message';
 import type { ToolApprovalRequest } from '@/types/agent/tool-call';
@@ -47,7 +48,20 @@ type ChatWindowProps = {
   pendingApprovals?: ToolApprovalRequest[];
   /** 承認カードの許可・拒否で呼ぶ。承認 ID と、許可なら true を受け取る。 */
   onRespondApproval?: (approvalId: string, approved: boolean) => void;
+  /** 応答の下のブックマークのボタンで呼ぶ（#30）。押した応答を受け取る。省略時はボタンを出さない。 */
+  onToggleBookmark?: (message: Message) => void;
+  /** 付ける・外すの返事を待っている応答の ID → 向かう先（付けるなら true）。この間はその状態で表示し、押させない。 */
+  pendingBookmarks?: Record<string, boolean>;
+  /** 直前にブックマークの更新に失敗した応答の ID。その応答の操作の行に失敗を出す。 */
+  failedBookmarkId?: string | null;
+  /** 移る先の応答の ID（ブックマークの一覧から。#30）。メッセージ一覧に現れたら、そこまでスクロールして枠で示す。 */
+  focusMessageId?: string | null;
+  /** 移る先へスクロールし終えたときに呼ぶ（呼び出し側が移る先を忘れる）。 */
+  onFocusHandled?: () => void;
 };
+
+// 移った先の応答を枠で示す時間（ms）。読んでいる間ずっと目に入らないよう、短く出して消す
+const FOCUS_HIGHLIGHT_MS = 2000;
 
 /**
  * チャットのメッセージ一覧を描画するスクロール領域。
@@ -61,6 +75,8 @@ type ChatWindowProps = {
  * 再試行ボタンを付ける（user は「送信失敗・再送」、assistant は「保存失敗・再試行」）。
  * 再生成できる応答（最後の保存済みの応答）には再生成ボタンを付け、生成中は押させない。
  * ツールの実行の承認を待っている間は、実行中の表示の代わりに承認カード（差分と許可・拒否）を一番下に出す（#148 Phase A2）。
+ * 保存済みの応答にはブックマークのボタンを付ける（#30）。移る先（`focusMessageId`）がある間は一番下へスクロールせず、
+ * その応答が現れたら画面の中央までスクロールし、{@link FOCUS_HIGHLIGHT_MS} だけ枠で示す。
  *
  * @param props - メッセージ一覧・実行中ツール・ローディング状態・再試行／再生成コールバックを持つ props
  */
@@ -73,14 +89,47 @@ export default function ChatWindow({
   conversationTitle = '',
   pendingApprovals = [],
   onRespondApproval,
+  onToggleBookmark,
+  pendingBookmarks = {},
+  failedBookmarkId = null,
+  focusMessageId = null,
+  onFocusHandled,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 移る先を、一番下へのスクロールの effect から依存にせずに読むための写し（#30）。
+  // 依存にすると、移った直後に移る先が消えたことで effect が走り直し、一番下へ戻してしまう
+  const focusMessageIdRef = useRef(focusMessageId);
+
+  // 下の 2 つの effect より先に写す（effect は宣言の順に走る）
+  useEffect(() => {
+    focusMessageIdRef.current = focusMessageId;
+  }, [focusMessageId]);
 
   useEffect(() => {
+    // 移る先がある間は一番下へ戻さない（会話を読み込んだ直後に、移った位置から引き離さないため。#30）
+    if (focusMessageIdRef.current) return;
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, pendingApprovals]);
+
+  useEffect(() => {
+    if (!focusMessageId || !scrollRef.current) return;
+    // 会話を読み込み終えるまでは、移る先がまだ一覧に無い。現れたときにもう一度走る
+    const target = scrollRef.current.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(focusMessageId)}"]`
+    );
+    if (!target) return;
+    target.scrollIntoView({ block: 'center' });
+    // 枠は DOM の属性で出す（state にすると、描画の後にもう一度描画が要る）。
+    // 消すのはタイマーだけに任せる。後始末で消すと、下の onFocusHandled で移る先が消えたときの再実行で、
+    // 出したばかりの枠が消える（会話を切り替えて要素が外れた後に消しても害は無い）
+    target.dataset.focused = 'true';
+    setTimeout(() => {
+      delete target.dataset.focused;
+    }, FOCUS_HIGHLIGHT_MS);
+    onFocusHandled?.();
+  }, [focusMessageId, messages, onFocusHandled]);
 
   const lastMsg = messages[messages.length - 1];
   // 生成中の応答 = 生成中の最後の assistant。Mermaid の図は生成が終わってから描く（#169）
@@ -128,6 +177,16 @@ export default function ChatWindow({
               pendingApprovals.length === 0;
             // 時系列のとき、回答がまだ無く待ってもいなければ（停止・回答の無い応答）吹き出しを出さない
             const showBubble = !timeline || bubbleText !== '' || isThisWaiting;
+            // ブックマークできるのは保存済みの応答だけ（#30）。生成中は保存が終わるまで isLoading が続く
+            const canBookmark =
+              onToggleBookmark !== undefined &&
+              msg.role === 'assistant' &&
+              !msg.saveState &&
+              msg.id !== streamingId;
+            const isBookmarkPending = msg.id in pendingBookmarks;
+            const isBookmarked = isBookmarkPending
+              ? pendingBookmarks[msg.id]
+              : msg.bookmarkId !== undefined;
             const thinking = msg.role === 'assistant' &&
               msg.metadata?.thinkingText && (
                 <AgentThinking content={msg.metadata.thinkingText} />
@@ -136,7 +195,8 @@ export default function ChatWindow({
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col max-w-[85%] md:max-w-[70%] ${
+                data-message-id={msg.id}
+                className={`flex flex-col max-w-[85%] md:max-w-[70%] rounded-xl transition-shadow duration-500 data-[focused=true]:ring-2 data-[focused=true]:ring-nord-frost-1 data-[focused=true]:ring-offset-4 data-[focused=true]:ring-offset-nord-0 ${
                   msg.role === 'user' ? 'ml-auto' : 'mr-auto'
                 }`}
               >
@@ -289,6 +349,36 @@ export default function ChatWindow({
                       >
                         <Download size={14} />
                       </IconButton>
+                    )}
+                    {canBookmark && (
+                      <IconButton
+                        label={
+                          isBookmarked
+                            ? 'ブックマークを外す'
+                            : 'ブックマークする'
+                        }
+                        aria-pressed={isBookmarked}
+                        tone="inherit"
+                        size="xs"
+                        onClick={() => onToggleBookmark?.(msg)}
+                        // 返事を待つ間は押させない（二度押しで 409 を出さない）
+                        disabled={isBookmarkPending}
+                      >
+                        <Bookmark
+                          size={14}
+                          fill={isBookmarked ? 'currentColor' : 'none'}
+                          className={isBookmarked ? 'text-nord-frost-1' : ''}
+                        />
+                      </IconButton>
+                    )}
+                    {canBookmark && failedBookmarkId === msg.id && (
+                      <span
+                        role="status"
+                        className="flex items-center gap-1 text-nord-aurora-red"
+                      >
+                        <TriangleAlert size={14} />
+                        ブックマークの更新に失敗しました
+                      </span>
                     )}
                     {onRegenerate && msg.id === regenerableId && (
                       <Button

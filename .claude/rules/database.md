@@ -39,6 +39,7 @@ model Message {
   metadata       Json?        // ツール呼び出し情報・思考過程等（nullable）
   createdAt      DateTime     @default(now())
   attachments    Attachment[]
+  bookmark       Bookmark?
 }
 
 // メッセージの画像。user は添付した画像（#6）、assistant はブラウザのツールが撮った画面（#200）
@@ -66,10 +67,21 @@ model PromptTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// 応答（assistant のメッセージ）のブックマーク（#30）。1 つの応答に 1 つまで
+model Bookmark {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note      String?  // メモ。null はメモなし（空白だけのメモも null にする）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 ```
 
 - 添付画像は DB（`bytea`）に置く（ファイルに置かない）。assistant の画像（ブラウザのツールの画面。#200）は `metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
-- 一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット）は、事前の確認ではなく制約の違反（`P2002`）で判定して 409 を返す（`lib/server/prisma-error.ts`）。確認と作成の間に同じ値で作られても食い違わないため。
+- 一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット・応答のブックマーク）は、事前の確認ではなく制約の違反（`P2002`）で判定して 409 を返す（`lib/server/prisma-error.ts`）。確認と作成の間に同じ値で作られても食い違わないため。
+- ブックマーク（#30）は user のメッセージに付けさせない（`role` は文字列の列で DB の制約にしにくいため、API で検証する）。会話の削除で Conversation → Message → Bookmark とカスケード削除され、再生成の置き換え（`PUT .../messages/[messageId]`）は同じトランザクションでその応答のブックマークを消す。
 
 ## Prisma クライアント
 
@@ -86,4 +98,4 @@ model PromptTemplate {
 ## クエリ
 
 - Prisma Client のパラメータバインディングを使用する。`$queryRaw` での文字列結合は禁止。
-- Conversation 削除時はメッセージ・添付画像も `onDelete: Cascade` でカスケード削除される。
+- Conversation 削除時はメッセージ・添付画像・ブックマークも `onDelete: Cascade` でカスケード削除される。
