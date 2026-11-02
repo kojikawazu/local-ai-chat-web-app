@@ -70,3 +70,29 @@ model Bookmark {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// RAG で参照する、取り込んだドキュメント（#17）。会話とはリレーションを持たない
+model KnowledgeDocument {
+  id             String           @id @default(uuid())
+  name           String           @unique // ファイル名（同じ名前で取り込むと置き換える）
+  content        String // 取り込んだ本文（BOM を外し改行をそろえた後）。作り直しに使う
+  size           Int // 本文のバイト数（UTF-8）
+  embeddingModel String // チャンクの埋め込みを作ったモデル。今のモデルと違えば検索に使わない
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  chunks         KnowledgeChunk[]
+}
+
+// ドキュメントを分けた 1 つと、その埋め込み（#17）。vector の列は Prisma の create で書けないため、
+// id はアプリで作り $executeRaw で入れる（lib/server/knowledge.ts）
+model KnowledgeChunk {
+  id         String                @id
+  documentId String
+  document   KnowledgeDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position   Int // ドキュメントの中の並び順（0 始まり）
+  heading    String // 見出しの経路（「範囲 > 含める」）。見出しの前なら空
+  content    String // 本文
+  embedding  Unsupported("vector") // 埋め込み（次元はモデルで決まるため決めない。索引も作らず全件と比べる）
+
+  @@index([documentId])
+}

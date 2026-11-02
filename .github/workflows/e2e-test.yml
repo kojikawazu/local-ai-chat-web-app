@@ -46,7 +46,8 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # pgvector の入った PostgreSQL 16（RAG。#17）。docker-compose.yml の postgres と同じ版にそろえる
+        image: pgvector/pgvector:0.8.6-pg16-trixie
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -119,6 +120,9 @@ jobs:
           ollama serve &
           sleep 5
           ollama pull qwen2.5:0.5b
+          # RAG のドキュメントの埋め込み（#17）。アプリの既定と同じモデルにする
+          # （類似度のしきい値はこのモデルで測った値のため、別のモデルでは確かめにならない）
+          ollama pull embeddinggemma:300m
 
       - name: Run Prisma migrations
         working-directory: front

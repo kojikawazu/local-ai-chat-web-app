@@ -61,7 +61,7 @@ globs: "front/tests/**"
 - **対象**: route handler 全般。
   - DB 依存（`/api/conversations` 系の CRUD・messages・cascade 削除・404/400）→ 実 DB で検証。
   - 外部依存（`/api/chat`・`/api/models`）→ Ollama を fetch スタブして**エラー契約**（接続失敗→502、バリデーション→400）と正常応答の中継を検証。
-- **実依存**: PostgreSQL を **Testcontainers で使い捨てコンテナとして起動**し、`prisma migrate deploy` でスキーマ適用。開発 DB には一切触れない。
+- **実依存**: PostgreSQL を **Testcontainers で使い捨てコンテナとして起動**し、`prisma migrate deploy` でスキーマ適用。開発 DB には一切触れない。イメージは pgvector の入った `pgvector/pgvector:0.8.6-pg16-trixie`（`docker-compose.yml`・CI の E2E と同じ版。RAG。#17）。
 - **mock 方針**: 真の外部 3rd-party（Ollama / SearXNG / 任意 Web）**のみ**手製 fetch スタブ（`helpers/ollama-stub.ts` の `stubFetch`）で差し替える。DB はモックしない（配線検証が目的）。
 
 ## エラーハンドリングの層分担
@@ -84,6 +84,8 @@ globs: "front/tests/**"
 - `workers: 1`（順次実行）、`retry: 1`、`webServer` で `pnpm dev` を自動起動
 - **モデル**: `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`。ローカル・CI 共通）を `webServer.env` で dev サーバーの `OLLAMA_MODEL` として渡す。定義は `tests/e2e/helpers/model.ts` のみ。
   - 理由: アプリ既定の大モデル（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫する（#110）。
+  - **埋め込みのモデル**（RAG。#17）は、アプリの既定と同じ `embeddinggemma:300m`（`E2E_EMBED_MODEL`）を `OLLAMA_EMBED_MODEL` として渡す（類似度のしきい値はこのモデルで測った値のため、小さい別のモデルにしない）。`globalSetup` が取得済みか・再利用した dev サーバーのモデルが同じかを確かめる。
+  - **開発の DB の RAG のドキュメント**: 一覧の API は本文を返さず控えて戻せないため、`knowledge.spec.ts` は名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントに触らない）。
   - 大モデルで回す場合は `E2E_OLLAMA_MODEL=<model> pnpm test:e2e`。
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。

@@ -16,6 +16,7 @@ import RoleDialog from '@/components/features/chat/organisms/RoleDialog';
 import ExportDialog from '@/components/features/chat/organisms/ExportDialog';
 import PromptTemplateDialog from '@/components/features/prompt-template/organisms/PromptTemplateDialog';
 import BookmarkDialog from '@/components/features/bookmark/organisms/BookmarkDialog';
+import KnowledgeDialog from '@/components/features/knowledge/organisms/KnowledgeDialog';
 import ShortcutHelpDialog from '@/components/features/shortcut/organisms/ShortcutHelpDialog';
 import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
@@ -73,6 +74,7 @@ export default function Home() {
   const [exportMessage, setExportMessage] = useState<Message | null>(null);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isBookmarkDialogOpen, setIsBookmarkDialogOpen] = useState(false);
+  const [isKnowledgeDialogOpen, setIsKnowledgeDialogOpen] = useState(false);
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
   // 検索欄にフォーカスする要求（#33。⌘K）。見えている検索欄がフォーカスしたら null に戻す
   const [searchFocusRequest, setSearchFocusRequest] = useState<number | null>(
@@ -368,6 +370,7 @@ export default function Home() {
     onDeleteConversation: handleDeleteConversation,
     onOpenSettings: () => setIsSettingsOpen(true),
     onOpenBookmarks: () => setIsBookmarkDialogOpen(true),
+    onOpenKnowledge: () => setIsKnowledgeDialogOpen(true),
     searchFocusRequest,
     onSearchFocused: handleSearchFocused,
   };
@@ -473,6 +476,9 @@ export default function Home() {
               onRemoved={(messageId) => setMessageBookmark(messageId, null)}
               onClose={() => setIsBookmarkDialogOpen(false)}
             />
+          )}
+          {isKnowledgeDialogOpen && (
+            <KnowledgeDialog onClose={() => setIsKnowledgeDialogOpen(false)} />
           )}
           {isRoleDialogOpen && (
             <RoleDialog

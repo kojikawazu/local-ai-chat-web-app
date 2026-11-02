@@ -34,7 +34,8 @@
 ブラウザ (Next.js Frontend)
     ↓ fetch (streaming)
 Next.js Route Handlers (API層)
-    ├──→ Prisma ORM ──→ PostgreSQL (Docker)
+    ├──→ Prisma ORM ──→ PostgreSQL + pgvector (Docker)
+    ├──→ /api/embed（ドキュメントの取り込み）──→ Ollama API ──→ embeddinggemma:300m
     ├──→ HTTP POST (streaming) ──→ Ollama API (localhost:11434) ──→ qwen3.8:27b
     ├──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
     ├──→ GitHub のツール ──→ gh (GitHub CLI。アプリが組み立てた引数) ──→ GitHub（GITHUB_REPOS のリポジトリだけ）
@@ -44,6 +45,7 @@ Next.js Route Handlers (API層)
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
+- RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
 - GitHub のツール（#148 Phase C）は、利用者の `gh`（`gh auth login` 済み）をシェルを介さずに起動する。引数はアプリが組み立て、モデルは `gh` の引数を書けない。コメント・PR の作成は実行前に承認を挟む（`docs/17-github-tools.md`）。
@@ -83,7 +85,7 @@ local-ai-chat-web-app/
 │   ├── playwright.config.ts   #   Playwright設定
 │   ├── package.json
 │   └── pnpm-lock.yaml
-├── docker-compose.yml         # PostgreSQL・SearXNG・PlantUML のコンテナ定義
+├── docker-compose.yml         # PostgreSQL（pgvector 入り）・SearXNG・PlantUML のコンテナ定義
 ├── searxng/settings.yml       # SearXNG の設定（JSON API の有効化・Web 検索のエンジンの追加等）
 ├── CLAUDE.md
 └── README.md
@@ -110,6 +112,12 @@ front/src/
 │       │   └── route.ts       #     Ollama通信（通常 / エージェント、model指定可。添付画像は ID で受ける）
 │       ├── diagrams/plantuml/
 │       │   └── route.ts       #     PlantUML の図の描画（PlantUML サーバーへ中継。#171）
+│       ├── knowledge/documents/
+│       │   ├── route.ts       #     RAG のドキュメントの一覧・取り込み（multipart。応答の中で埋め込みまで作る・同じ名前は置き換え。#17）
+│       │   └── [id]/
+│       │       ├── route.ts   #     削除（チャンクもカスケード）
+│       │       └── rebuild/
+│       │           └── route.ts #   今の埋め込みのモデルで作り直す
 │       ├── models/
 │       │   └── route.ts       #     利用可能モデル一覧取得
 │       ├── prompt-templates/
@@ -185,6 +193,11 @@ front/src/
 │       │   │   └── BookmarkListItem.tsx # ブックマークの 1 件（タイトル・抜粋・メモの強調・メモの編集・2 段階の外す。#30）
 │       │   └── organisms/
 │       │       └── BookmarkDialog.tsx # ブックマークの一覧のダイアログ（検索・さらに表示・押すと元の応答へ移る。#30）
+│       ├── knowledge/
+│       │   ├── molecules/
+│       │   │   └── KnowledgeDocumentItem.tsx # ドキュメントの 1 行（大きさ・チャンクの数・作り直しが要る印・2 段階の削除。#17）
+│       │   └── organisms/
+│       │       └── KnowledgeDialog.tsx # ドキュメントの管理のダイアログ（ファイルの選択・ドロップ・1 つずつ取り込み・失敗の理由。#17）
 │       ├── shortcut/
 │       │   └── organisms/
 │       │       └── ShortcutHelpDialog.tsx # ショートカットの一覧のダイアログ（定義から作り、開いている端末の表記で <kbd> に出す。#33）
@@ -228,6 +241,8 @@ front/src/
 │   ├── bookmark/
 │   │   ├── useBookmarks.ts    #     ブックマークの一覧の読み込み・検索（入力の待ち合わせ・前の要求の中断）・さらに表示・メモ・外す（#30）
 │   │   └── useMessageBookmark.ts #  応答の下のボタンで付ける・外す（返事を待つ間の表示・失敗で戻す。#30）
+│   ├── knowledge/
+│   │   └── useKnowledgeDocuments.ts # RAG のドキュメントの一覧・1 つずつ取り込み（送る前の確かめ）・作り直し・削除（#17）
 │   ├── settings/
 │   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
 │   ├── shortcut/
@@ -328,6 +343,10 @@ front/src/
 │   │   └── fork.ts            #     分岐した会話のタイトル・コピーした応答の metadata のツールの画面の ID の書き換え（#29）
 │   ├── bookmark/              #   ブックマーク
 │   │   └── snippet.ts         #     一覧に出す応答の抜粋（一致した箇所の前後か先頭の 120 文字。#30）
+│   ├── knowledge/             #   RAG のドキュメント（#17）
+│   │   ├── file.ts            #     取り込むファイルの検証（拡張子・UTF-8・NUL・BOM・改行）・名前の並び順
+│   │   ├── chunk.ts           #     チャンクの分け方（見出しの経路・空行で約 600 字・コードブロック・長い段落）
+│   │   └── embedding-text.ts  #     埋め込みへ渡す文（embeddinggemma の前置き）・pgvector の文字の形
 │   ├── prompt-template/       #   プロンプトテンプレート
 │   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
 │   ├── shortcut/              #   ショートカット
@@ -365,6 +384,8 @@ front/src/
     │   └── prompt-template.ts #     PromptTemplate（#28）
     ├── bookmark/
     │   └── bookmark.ts        #     Bookmark・BookmarkListItem（ブックマークと一覧の 1 件。#30）
+    ├── knowledge/
+    │   └── document.ts        #     KnowledgeDocumentItem（RAG のドキュメントの一覧の 1 件。#17）
     ├── shortcut/
     │   └── shortcut.ts        #     ShortcutId・ShortcutBinding・ShortcutDefinition（#33）
     └── theme/
@@ -387,7 +408,7 @@ front/tests/
     ├── helpers/
     │   ├── test-data.ts           # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts         # 長い応答を生成中にする（停止・再生成の検証用）
-    │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   ├── model.ts               # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定・埋め込みのモデル E2E_EMBED_MODEL）
     │   ├── local-files.ts         # E2E の LOCAL_FILE_ROOTS（fixtures/local-files）と LOCAL_FILE_WRITE_ROOTS（OS の一時フォルダ。コマンドの作業フォルダも兼ねる）（#148）
     │   └── global-setup.ts        # 開始前に dev サーバーのモデル・モデル取得済み・PlantUML サーバーへの接続を検証
     ├── chat.spec.ts               # チャット機能テスト
@@ -423,6 +444,7 @@ front/tests/
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
+    ├── knowledge.spec.ts          # RAG のドキュメント（ファイルを選んで取り込む・一覧の大きさとチャンクの数・同じ名前の置き換え・2 段階の削除・取り込めない拡張子・テキストでない中身・取り込みの通信の失敗）
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）
@@ -475,6 +497,20 @@ Bookmark（#30。応答 1 つに 1 つまで）
 ```
 
 Conversation → Message → Bookmark ともカスケードする。再生成で応答を置き換えると、その応答のブックマークは消す。
+
+```
+KnowledgeDocument（#17。会話とはリレーションを持たない）   KnowledgeChunk
+┌──────────────────────┐                                ┌──────────────────────────┐
+│ id (UUID PK)         │──┐                             │ id (UUID PK。アプリで作る)│
+│ name (UNIQUE)        │  │                             │ documentId (FK)          │──→ KnowledgeDocument.id
+│ content              │  └────────────────────────────<│ position                 │
+│ size                 │                                │ heading                  │  見出しの経路
+│ embeddingModel       │  チャンクを作ったモデル          │ content                  │
+│ createdAt / updatedAt│                                │ embedding (vector)       │  次元を決めない・索引なし
+└──────────────────────┘                                └──────────────────────────┘
+```
+
+ドキュメントの削除でチャンクはカスケードで消える。`vector` の列は Prisma の `Unsupported("vector")` で、読み書きは `$queryRaw` / `$executeRaw`（`lib/server/knowledge.ts`）。拡張（`CREATE EXTENSION vector`）はマイグレーションに足してある（`docs/28-rag.md`「データ」）。
 
 ```
 PromptTemplate（#28。会話とはリレーションを持たない）
@@ -551,6 +587,31 @@ model Bookmark {
   note      String?  // メモ。null はメモなし（空白だけのメモも null にする）
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// RAG で参照する、取り込んだドキュメント（#17）。会話とはリレーションを持たない
+model KnowledgeDocument {
+  id             String           @id @default(uuid())
+  name           String           @unique // ファイル名（同じ名前で取り込むと置き換える）
+  content        String // 取り込んだ本文（BOM を外し改行をそろえた後）。作り直しに使う
+  size           Int // 本文のバイト数（UTF-8）
+  embeddingModel String // チャンクの埋め込みを作ったモデル。今のモデルと違えば検索に使わない
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  chunks         KnowledgeChunk[]
+}
+
+// ドキュメントを分けた 1 つと、その埋め込み（#17）。id はアプリで作り $executeRaw で入れる
+model KnowledgeChunk {
+  id         String                @id
+  documentId String
+  document   KnowledgeDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position   Int // ドキュメントの中の並び順（0 始まり）
+  heading    String // 見出しの経路（「範囲 > 含める」）。見出しの前なら空
+  content    String // 本文
+  embedding  Unsupported("vector") // 埋め込み（次元は決めない。索引も作らず全件と比べる）
+
+  @@index([documentId])
 }
 ```
 
@@ -640,6 +701,7 @@ model Bookmark {
 |--------|------|-------------|
 | `OLLAMA_BASE_URL` | Ollama APIの接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用するモデル名 | `qwen3.8:27b` |
+| `OLLAMA_EMBED_MODEL` | RAG のドキュメントの埋め込みのモデル（変えたら取り込んだドキュメントの作り直しが要る） | `embeddinggemma:300m` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |

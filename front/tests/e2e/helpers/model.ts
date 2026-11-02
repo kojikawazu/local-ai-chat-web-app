@@ -24,6 +24,15 @@ export const E2E_LIGHT_MODEL = 'qwen2.5:0.5b';
 export const E2E_OLLAMA_MODEL = process.env.E2E_OLLAMA_MODEL || E2E_LIGHT_MODEL;
 
 /**
+ * E2E で dev サーバーに使わせる埋め込みのモデル（RAG のドキュメント。#17）。
+ *
+ * アプリの既定と同じにする（類似度のしきい値はこのモデルで測った値のため、小さい別のモデルでは確かめにならない。
+ * 621 MB で E2E のたびに読み込んでも重くない）。`.env.local` の `OLLAMA_EMBED_MODEL` を拾わないよう、
+ * `playwright.config.ts` が dev サーバーへ渡す。
+ */
+export const E2E_EMBED_MODEL = 'embeddinggemma:300m';
+
+/**
  * 軽量モデルで実行しているか。
  *
  * 軽量モデルはツール呼び出しを安定して行えないため、それに依存するテストのスキップ判定に使う。

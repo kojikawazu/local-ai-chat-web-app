@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-11-01
+> 最終更新: 2026-11-02
 
 ## 目次
 
@@ -30,10 +30,15 @@
   - [POST /api/bookmarks](#post-apibookmarks)
   - [PATCH /api/bookmarks/[id]](#patch-apibookmarksid)
   - [DELETE /api/bookmarks/[id]](#delete-apibookmarksid)
+  - [GET /api/knowledge/documents](#get-apiknowledgedocuments)
+  - [POST /api/knowledge/documents](#post-apiknowledgedocuments)
+  - [DELETE /api/knowledge/documents/[id]](#delete-apiknowledgedocumentsid)
+  - [POST /api/knowledge/documents/[id]/rebuild](#post-apiknowledgedocumentsidrebuild)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
   - [POST /api/show（Ollama側）](#post-apishowollama側)
+  - [POST /api/embed（Ollama側）](#post-apiembedollama側)
 - [外部API（PlantUML サーバー）](#外部apiplantuml-サーバー)
   - [POST /svg（PlantUML サーバー側）](#post-svgplantuml-サーバー側)
 
@@ -46,7 +51,8 @@
 - ボディは JSON オブジェクトであること（`null`・配列・数値・文字列は 400）
 - 各フィールドは型を検証する（文字列に数値、真偽値に文字列などは 400）
 - 任意フィールドは `undefined` と `null` のどちらも「指定なし」として扱う
-- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、添付画像の `MAX_IMAGES_PER_MESSAGE` / `MAX_IMAGES_PER_REQUEST` / `MAX_IMAGE_LONG_EDGE` / `MAX_IMAGE_BYTES`、プロンプトテンプレートの `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_PROMPT_TEMPLATES`）
+- 上限値は `front/src/lib/shared/validation.ts` が正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH`、添付画像の `MAX_IMAGES_PER_MESSAGE` / `MAX_IMAGES_PER_REQUEST` / `MAX_IMAGE_LONG_EDGE` / `MAX_IMAGE_BYTES`、プロンプトテンプレートの `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_PROMPT_TEMPLATES`、RAG のドキュメントの `MAX_KNOWLEDGE_FILE_BYTES` / `MAX_KNOWLEDGE_DOCUMENTS` / `MAX_KNOWLEDGE_DOCUMENT_NAME_LENGTH`）
+- RAG のドキュメントの取り込み（`POST /api/knowledge/documents`。#17）だけは JSON ではなく `multipart/form-data` で受け、中身を `lib/knowledge/file.ts` で検証する
 
 ### POST /api/chat
 
@@ -761,6 +767,84 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ---
 
+### GET /api/knowledge/documents
+
+RAG のドキュメントの一覧（#17。`docs/28-rag.md`）。名前の順（ロケールに依らない符号の順。画面が取り込んだものを足すときと同じ）。本文・埋め込みは含めない。
+
+**レスポンス**
+
+```typescript
+{
+  documents: {
+    id: string;
+    name: string;           // ファイル名
+    size: number;           // 本文のバイト数（UTF-8）
+    chunkCount: number;
+    embeddingModel: string; // チャンクの埋め込みを作ったモデル
+    needsRebuild: boolean;  // 今のモデルと違う（検索に使わない。作り直すと使える）
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  embeddingModel: string;   // 今の埋め込みのモデル（OLLAMA_EMBED_MODEL）
+}
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 取得成功 |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/knowledge/documents
+
+ドキュメントを取り込む（#17）。`multipart/form-data` の `file` 1 つ（`.md`・`.markdown`・`.txt`、1 MB まで）。中身が UTF-8 として読めること・NUL を含まないことを確かめ（クライアントの申告の MIME タイプは使わない）、BOM を外し改行をそろえ、チャンクに分けて Ollama で埋め込みを作り、1 つのトランザクションで保存してから返す（数十秒かかることがある）。同じ名前のドキュメントがあれば、ID と最初の日時を保って置き換える。
+
+`Content-Length` がファイルの上限 + 64 KB を超えていれば、ボディを読まずに 413 を返す。
+
+**レスポンス**: `{ document }`（一覧の 1 件と同じ形）
+
+| ステータス | 説明 |
+|-----------|------|
+| 201 | 新しく取り込んだ |
+| 200 | 同じ名前のドキュメントを置き換えた |
+| 400 | multipart でない・`file` が無い・取り込めない拡張子・テキストでない・空・ファイル名の不正・件数の上限（200 件。置き換えは数えない）・チャンクが多すぎる（2,000） |
+| 409 | 同じ名前を同時に新しく取り込んだ（一意制約の違反） |
+| 413 | ファイルが大きすぎる |
+| 502 | 埋め込みのモデルが無い（`ollama pull` を案内する）・Ollama に繋がらない・埋め込みに対応していないモデル・応答の形が違う |
+| 500 | サーバー内部エラー |
+
+---
+
+### DELETE /api/knowledge/documents/[id]
+
+ドキュメントを削除する（#17）。チャンクもカスケードで消える。
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 削除成功（`{ success: true }`） |
+| 400 | リクエスト不正（無効なUUID） |
+| 404 | ドキュメントが見つからない |
+| 500 | サーバー内部エラー |
+
+---
+
+### POST /api/knowledge/documents/[id]/rebuild
+
+保存した本文から、今の埋め込みのモデル（`OLLAMA_EMBED_MODEL`）でチャンクを作り直す（#17。モデルを替えた後に使う）。失敗したら元のチャンクとモデルが残る。
+
+**レスポンス**: `{ document }`
+
+| ステータス | 説明 |
+|-----------|------|
+| 200 | 作り直した |
+| 400 | リクエスト不正（無効なUUID）・チャンクが多すぎる |
+| 404 | ドキュメントが見つからない |
+| 502 | 埋め込みを作れない（取り込みと同じ） |
+| 500 | サーバー内部エラー |
+
+---
+
 ## 外部API（Ollama）
 
 ### POST /api/chat（Ollama側）
@@ -820,6 +904,20 @@ Ollamaで利用可能なモデル一覧を取得する。
 **リクエスト**: `{ "model": "qwen3.8:27b" }`
 
 **レスポンス（抜粋）**: `{ "capabilities": ["completion", "vision", "tools", "thinking"] }`
+
+---
+
+### POST /api/embed（Ollama側）
+
+**接続先**: `${OLLAMA_BASE_URL}/api/embed`
+
+文の並びの埋め込みを作る（`lib/llm/ollama.ts` の `embed`。#17）。RAG のドキュメントの取り込み・作り直しで、チャンクを 32 件ずつ送る。モデルは `OLLAMA_EMBED_MODEL`（既定 `embeddinggemma:300m`）。返る埋め込みは長さ 1 に正規化されている。
+
+**リクエスト**: `{ "model": "embeddinggemma:300m", "input": ["title: 設計 > 範囲 | text: …", "…"] }`
+
+**レスポンス（抜粋）**: `{ "embeddings": [[0.01, -0.02, …], …] }`（入力と同じ数・同じ次元。違えば失敗にする）
+
+モデルが無いと 404（`EmbeddingModelNotFoundError` にして、画面に `ollama pull` を案内する）、埋め込みに対応していないモデルは 501 を返す。
 
 ---
 

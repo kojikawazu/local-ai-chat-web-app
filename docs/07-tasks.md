@@ -1255,3 +1255,17 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 応答の「保存」のダイアログに PPTX（`useReportExport`・`ExportDialog`。PPTX を選んだときだけ `import('pptxgenjs')`）
 - [x] UT（`pptx-layout.test.ts` 22 件・`report-pptx.test.ts` 13 件・`document-model.test.ts` に 2 件）・E2E（`report-export.spec.ts` に PPTX の 5 件）。IT は API・DB を変えないため対象なし。スライドを 1 枚ずつ Quick Look で描いて重なり・はみ出しを確かめた（PowerPoint・Keynote での目視はレビューで）
 - [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`24`・`25`・`26`・`27`・`README`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）
+
+## フェーズ59: RAG — ドキュメントの取り込みと管理（#17 Phase A）
+
+手元のテキストのドキュメント（`.md`・`.txt`）を取り込み、チャンクに分けて Ollama で埋め込みを作り、PostgreSQL（pgvector）に保存する。画面で一覧・削除・作り直しができる。会話での参照と出典は Phase B（後のサブ issue）。設計は [28-rag.md](./28-rag.md)。 — #17・サブ issue #227（2026-11-02 着手）
+
+- [x] 設計（`docs/28-rag.md`。埋め込みのモデルを手元で比べて `embeddinggemma:300m` に（docs の 929 チャンク・質問 20 件で MRR 0.975・取り込み 18 秒・答えの無い質問と類似度で分けられる）・pgvector `0.8.6-pg16`・次元を決めない `vector` の列と索引なし（2 万チャンクで 69 ms）・送るたびにアプリが探して渡す（ツールは後）・会話ごとの切り替え・同じ名前は置き換え・類似度 0.40 以上の上位 5 件）
+- [x] 設計のレビュー（推奨どおり）
+- [x] pgvector の導入（`pgvector/pgvector:0.8.6-pg16-trixie`。無印のタグ（bookworm）は照合順序の版が合わないため trixie。`docker-compose.yml`・CI の E2E の `services:`・IT の Testcontainers）とマイグレーション（`KnowledgeDocument`・`KnowledgeChunk`・`CREATE EXTENSION vector` を `--create-only` に足した）
+- [x] Ollama の埋め込み（`lib/llm/ollama.ts` の `embed`・`getEmbeddingModel`・`EmbeddingModelNotFoundError`。`OLLAMA_EMBED_MODEL`。応答の数・次元を確かめる）
+- [x] ファイルの検証・チャンクの分け方・モデルごとの前置き（`lib/knowledge/{file,chunk,embedding-text}.ts`。拡張子は `constants/knowledge/file.ts`）
+- [x] ドキュメントの API（一覧・取り込み（multipart・413）・削除・作り直し。DB の処理は `lib/server/knowledge.ts`、失敗の応答は `knowledge-response.ts`。置き換えは ID と日時を保つ・並びは符号の順）
+- [x] 管理画面（サイドバーの「ドキュメント」・`KnowledgeDialog`・`KnowledgeDocumentItem`・`useKnowledgeDocuments`。設計のヘッダーからサイドバーのブックマークの隣に替えた）
+- [x] UT（`knowledge.test.ts` 30 件）・IT（`knowledge-documents.test.ts` 23 件。実 pgvector・`/api/embed` はスタブ）・E2E（`knowledge.spec.ts` 6 件。実際の `embeddinggemma:300m`。名前が `e2e-knowledge-` のドキュメントだけを作って消す）。`global-setup.ts` で埋め込みのモデルとマイグレーションを確かめる。画面は実際に取り込み・作り直しを操作して確かめた
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`28`・`README`・`diagrams/`（全体の図）、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,database,documentation,error-handling,github-actions,security,testing}.md`）

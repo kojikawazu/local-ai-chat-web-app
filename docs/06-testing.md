@@ -64,7 +64,7 @@
 | 設定 | `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup: コンテナ起動＋`migrate deploy`、setup-env: 接続URL注入） |
 | 実行 | `pnpm test:integration` |
 | 対象 | DB系: `/api/conversations`（作成/一覧）・`[id]`（削除・cascade）・`[id]/messages`（保存/取得）・`[id]/messages/[messageId]`（置き換え）。外部系: `/api/chat`・`/api/models`（Ollamaをfetchスタブ） |
-| 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない） |
+| 実依存 | PostgreSQL を Testcontainers で使い捨て起動（開発DBに触れない）。イメージは pgvector の入った `pgvector/pgvector:0.8.6-pg16-trixie`（`docker-compose.yml`・CI の E2E と同じ版。RAG。#17） |
 | モック | 真の外部3rd-party（Ollama/Web）のみ手製fetchスタブ（`helpers/ollama-stub.ts`）。DB系はスタブ無し |
 | エラー契約 | Ollamaダウン→502・バリデーション→400 等を IT で決定的に検証（E2E の障害注入から移譲） |
 | 前提 | 生成クライアント（`src/generated/prisma/`）は gitignore のため `pnpm prisma generate` が必要。Docker が必要。CI の `integration-test` ジョブは Node 22（testcontainers が使う undici の `markAsUncloneable` は undici 6 系＝Node 22+ で追加された API のため）。ブラウザのツールの IT（#149）は実際の Chromium を使うため `pnpm exec playwright install chromium` が必要（CI も入れる） |
@@ -223,6 +223,11 @@ describe('機能名', () => {
 - 正常系: 入力欄の先頭の `/` で候補がショートカットの昇順に出て、Enter で本文が入る（送信しない・カーソルは末尾）。打った文字で絞り込み、↑↓ で選んで Tab で入れる。名前で探してクリックで入れる。管理画面（設定モーダルから・候補の「テンプレートを管理」から）で作成・編集・2 段階の削除をして候補に反映される。一覧が空なら候補の「例を追加」で 3 件を作る
 - 準正常系: 一致するものが無ければその旨を出し、Enter は送信する。文の途中の `/`・空白の後は候補を出さない。生成中の Escape は候補を閉じるだけで止めず、2 回目で止める。使われているショートカットは 409 のエラーを出して入力を残す。形の合わないショートカットでは保存できない
 - 異常系: 一覧の取得が 500 なら候補を出さず、入力欄はいつもどおり使える。保存が 500 ならエラーを出して入力を残す（`page.route` で通信の境界に注入）
+
+**RAG のドキュメント（`knowledge.spec.ts`、#17）**（実際の埋め込みのモデル `embeddinggemma:300m` で取り込む。開発の DB を使い、名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントには触らない））
+- 正常系: サイドバーの「ドキュメント」から選んだ 2 つのファイルを取り込み、一覧に大きさ・チャンクの数が出て、開き直しても残る。同じ名前で取り込むと 1 つのまま置き換わる。削除は 2 段階で確かめ（やめると残る）、消すと API の一覧からも消える
+- 準正常系: 取り込めない拡張子は送らずに理由を出し、残りのファイルは取り込む
+- 異常系: テキストでない中身は API の理由を出して取り込まない。取り込みの通信が 502 なら理由を出し、ダイアログは使えるまま（`page.route` で通信の境界に注入）
 
 **応答のブックマーク（`bookmarks.spec.ts`、#30）**（会話と応答は API で作るため Ollama を使わず、CI でも動く）
 - 正常系: 応答の下のボタンで付け、読み直しても残り、もう一度押すと外れる。一覧に新しい順で出て、キーワードで絞り込むと一致箇所が強調される。メモを書いて保存すると一覧に出て、メモの語でも見つかる。一覧から別の会話の応答へ移ると、その会話が開き、応答が画面に入って枠で示され、枠は短く出して消える
@@ -411,7 +416,10 @@ describe('機能名', () => {
   retries: 1,
   webServer: {
     command: 'pnpm dev',
-    env: { OLLAMA_MODEL: E2E_OLLAMA_MODEL }, // 既定 qwen2.5:0.5b
+    env: {
+      OLLAMA_MODEL: E2E_OLLAMA_MODEL, // 既定 qwen2.5:0.5b
+      OLLAMA_EMBED_MODEL: E2E_EMBED_MODEL, // embeddinggemma:300m（RAG。#17）
+    },
   },
 }
 ```
@@ -422,11 +430,11 @@ E2E は**ローカル・CI ともに軽量モデル `qwen2.5:0.5b`** で実行�
 
 | 項目 | 内容 |
 |------|------|
-| 定義 | `tests/e2e/helpers/model.ts`（`E2E_OLLAMA_MODEL` / `E2E_LIGHT_MODEL` / `IS_LIGHT_MODEL`） |
+| 定義 | `tests/e2e/helpers/model.ts`（`E2E_OLLAMA_MODEL` / `E2E_LIGHT_MODEL` / `IS_LIGHT_MODEL` / 埋め込みの `E2E_EMBED_MODEL`） |
 | 上書き | `E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e`（大モデルで全件） |
 | 渡し方 | `webServer.env` で dev サーバーの `OLLAMA_MODEL` に設定。Next.js は既存の環境変数を `.env.local` で上書きしないため、こちらが優先される。同じく `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`）を、`LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダを、`LOCAL_COMMANDS` に `node` を渡す（#148） |
-| 事前準備 | `ollama pull qwen2.5:0.5b` |
-| 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略）。あわせて `/api/diagrams/plantuml` で PlantUML サーバーに繋がるかを確かめ、繋がらなければ `docker compose up -d` の案内とともに止める（#171） |
+| 事前準備 | `ollama pull qwen2.5:0.5b`・`ollama pull embeddinggemma:300m`（埋め込み。アプリの既定と同じモデル。類似度のしきい値はこのモデルで測った値のため、小さい別のモデルにしない。#17） |
+| 開始前の検証 | `global-setup.ts` が `/api/models` を確認し、再利用した dev サーバーのモデルが異なる・モデル未取得なら開始前に止める（502 なら検証を省略）。あわせて `/api/diagrams/plantuml` で PlantUML サーバーに繋がるかを確かめ、繋がらなければ `docker compose up -d` の案内とともに止める（#171）。`/api/knowledge/documents` で、マイグレーションの適用・dev サーバーの埋め込みのモデル・その取得を確かめる（#17） |
 | 軽量モデルでのスキップ | ツール呼び出しに依存するテスト（`agent.spec.ts` 3 件・`agent-phase-c.spec.ts` 2 件）は `IS_LIGHT_MODEL` でスキップ |
 | 応答の完了待ち | `waitForResponseComplete`（`helpers/test-data.ts`）を使う。送信ボタンは入力欄が空だと有効にならないため、1 文字入力してから有効化を待つ（#115）。ローディング表示は最初のチャンクまでしか出ないので完了の判定には使えない |
 | 一瞬の状態の検証 | 軽量モデル（GPU）は応答が速く、ローディング表示が数十 ms で消える。送信後に待ち始める・Playwright のポーリングで待つと取りこぼすため、`chat-loading.spec.ts` は送信前に MutationObserver で監視を始める（`watchLoadingIndicator`） |
@@ -475,6 +483,7 @@ front/tests/
 │   ├── prompt-template.test.ts   # プロンプトテンプレートの候補を出す条件（先頭の `/`・空白・全角）・絞り込みの順・選択の移動・ショートカットの形・作成 / 置き換えのボディの検証（#28）
 │   ├── keyboard-shortcuts.test.ts # ショートカットキーの判定（Mac は ⌘・それ以外は Ctrl・修飾キーのちょうど一致・入力欄の ?・IME・モーダル・処理済み・押しっぱなし）・端末の表記・一覧の移る先（端で止まる・空の一覧・開いている会話が一覧に無いとき。#33）
 │   ├── conversation-fork.test.ts # 会話の分岐のタイトル（（分岐）を重ねない・100 文字・サロゲートペア・空白だけ）・ツールの画面の ID の書き換え（対応のある ID だけ・元を書き換えない・形の合わない要素を残す）・ボディの検証（#29）
+│   ├── knowledge.test.ts         # RAG のドキュメントのファイルの検証（拡張子・UTF-8・NUL・BOM・改行・空・名前・大きさ）・チャンクの分け方（見出しの経路・約 600 字のまとめ・コードブロック・長い段落とコードの分け方・飛ばした階層・閉じないコード）・embeddinggemma の前置き・pgvector の文字の形（#17）
 │   ├── bookmark.test.ts          # 応答のブックマークの一覧の抜粋（一致の前後・先頭の 120 文字・サロゲートペア）・空の q を許すクエリ・付ける / メモのボディの検証・表示への反映（そのメッセージを持つ会話だけ。#30）
 │   ├── approval-countdown.test.ts # 承認カードの残り時間（受け取った待ち時間からの期限・秒の切り上げ・残り 1 分の警告・時間切れ・不正な待ち時間。#202）
 │   ├── tool-approval.test.ts     # 承認待ちの決着（許可・拒否・時間切れ・停止。偽のタイマー）・edit_file の一致と CRLF・差分の行数・.git の判定・拒否の文章・承認の API のボディ（#148 Phase A2）
@@ -495,6 +504,7 @@ front/tests/
 │   ├── conversations.test.ts     # 作成/一覧（POST/GET。分岐元の forkedFrom を含む）
 │   ├── prompt-templates.test.ts  # /api/prompt-templates（一覧の順・作成・置き換え・削除・重複の 409・件数の上限・404・400・例の作成（空のときだけ・同時の 2 回）・DB 障害の 500）
 │   ├── conversation-fork.test.ts # /api/conversations/[id]/fork（その応答までのコピー・順序と createdAt・metadata・最後の応答からの全体のコピー・添付画像を新しい ID でコピーしツールの画面の ID を書き換える・ブックマークをコピーしない・（分岐）を重ねない・一覧 / 作成 / 役割の変更の forkedFrom・分岐元の削除で null・user のメッセージの 400・別の会話の応答と無い会話の 404・ID とボディの 400。#29）
+│   ├── knowledge-documents.test.ts # /api/knowledge/documents（取り込みとチャンク・埋め込みの次元・前置き・32 件ずつ・一覧の順と形・同じ名前の置き換え（ID と日時を保つ）・件数の上限（置き換えは数えない）・413（大きさ・Content-Length）・400（中身・拡張子・空・multipart でない）・502（モデルが無い・繋がらない・数が合わない）・途中の失敗で何も残らない・作り直し（needsRebuild・失敗で元が残る）・削除のカスケード・404・400。#17）
 │   ├── bookmarks.test.ts         # /api/bookmarks（付ける・二重の 409・user のメッセージの 400・404（作る間に消された外部キーの違反を含む）・一覧の並びとページ分け・メモ / 本文 / タイトルの検索と AND・% と _・メモの書き換えと null・外す・DB 障害の 500・メッセージ一覧の bookmark・会話の削除と再生成の置き換えで消える。#30）
 │   ├── conversations-search.test.ts # 会話検索（タイトル・本文・大文字と小文字・AND・並び順・0 件・% と _・ページ分け・抜粋・metadata は対象外・400）
 │   ├── conversation-delete.test.ts # 削除・cascade・UUID/404/500
@@ -525,7 +535,7 @@ front/tests/
     ├── helpers/
     │   ├── test-data.ts          # テストデータ管理ヘルパー（CRUD・入力支援）
     │   ├── long-answer.ts        # 長い応答を生成中にする（停止・再生成の検証用）
-    │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定）
+    │   ├── model.ts              # E2E のモデル解決（E2E_OLLAMA_MODEL・軽量モデル判定・埋め込みのモデル E2E_EMBED_MODEL）
     │   ├── local-files.ts        # E2E の LOCAL_FILE_ROOTS（fixtures/local-files のフォルダ。#148）
     │   ├── github.ts             # E2E の GITHUB_REPOS（架空のリポジトリ）・偽の gh のフォルダと応答（#148 Phase C）
     │   ├── browser.ts            # E2E の確認用のページのサーバー（BROWSER_LOCAL_ORIGINS に渡すオリジン・合言葉。#149）
@@ -564,6 +574,7 @@ front/tests/
     ├── github-tools.spec.ts       # GitHub のツール（一覧への登録・偽の gh で PR の一覧・コメントの承認カードと拒否・gh のエラー（大モデルのみ））
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
+    ├── knowledge.spec.ts          # RAG のドキュメント（ファイルを選んで取り込む・一覧の大きさとチャンクの数・同じ名前の置き換え・2 段階の削除・取り込めない拡張子・テキストでない中身・取り込みの通信の失敗）
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）
@@ -630,8 +641,8 @@ Quality・UT・IT ジョブは Ollama を必要とせず、E2E と独立に高�
 |------|-----|
 | ランナー | `ubuntu-latest` |
 | Node.js | 20 |
-| PostgreSQL | 16（service container） |
-| Ollama | `qwen2.5:0.5b`（思考モードなし、CPU only対応） |
+| PostgreSQL | 16 + pgvector（service container。`pgvector/pgvector:0.8.6-pg16-trixie`） |
+| Ollama | `qwen2.5:0.5b`（思考モードなし、CPU only対応）・埋め込みの `embeddinggemma:300m`（#17） |
 | ブラウザ | Chromium（headless） |
 
 ### ワークフロー概要
@@ -639,7 +650,7 @@ Quality・UT・IT ジョブは Ollama を必要とせず、E2E と独立に高�
 1. ディスク容量確保（不要SDK削除）
 2. 依存パッケージインストール（`pnpm install --frozen-lockfile`。lockfile と `package.json` がずれていれば失敗する）
 3. Playwrightブラウザインストール（Chromiumのみ）
-4. Ollama起動 + モデルダウンロード（`qwen2.5:0.5b`）
+4. Ollama起動 + モデルダウンロード（`qwen2.5:0.5b`・`embeddinggemma:300m`）
 5. PostgreSQL service containerで自動起動
 6. Prismaマイグレーション実行 + クライアント生成
 7. Next.jsビルド
