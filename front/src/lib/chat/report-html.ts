@@ -154,7 +154,7 @@ const HTML_COMMENT = /<!--[\s\S]*?-->/g;
  * @param value - 生の HTML
  * @returns コメントだけなら true
  */
-function isCommentOnly(value: string): boolean {
+export function isCommentOnly(value: string): boolean {
   return (
     value.includes('<!--') && value.replace(HTML_COMMENT, '').trim() === ''
   );

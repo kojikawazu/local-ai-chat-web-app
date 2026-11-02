@@ -1,4 +1,5 @@
 import type {
+  Nodes as MdastNodes,
   PhrasingContent,
   Root as MdastRoot,
   RootContent,
@@ -14,7 +15,7 @@ import {
   normalizeTitle,
   ROLE_HEADINGS,
 } from '@/lib/chat/export';
-import { diagramKey } from '@/lib/chat/report-html';
+import { diagramKey, isCommentOnly } from '@/lib/chat/report-html';
 import type { ReportImage, ReportInput } from '@/lib/chat/report-html';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
 
@@ -320,19 +321,45 @@ function toBlocks(nodes: RootContent[], diagrams: DiagramImages): DocBlock[] {
   });
 }
 
+/** {@link markdownToBlocks} の変換の指定。 */
+export type BlocksOptions = {
+  /**
+   * コメントだけの生の HTML（`<!-- … -->`）を出さない（PPTX のスライド。HTML スライドの `dropHtmlComments` と同じ）。
+   * 既定（false）は、ほかの生の HTML と同じく文字として出す
+   */
+  dropHtmlComments?: boolean;
+};
+
+/**
+ * mdast から、コメントだけの生の HTML のノード（ブロック・文の中の両方）を取り除く。
+ *
+ * @param node - 走査する親
+ */
+function removeHtmlComments(node: MdastNodes): void {
+  if (!('children' in node)) return;
+  // 子の型は親ごとに違うが、ノードを取り除くだけで別の型のノードは入れないため、受けた配列の型のまま戻せる
+  node.children = (node.children as MdastNodes[]).filter(
+    (child) => !(child.type === 'html' && isCommentOnly(child.value))
+  ) as typeof node.children;
+  node.children.forEach(removeHtmlComments);
+}
+
 /**
  * Markdown を文書のブロックにする。
  *
  * @param markdown - Markdown の本文
  * @param diagrams - 描けた図の画像（描けなかった図はコードブロックのまま）
+ * @param options - 変換の指定（既定はコメントも文字として出す）
  * @returns 文書のブロック
  */
 export function markdownToBlocks(
   markdown: string,
-  diagrams: DiagramImages
+  diagrams: DiagramImages,
+  options: BlocksOptions = {}
 ): DocBlock[] {
   const processor = unified().use(remarkParse).use(remarkGfm);
   const tree = processor.runSync(processor.parse(markdown)) as MdastRoot;
+  if (options.dropHtmlComments) removeHtmlComments(tree);
   return toBlocks(tree.children, diagrams);
 }
 

@@ -12,8 +12,8 @@ import {
 const MEDIA_FILE = /^word\/media\/[^/]+\.(?:png|jpe?g)$/;
 
 /**
- * HTML レポート・PDF・DOCX・HTML スライドの書き出しの E2E（#36。`docs/24-html-report-export.md`・
- * `docs/25-docx-export.md`・`docs/26-html-slides-export.md`）。
+ * HTML レポート・PDF・DOCX・HTML スライド・PPTX の書き出しの E2E（#36。`docs/24-html-report-export.md`・
+ * `docs/25-docx-export.md`・`docs/26-html-slides-export.md`・`docs/27-pptx-export.md`）。
  *
  * 会話は API で作る（Ollama を使わず、軽量モデル・CI でも動く）。Markdown の変換・安全策（生の HTML・危ない URL・
  * 外部の画像）・図と画像の埋め込みの組み立ては UT（report-html.test.ts）が担い、ここでは実際のブラウザで、
@@ -22,6 +22,8 @@ const MEDIA_FILE = /^word\/media\/[^/]+\.(?:png|jpe?g)$/;
  * 呼ばれたことと、印刷する文書（iframe の中）がレポートであることを確かめる。
  * スライドの分け方・安全策は UT（slides.test.ts・report-slides.test.ts）が担い、ここでは応答の「保存」から保存した
  * ファイルの中身と、そのファイルをブラウザで開いてキーで 1 枚ずつ進めること（scroll-snap）を見る。
+ * PPTX の割り付け（続きのスライド・図形の位置）は UT（pptx-layout.test.ts・report-pptx.test.ts）が担い、ここでは
+ * 実際のブラウザで pptxgenjs を読み込んで保存したファイルの中身（スライド・タイトル・図の画像）を見る。
  */
 
 const BASE_URL = 'http://localhost:3000';
@@ -610,6 +612,188 @@ test.describe('HTML スライドの書き出し', () => {
       expect(html).not.toMatch(/<script/i);
       expect(html).not.toContain('javascript:');
       expect(html).toContain('<a>押す</a>');
+    });
+  });
+});
+
+/** zip の中のスライドのファイル（`ppt/slides/slide3.xml`） */
+const PPTX_SLIDE_FILE = /^ppt\/slides\/slide(\d+)\.xml$/;
+
+/** zip の中の、埋め込んだ画像のファイル（PPTX） */
+const PPTX_MEDIA_FILE = /^ppt\/media\/[^/]+\.(?:png|jpe?g)$/;
+
+/** スライド番号の欄（各スライドに置かれる。中の文字は PowerPoint が番号に置き換える） */
+const PPTX_SLIDE_NUMBER_FIELD =
+  /<a:fld [^>]*type="slidenum"[^>]*>[\s\S]*?<\/a:fld>/g;
+
+/**
+ * 応答の「保存」のダイアログで PPTX を選び、保存されたファイルを受け取る。
+ *
+ * @param page - 対象のページ
+ * @returns ダウンロード
+ */
+async function savePptx(page: Page) {
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '応答を保存' });
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: /^PPTX/ }).click(),
+  ]);
+  return download;
+}
+
+/**
+ * 保存された PPTX を開き、スライドの XML（番号順）・スライドの関係（リンク先）・ファイル名の一覧を読む。
+ *
+ * @param download - ダウンロード
+ * @returns スライドの XML・関係の XML・zip の中のファイル名
+ */
+async function readPptx(download: Download) {
+  const zip = await JSZip.loadAsync(await readFile(await download.path()));
+  const files = Object.keys(zip.files);
+  const read = async (name: string) =>
+    (await zip.file(name)?.async('string')) ?? '';
+  const indexes = files
+    .flatMap((name) => {
+      const match = PPTX_SLIDE_FILE.exec(name);
+      return match ? [Number(match[1])] : [];
+    })
+    .sort((a, b) => a - b);
+  return {
+    files,
+    slides: await Promise.all(
+      indexes.map((i) => read(`ppt/slides/slide${i}.xml`))
+    ),
+    rels: await Promise.all(
+      indexes.map((i) => read(`ppt/slides/_rels/slide${i}.xml.rels`))
+    ),
+  };
+}
+
+/**
+ * スライドの XML の文字（`<a:t>`）を、現れた順に取り出す（スライド番号の欄は除く）。
+ *
+ * @param xml - スライドの XML
+ * @returns 文字の並び
+ */
+function pptxTexts(xml: string): string[] {
+  return [
+    ...xml
+      .replace(PPTX_SLIDE_NUMBER_FIELD, '')
+      .matchAll(/<a:t>([^<]*)<\/a:t>/g),
+  ].map((m) => m[1]);
+}
+
+test.describe('PPTX の書き出し', () => {
+  test.beforeEach(async ({ request }) => {
+    await cleanupAllConversations(request);
+  });
+
+  test.afterAll(async ({ request }) => {
+    await cleanupAllConversations(request);
+  });
+
+  test.describe('正常系', () => {
+    test('応答の「保存」で PPTX を選ぶと、区切り線ごとのスライドの PowerPoint のファイルが保存される', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request, SLIDES_ANSWER);
+      await openConversation(page);
+
+      const download = await savePptx(page);
+
+      expect(download.suggestedFilename()).toMatch(
+        /^レポートの会話_\d{4}-\d{2}-\d{2}_\d{4}\.pptx$/
+      );
+      const { slides } = await readPptx(download);
+      expect(slides).toHaveLength(3);
+      expect(pptxTexts(slides[0])).toEqual(['提案', '副題']);
+      expect(pptxTexts(slides[1])).toEqual(['背景', '1', '2']);
+      expect(pptxTexts(slides[2])).toEqual(['まとめ', '本文']);
+      // 各スライドのタイトルは PowerPoint のタイトルの位置に入る
+      expect(slides.every((xml) => xml.includes('type="title"'))).toBe(true);
+      // 応答 1 件なので、質問は入らない
+      expect(slides.join('')).not.toContain('この画像について教えて');
+      await expect(
+        page.getByRole('dialog', { name: '応答を保存' })
+      ).toBeHidden();
+    });
+
+    test('Mermaid の図は PNG で埋め込む', async ({ page, request }) => {
+      await createReportConversation(
+        request,
+        '## 図\n\n```mermaid\ngraph TD; A-->B\n```'
+      );
+      await openConversation(page);
+
+      const { files, slides } = await readPptx(await savePptx(page));
+
+      expect(files.filter((name) => PPTX_MEDIA_FILE.test(name))).toHaveLength(
+        1
+      );
+      expect(slides[0]).toContain('<p:pic>');
+      expect(slides[0]).not.toContain('graph TD');
+    });
+  });
+
+  test.describe('準正常系', () => {
+    test('会話の書き出しのダイアログには、PPTX を出さない', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(request, SLIDES_ANSWER);
+      await openConversation(page);
+
+      await page.getByRole('button', { name: '会話を書き出す' }).click();
+      const dialog = page.getByRole('dialog', { name: '会話を書き出す' });
+      await expect(dialog.getByRole('button', { name: /^DOCX/ })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: /^PPTX/ })).toHaveCount(
+        0
+      );
+    });
+
+    test('PlantUML の図を描けなければ、ソースの文字のまま（等幅で）PPTX に入れる', async ({
+      page,
+      request,
+    }) => {
+      await page.route('**/api/diagrams/plantuml', (route) =>
+        route.fulfill({ status: 502, json: { error: 'PlantUML の失敗' } })
+      );
+      await createReportConversation(
+        request,
+        '## 図\n\n```plantuml\n@startuml\nA -> B\n@enduml\n```'
+      );
+      await openConversation(page);
+
+      const { files, slides } = await readPptx(await savePptx(page));
+
+      expect(pptxTexts(slides[0])).toContain('@startuml');
+      expect(slides[0]).toContain('typeface="Consolas"');
+      expect(files.some((name) => PPTX_MEDIA_FILE.test(name))).toBe(false);
+    });
+  });
+
+  test.describe('異常系', () => {
+    test('応答の中の生の HTML・危ない URL は、PPTX でも文字のまま・リンクにしない', async ({
+      page,
+      request,
+    }) => {
+      await createReportConversation(
+        request,
+        '## A\n\n<script>alert(1)</script>\n\n[押す](javascript:alert(1))'
+      );
+      await openConversation(page);
+
+      const { slides, rels } = await readPptx(await savePptx(page));
+
+      expect(pptxTexts(slides[0])).toEqual(
+        expect.arrayContaining([
+          '&lt;script&gt;alert(1)&lt;/script&gt;',
+          '押す',
+        ])
+      );
+      expect(rels.join('')).not.toContain('javascript:');
     });
   });
 });
