@@ -6,6 +6,7 @@ import {
   FileJson,
   FileText,
   FileType,
+  GalleryHorizontal,
   Presentation,
   Printer,
 } from 'lucide-react';
@@ -82,6 +83,12 @@ const FORMAT_LABELS: Record<
       'ブラウザで開いて発表できるスライドで保存する（区切り線（---）か見出しで 1 枚ずつ分ける。↓・スペースで次へ）',
     icon: Presentation,
   },
+  pptx: {
+    name: 'PPTX',
+    description:
+      'PowerPoint で編集できるスライドで保存する（スライドの分け方は上と同じ。収まらない分は続きのスライドへ）',
+    icon: GalleryHorizontal,
+  },
   json: {
     name: 'JSON',
     description: 'バックアップとして、ツールの結果なども含めてすべて残す',
@@ -91,7 +98,7 @@ const FORMAT_LABELS: Record<
 
 /**
  * 対象ごとに選べる形式（表示順）。応答 1 件には JSON を出さない（会話のバックアップの形式のため）。
- * スライドは応答 1 件だけ（質問と応答が交互に並ぶ会話は発表の形にならないため。#36）。
+ * スライド・PPTX は応答 1 件だけ（質問と応答が交互に並ぶ会話は発表の形にならないため。#36）。
  *
  * @param target - 書き出す対象
  * @returns 形式の一覧
@@ -99,7 +106,7 @@ const FORMAT_LABELS: Record<
 function formatsOf(target: ExportTarget): ExportFormat[] {
   return target.kind === 'conversation'
     ? ['markdown', 'html', 'pdf', 'docx', 'json']
-    : ['markdown', 'html', 'pdf', 'docx', 'slides'];
+    : ['markdown', 'html', 'pdf', 'docx', 'slides', 'pptx'];
 }
 
 /**

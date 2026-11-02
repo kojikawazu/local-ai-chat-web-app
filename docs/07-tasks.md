@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-11-01
+> 最終更新: 2026-11-02
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1242,3 +1242,16 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 例のテンプレートに `/slides`（全体をコードブロックで囲まないよう本文で頼む。例は 4 件）
 - [x] UT（`slides.test.ts` 19 件・`report-slides.test.ts` 10 件）・IT（`prompt-templates.test.ts` の例の件数を 4 件に）・E2E（`report-export.spec.ts` に HTML スライドの 6 件。保存したファイルを `page.setContent` で開き、スペース・Page Down で次のスライドの上端に止まることを確かめる。`prompt-templates.spec.ts` の例の件数を 4 件に）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`20`・`24`・`25`・`26`・`README`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,documentation}.md`）
+
+## フェーズ58: PPTX の書き出し（#36 Phase D）
+
+応答を、PowerPoint で開いて編集・発表できる PPTX で保存する。設計は [27-pptx-export.md](./27-pptx-export.md)。 — #36・サブ issue #225（2026-11-02 着手）
+
+- [x] 設計（`docs/27-pptx-export.md`。ブラウザの中で作る・`pptxgenjs` 4.0.1 を PPTX を選んだときだけ読み込む・応答 1 件だけ・文書の中間の形 → `splitSlides`（HTML スライドと同じ分け方）→ 割り付け（純関数）→ pptxgenjs・先頭の見出しをスライドのタイトルに・収まらない分は続きのスライドへ（リストは項目、表は行、コードは行で分ける）・高さは文字数から見積もる・フッターはスライドマスター（会話のタイトルと PowerPoint のスライド番号）・図は PNG・添付画像とコードの色付けは入れない）
+- [x] 設計のレビュー（推奨どおり）
+- [x] pptxgenjs の導入（`pptxgenjs` 4.0.1。`pnpm build` でクライアントのバンドルが通り、`turbopack.resolveAlias` は要らなかった。`@types/node` の版の違いで型が衝突しないことを確かめた）・`markdownToBlocks` のコメントの指定（`dropHtmlComments`。判定は `report-html.ts` の `isCommentOnly` を公開して共有）
+- [x] スライドの割り付け（`lib/chat/pptx-layout.ts`。寸法・行の間隔・セルの余白は `constants/chat/pptx.ts`。行の間隔を pt で固定して見積もりと実際を揃え、表は見積もった行の高さを `rowH` に指定。番号付きは 1 つのリストに同じ `startAt`）
+- [x] 割り付け → PPTX（`lib/chat/report-pptx.ts`。スライドマスター（本文 / 表紙）にタイトルの位置・会話のタイトル・スライド番号）
+- [x] 応答の「保存」のダイアログに PPTX（`useReportExport`・`ExportDialog`。PPTX を選んだときだけ `import('pptxgenjs')`）
+- [x] UT（`pptx-layout.test.ts` 22 件・`report-pptx.test.ts` 13 件・`document-model.test.ts` に 2 件）・E2E（`report-export.spec.ts` に PPTX の 5 件）。IT は API・DB を変えないため対象なし。スライドを 1 枚ずつ Quick Look で描いて重なり・はみ出しを確かめた（PowerPoint・Keynote での目視はレビューで）
+- [x] ドキュメント（`docs/01`・`02`・`04`・`05`・`06`・`07`・`10`・`12`・`24`・`25`・`26`・`27`・`README`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{security,documentation}.md`）

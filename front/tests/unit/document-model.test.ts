@@ -192,6 +192,48 @@ describe('markdownToBlocks', () => {
     it('空の本文は空のブロック', () => {
       expect(markdownToBlocks('', NO_DIAGRAMS)).toEqual([]);
     });
+
+    it('コメントだけの生の HTML は、指定すれば出さない（ブロック・文の中とも。指定なしは文字のまま）', () => {
+      const markdown = '<!-- _class: lead -->\n\n前 <!-- メモ --> 後';
+      expect(
+        markdownToBlocks(markdown, NO_DIAGRAMS, { dropHtmlComments: true })
+      ).toEqual([
+        {
+          type: 'paragraph',
+          runs: [
+            { type: 'text', text: '前 ' },
+            { type: 'text', text: ' 後' },
+          ],
+        },
+      ]);
+      expect(markdownToBlocks(markdown, NO_DIAGRAMS)).toEqual([
+        {
+          type: 'paragraph',
+          runs: [{ type: 'text', text: '<!-- _class: lead -->' }],
+        },
+        {
+          type: 'paragraph',
+          runs: [
+            { type: 'text', text: '前 ' },
+            { type: 'text', text: '<!-- メモ -->' },
+            { type: 'text', text: ' 後' },
+          ],
+        },
+      ]);
+    });
+
+    it('コメントのほかに中身のある生の HTML は、指定しても文字として残す', () => {
+      expect(
+        markdownToBlocks('<!-- a --><b>x</b>', NO_DIAGRAMS, {
+          dropHtmlComments: true,
+        })
+      ).toEqual([
+        {
+          type: 'paragraph',
+          runs: [{ type: 'text', text: '<!-- a --><b>x</b>' }],
+        },
+      ]);
+    });
   });
 
   describe('異常系', () => {

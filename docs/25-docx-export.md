@@ -1,8 +1,8 @@
 # DOCX の書き出し 設計書
 
-> 最終更新: 2026-11-01
+> 最終更新: 2026-11-02
 
-応答・会話を、Word で開ける DOCX として保存できるようにするための設計（#36 の Phase C。サブ issue #221）。中身と安全策は HTML レポート（`docs/24-html-report-export.md`。#219）に揃える。HTML スライドは `26-html-slides-export.md`（#223）、PPTX は後のサブ issue。
+応答・会話を、Word で開ける DOCX として保存できるようにするための設計（#36 の Phase C。サブ issue #221）。中身と安全策は HTML レポート（`docs/24-html-report-export.md`。#219）に揃える。HTML スライドは `26-html-slides-export.md`（#223）、PPTX は `27-pptx-export.md`（#225）。
 
 ## 目次
 
@@ -27,7 +27,7 @@ HTML レポート・PDF で「読んでもらう」ことはできるように�
 |---|---|
 | 応答・会話の DOCX（見出し・段落・強調・リスト・表・コード・引用・区切り線・リンク） | コードの色付け |
 | 図（Mermaid・PlantUML を PNG にして埋め込む）・添付画像 | Word のテンプレート（スタイル）の選択 |
-| 書き出しのダイアログに DOCX を足す | HTML スライド・PPTX（後のサブ issue） |
+| 書き出しのダイアログに DOCX を足す | HTML スライド・PPTX（後のサブ issue。`26`・`27` の設計書） |
 
 ## 決めること（レビューの論点）
 
@@ -128,5 +128,5 @@ front/src/
 - コードの色付け
 - Word のテンプレート（スタイル）の選択・カスタマイズ
 - 目次・ページ番号・ヘッダー / フッター
-- HTML スライド・PPTX（後のサブ issue。中間の形を使い回す）
+- HTML スライド・PPTX（後のサブ issue。PPTX は中間の形を使い回す。`27-pptx-export.md`）
 - 思考過程・ツールの結果を入れること（HTML レポートと同じ）

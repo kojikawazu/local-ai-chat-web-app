@@ -1,6 +1,6 @@
 # セキュリティ要件書
 
-> 最終更新: 2026-11-01
+> 最終更新: 2026-11-02
 
 ## 目次
 
@@ -83,6 +83,7 @@
   - 図は SVG を `data:` URI の `<img>` で、添付画像は `data:image/png|jpeg;base64` の形のものだけを埋め込む。レポートにスクリプトは入れない
   - HTML スライド（#36 Phase B）は、HTML レポートと同じ変換（`renderMarkdown`）の要素の並びをスライドに分けて作る。ページ送りは CSS の scroll-snap で、スクリプトは入れない。コメントだけの生の HTML（Marp の指示）は文字にせず取り除く（HTML として出すわけではない）
   - DOCX（#36 Phase C）は、同じ Markdown の解釈・安全策（生の HTML は文字・危ない URL のリンクと本文の画像は外す）で文書の中間の形にしてから `docx` で作る。文字は `docx` が XML としてエスケープする
+  - PPTX（#36 Phase D）は、DOCX と同じ文書の中間の形から `pptxgenjs` で作る（ハイパーリンクは検査済みの URL だけ。文字は `pptxgenjs` が XML としてエスケープする）。`.pptx` はマクロを持てない形式で、スクリプトは入らない。コメントだけの生の HTML は HTML スライドと同じく取り除く
   - PDF は、同じ HTML をアプリと同じオリジンの `srcdoc` の iframe で開いて印刷する。iframe の文書はアプリの CSP を受け継ぐ（スクリプトが無く、`data:` の画像・インラインの CSS だけを使うため、CSP は変えない）
 
 ## Content Security Policy（CSP）

@@ -1,8 +1,8 @@
 # HTML レポートと PDF の書き出し 設計書
 
-> 最終更新: 2026-11-01
+> 最終更新: 2026-11-02
 
-応答・会話を、スタイル付きの 1 ファイルの HTML（レポート）として保存し、同じ HTML をブラウザの印刷で PDF にできるようにするための設計（#36 の Phase A・Phase E と、Phase F の書き出しの入口。サブ issue #219）。DOCX は `25-docx-export.md`（#221）、HTML スライドは `26-html-slides-export.md`（#223）、PPTX は後のサブ issue。
+応答・会話を、スタイル付きの 1 ファイルの HTML（レポート）として保存し、同じ HTML をブラウザの印刷で PDF にできるようにするための設計（#36 の Phase A・Phase E と、Phase F の書き出しの入口。サブ issue #219）。DOCX は `25-docx-export.md`（#221）、HTML スライドは `26-html-slides-export.md`（#223）、PPTX は `27-pptx-export.md`（#225）。
 
 ## 目次
 
@@ -37,7 +37,7 @@
 
 | 含める | 含めない（[やらないこと](#やらないこと)） |
 |---|---|
-| 応答・会話の HTML レポート（1 ファイル。画像・図・CSS を埋め込む） | HTML スライド・DOCX・PPTX（後のサブ issue） |
+| 応答・会話の HTML レポート（1 ファイル。画像・図・CSS を埋め込む） | HTML スライド・DOCX・PPTX（後のサブ issue。`26`・`25`・`27` の設計書） |
 | 同じ HTML をブラウザの印刷で PDF にする | サーバーでの PDF の生成（Chromium・puppeteer） |
 | 応答・会話の書き出しのダイアログに HTML・PDF を足す | レポートのテンプレートの選択・カスタマイズ |
 | 図（Mermaid・PlantUML）・添付画像の埋め込み | 書き出す前のプレビュー |
@@ -134,7 +134,7 @@ front/src/
 
 ## やらないこと
 
-- HTML スライド・DOCX・PPTX（#36 の後のサブ issue）
+- HTML スライド・DOCX・PPTX（#36 の後のサブ issue。`26-html-slides-export.md`・`25-docx-export.md`・`27-pptx-export.md`）
 - サーバーでの PDF の生成（Chromium・puppeteer）
 - レポートのテンプレートの選択・カスタマイズ・アプリのテーマに合わせた見た目
 - 書き出す前のプレビュー

@@ -9,6 +9,8 @@ import {
   renderDiagrams,
 } from '@/lib/chat/report-assets';
 import { buildDocx } from '@/lib/chat/report-docx';
+import { layoutPptx } from '@/lib/chat/pptx-layout';
+import { buildPptx } from '@/lib/chat/report-pptx';
 import type { ReportInput } from '@/lib/chat/report-html';
 import { buildReportHtml, collectDiagrams } from '@/lib/chat/report-html';
 import { buildSlidesHtml } from '@/lib/chat/report-slides';
@@ -18,9 +20,9 @@ import type { Message } from '@/types/chat/message';
 
 /**
  * レポートの形式。`html` はファイルに保存、`pdf` は同じ HTML をブラウザの印刷で開く、`docx` は Word のファイルに保存する、
- * `slides` は応答 1 件を HTML スライドで保存する（会話全体には使わない）
+ * `slides` は応答 1 件を HTML スライドで、`pptx` は応答 1 件を PowerPoint のファイルで保存する（この 2 つは会話全体には使わない）
  */
-export type ReportFormat = 'html' | 'pdf' | 'docx' | 'slides';
+export type ReportFormat = 'html' | 'pdf' | 'docx' | 'slides' | 'pptx';
 
 /** レポートの書き出しの指示。 */
 export type ReportExportRequest = {
@@ -48,13 +50,14 @@ const HTML_MIME = 'text/html;charset=utf-8';
 const EXPORT_ERROR_MESSAGE = 'レポートを書き出せませんでした';
 
 /**
- * 応答・会話を HTML のレポート・PDF・DOCX・HTML スライドにする（#36。`docs/24-html-report-export.md`・
- * `docs/25-docx-export.md`・`docs/26-html-slides-export.md`）。
+ * 応答・会話を HTML のレポート・PDF・DOCX・HTML スライド・PPTX にする（#36。`docs/24-html-report-export.md`・
+ * `docs/25-docx-export.md`・`docs/26-html-slides-export.md`・`docs/27-pptx-export.md`）。
  *
  * 流れ: 本文から図を拾う → 図を描く・添付画像を読む（`report-assets.ts`。形式で共通）→
  * `html` / `pdf` は HTML を組み立てて保存 / 印刷、`docx` は図を PNG にし、文書の中間の形から `import('docx')` で
  * DOCX を作って保存する（docx は大きいため、DOCX を選んだときだけ読み込む）。`slides` は応答 1 件（`messages` の先頭）の
- * 本文をスライドに分けて保存する（添付画像は入れない）。描けなかった図・読めなかった画像は
+ * 本文をスライドに分けて保存する（添付画像は入れない）。`pptx` は同じ分け方で割り付けを決め、図を PNG にして
+ * `import('pptxgenjs')` で PPTX を作る（pptxgenjs も PPTX を選んだときだけ読み込む）。描けなかった図・読めなかった画像は
  * ソース・注記にして書き出しを続け、組み立て・保存・印刷そのものに失敗したときだけ `error` に文言を入れる。
  *
  * @returns `isWorking` は書き出しの途中か、`error` は直前の失敗の文言（無ければ `null`）、
@@ -82,19 +85,35 @@ export function useReportExport() {
             ? request.messages[0].createdAt
             : request.exportedAt;
 
-        if (request.format === 'slides') {
+        if (request.format === 'slides' || request.format === 'pptx') {
           const [message] = request.messages;
           if (!message) throw new Error('No message to export as slides');
+          const slidesInput = {
+            title: request.title,
+            content: message.content,
+            interrupted: message.metadata?.interrupted === true,
+          };
+          if (request.format === 'pptx') {
+            const [{ default: PptxGenJS }, pngDiagrams] = await Promise.all([
+              import('pptxgenjs'),
+              diagramsToPng(diagrams),
+            ]);
+            const pres = buildPptx(
+              PptxGenJS,
+              layoutPptx(slidesInput, pngDiagrams)
+            );
+            // write の戻り値の型は出力の形ごとの和（string | ArrayBuffer | Blob | Uint8Array）。outputType に 'blob' を
+            // 渡したときは Blob を返す（pptxgenjs の README の記載どおり）ため、その形に絞る
+            const blob = (await pres.write({ outputType: 'blob' })) as Blob;
+            downloadBlob(
+              buildExportFileName(request.title, fileDate, 'pptx'),
+              blob
+            );
+            return true;
+          }
           downloadTextFile(
             buildExportFileName(request.title, fileDate, SLIDES_EXTENSION),
-            buildSlidesHtml(
-              {
-                title: request.title,
-                content: message.content,
-                interrupted: message.metadata?.interrupted === true,
-              },
-              diagrams
-            ),
+            buildSlidesHtml(slidesInput, diagrams),
             HTML_MIME
           );
           return true;
