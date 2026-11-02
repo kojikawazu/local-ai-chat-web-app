@@ -142,6 +142,24 @@ export const MAX_PROMPT_TEMPLATES = 100;
  */
 export const MAX_BOOKMARK_NOTE_LENGTH = 500;
 /**
+ * 取り込むドキュメント 1 つの最大バイト数（UTF-8。#17）。
+ *
+ * 取り込みは応答の中で埋め込みまで作るため、約 20 秒で終わる大きさにする（docs の 890 KB で 18 秒。`docs/28-rag.md`）。
+ */
+export const MAX_KNOWLEDGE_FILE_BYTES = 1024 * 1024;
+/**
+ * 取り込めるドキュメントの最大件数（#17）。
+ *
+ * 一覧をページに分けずに扱える数。
+ */
+export const MAX_KNOWLEDGE_DOCUMENTS = 200;
+/**
+ * ドキュメントの名前（ファイル名）の最大文字数（#17）。
+ *
+ * 一覧の 1 行に収まる長さ。
+ */
+export const MAX_KNOWLEDGE_DOCUMENT_NAME_LENGTH = 200;
+/**
  * ショートカットに使える形（#28）。英小文字・数字・`-`・`_` で、先頭は英小文字か数字。長さは別に見る。
  *
  * 日本語を許さないのは、日本語入力の `/` が全角の `／` になりやすく、`/翻訳` が打ちにくいため（日本語は名前で探せる）。

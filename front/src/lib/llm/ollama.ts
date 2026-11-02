@@ -1,5 +1,8 @@
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'qwen3.8:27b';
+// RAG のドキュメントの埋め込みのモデル（#17）。日本語の docs で比べていちばんよかったもの（docs/28-rag.md「前提の調査」）
+const OLLAMA_DEFAULT_EMBED_MODEL =
+  process.env.OLLAMA_EMBED_MODEL || 'embeddinggemma:300m';
 
 import type {
   OllamaToolDefinition,
@@ -280,4 +283,91 @@ export async function chatOnce(
 
   const data = await response.json();
   return data.message?.content ?? '';
+}
+
+/**
+ * 埋め込みのモデルが Ollama に無い（取得していない）ときに {@link embed} が投げるエラー（#17）。
+ *
+ * 画面に `ollama pull` を案内するため、ほかの失敗（接続できない等）と分ける。
+ */
+export class EmbeddingModelNotFoundError extends Error {
+  /**
+   * @param model - 見つからなかったモデル名
+   */
+  constructor(readonly model: string) {
+    super(`埋め込みのモデル（${model}）がありません`);
+    this.name = 'EmbeddingModelNotFoundError';
+  }
+}
+
+/**
+ * 環境変数 `OLLAMA_EMBED_MODEL` で決まる、埋め込みのモデル名を返す（#17）。
+ *
+ * @returns 埋め込みのモデル名（未設定時は `embeddinggemma:300m`）
+ */
+export function getEmbeddingModel(): string {
+  return OLLAMA_DEFAULT_EMBED_MODEL;
+}
+
+/**
+ * Ollama `/api/embed` で文の並びの埋め込みを作る（#17）。
+ *
+ * モデルは {@link getEmbeddingModel}。Ollama は長さ 1 に正規化したベクトルを返す。
+ * 返ってきた数・次元が送った文とそろっていなければ、壊れた応答として失敗にする（保存してから比べられないと分かるより早く止める）。
+ *
+ * @param texts - 埋め込みを作る文。空なら Ollama を呼ばずに空の配列を返す
+ * @param options - `signal`（中断の信号）
+ * @returns 文と同じ順の埋め込み
+ * @throws {EmbeddingModelNotFoundError} モデルが Ollama に無い場合
+ * @throws {Error} Ollama に接続できない・非 2xx（埋め込みに対応していないモデル等）・応答の形が違う場合
+ */
+export async function embed(
+  texts: string[],
+  options: { signal?: AbortSignal } = {}
+): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  const model = OLLAMA_DEFAULT_EMBED_MODEL;
+  const response = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, input: texts }),
+    signal: options.signal,
+  });
+
+  if (response.status === 404) {
+    throw new EmbeddingModelNotFoundError(model);
+  }
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Ollama API error (${response.status}): ${errorText}`);
+  }
+
+  const data: unknown = await response.json();
+  const embeddings =
+    typeof data === 'object' && data !== null && 'embeddings' in data
+      ? data.embeddings
+      : undefined;
+  if (!isEmbeddingList(embeddings) || embeddings.length !== texts.length) {
+    throw new Error('Ollama の埋め込みの応答の形が違います');
+  }
+  return embeddings;
+}
+
+/**
+ * 値が、同じ次元の数の配列の並びかを判定する（{@link embed} の応答の検証）。
+ *
+ * @param value - Ollama の応答の `embeddings`
+ * @returns すべての要素が 1 次元以上・同じ長さ・有限の数の配列なら true
+ */
+function isEmbeddingList(value: unknown): value is number[][] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  const first: unknown = value[0];
+  if (!Array.isArray(first) || first.length === 0) return false;
+  const dimension = first.length;
+  return value.every(
+    (vector: unknown) =>
+      Array.isArray(vector) &&
+      vector.length === dimension &&
+      vector.every((x: unknown) => typeof x === 'number' && Number.isFinite(x))
+  );
 }

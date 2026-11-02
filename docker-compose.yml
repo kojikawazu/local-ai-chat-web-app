@@ -1,6 +1,11 @@
 services:
   postgres:
-    image: postgres:16
+    # PostgreSQL 16 に pgvector（RAG のドキュメントの埋め込みの検索。#17）を足したイメージ。
+    # latest は破壊的に上がるため固定する。公開から 2 週間以上たった版を選ぶ。
+    # 既定のタグ（bookworm）は glibc が古く、postgres:16（trixie）で作ったデータの照合順序の版と
+    # 合わない（文字列の索引の並びがずれうる）ため、同じ trixie を選ぶ。
+    # CI の E2E（e2e-test.yml の services.postgres）・IT（Testcontainers）と同じ版にそろえる
+    image: pgvector/pgvector:0.8.6-pg16-trixie
     container_name: chat_db
     restart: unless-stopped
     environment:

@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-10-30
+> 最終更新: 2026-11-02
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -167,6 +167,13 @@ ollama pull gemma3:4b
 ollama pull qwen3.8:27b
 ```
 
+**RAG のドキュメントの埋め込みのモデル（必須・小型）:**
+
+```bash
+# サイドバーの「ドキュメント」で取り込む .md・.txt の埋め込みを作る（約 621MB。#17）
+ollama pull embeddinggemma:300m
+```
+
 > **注意**: `qwen3.8:27b` は **約18GB** あり、ダウンロードに時間がかかるうえ実行に **32GB以上のRAM/VRAM** を推奨します（読み込み時 約 17GB）。低スペック機では上の軽量モデルを使用してください。
 > `qwen3.8` は **Ollama 0.32.12 以上**が必要です（`ollama --version` で確認。0.40.5 で動作確認済み）。古い場合は Ollama を最新版に更新してください。各モデルの特徴は [`docs/models/`](../docs/models/README.md) を参照。
 > ダウンロード時間は回線速度・モデルサイズにより数分〜数十分かかります。
@@ -247,7 +254,7 @@ docker compose ps
 
 ```
 NAME           IMAGE                                 STATUS    PORTS
-chat_db        postgres:16                           Up ...    0.0.0.0:5499->5432/tcp
+chat_db        pgvector/pgvector:0.8.6-pg16-trixie   Up ...    0.0.0.0:5499->5432/tcp
 chat_searxng   searxng/searxng:2026.10.2-a5659a536   Up ...    127.0.0.1:8888->8080/tcp
 chat_plantuml  plantuml/plantuml-server:jetty-v1.2026.8   Up ...    127.0.0.1:8889->8080/tcp
 ```
@@ -274,6 +281,7 @@ pnpm install
 cat <<'EOF' > .env.local
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=gemma3:4b
+OLLAMA_EMBED_MODEL=embeddinggemma:300m
 DATABASE_URL=postgresql://postgres:postgres@localhost:5499/chat_db
 SEARXNG_URL=http://localhost:8888
 PLANTUML_URL=http://localhost:8889
@@ -407,6 +415,32 @@ docker compose up -d
 
 # ポートが別プロセスに使用されていないか確認
 lsof -i :5499
+```
+
+### ドキュメントを取り込めない（埋め込みのモデルがない）
+
+サイドバーの「ドキュメント」でファイルを取り込むと「埋め込みのモデル（embeddinggemma:300m）がありません」と表示される場合は、埋め込みのモデルを取得していません。
+
+**対処法:**
+
+```bash
+ollama pull embeddinggemma:300m
+```
+
+`OLLAMA_EMBED_MODEL` を別のモデルにしている場合は、そのモデルを取得してください。モデルを替えると、前のモデルで取り込んだドキュメントに「作り直しが要る」と出ます。一覧の「作り直す」で今のモデルの埋め込みにしてください。
+
+### 更新後に `/api/knowledge/documents` が 500 になる（pgvector がない）
+
+RAG（#17）から、DB のイメージが `postgres:16` から pgvector の入った `pgvector/pgvector:0.8.6-pg16-trixie` に替わりました。古いコンテナのままだとマイグレーションの `CREATE EXTENSION vector` が失敗します。
+
+**対処法:**
+
+```bash
+# プロジェクトルートで、新しいイメージでコンテナを作り直す（データのボリュームはそのまま使われる）
+docker compose up -d
+
+# front/ でマイグレーションを適用する
+cd front && pnpm prisma migrate dev
 ```
 
 ### Web検索の結果が返らない

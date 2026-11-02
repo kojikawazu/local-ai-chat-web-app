@@ -34,7 +34,7 @@ globs:
 | 技術スタック・コマンド・環境変数の変更 | `CLAUDE.md`（技術スタック / コマンド / 環境変数節）、`README.md` |
 | DB スキーマ・Prisma 構成の変更 | `.claude/rules/database.md`、`CLAUDE.md`（必要に応じて） |
 | セットアップ手順の変更 | `manuals/setup-guide-macos.md`、`README.md` |
-| 新規ドキュメントの追加 | `docs/`（次の連番 `28-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
+| 新規ドキュメントの追加 | `docs/`（次の連番 `29-`〜を付与）、`CLAUDE.md`（ドキュメント一覧、`docs/README.md` 索引） |
 
 該当する変更がない場合はスキップする。
 
@@ -44,6 +44,8 @@ globs:
 
 | 事実 | 正準（source of truth） | 転記されている箇所（要同期） |
 |---|---|---|
+| デフォルトの埋め込みのモデル名（RAG。#17） | `front/src/lib/llm/ollama.ts`（`OLLAMA_DEFAULT_EMBED_MODEL`） | `front/.env.example`、`front/tests/e2e/helpers/model.ts`（`E2E_EMBED_MODEL`）、`.github/workflows/e2e-test.yml`（`ollama pull`）、`CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`docs/06`、`manuals/setup-guide-macos.md` |
+| PostgreSQL（pgvector）のイメージの版 | `docker-compose.yml`（`postgres` の `image`） | `.github/workflows/e2e-test.yml`（`services.postgres`）、`front/tests/integration/helpers/global-setup.ts`（Testcontainers）、`CLAUDE.md`、`docs/06`、`.claude/rules/{database,testing}.md`、`manuals/setup-guide-macos.md` |
 | デフォルトLLMモデル名 | `front/src/lib/llm/ollama.ts`（`OLLAMA_DEFAULT_MODEL`） | `CLAUDE.md`、`README.md`、`README.en.md`、`docs/01`、`docs/02`、`docs/03`、`front/.env.example`、`manuals/setup-guide-macos.md`、`docs/models/README.md`（モデル一覧の役割）（※ `docs/07`・`docs/08` の履歴記述と `docs/models/` の各モデルのファイルは除く） |
 | Ollama 接続情報（ベース URL・モデル解決） | `front/src/lib/llm/ollama.ts` のみ | **転記先なし**。`process.env.OLLAMA_*` を読むのは同ファイルだけとし、Route Handler は `getDefaultModel()` / `streamChat()` / `chatOnce()` を経由する |
 | E2E テストファイル一覧 | `front/tests/e2e/*.spec.ts`（実体） | `docs/02`、`docs/04`、`docs/06` の3箇所のツリー |

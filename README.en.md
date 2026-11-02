@@ -35,6 +35,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Response bookmarks**: bookmark answers and jump back to them from a cross-conversation list with keyword search and notes
 - **Conversation forks**: "Fork from here" on an answer copies the exchange up to that point into a new conversation so you can take it in a different direction (with a link back to the source)
+- **Documents (RAG groundwork)**: import local `.md` / `.txt` files and store them with Ollama embeddings (`embeddinggemma:300m`) in pgvector ("Documents" in the sidebar; using them in conversations comes in the next update)
 - **HTML reports / PDF / DOCX / slides / PPTX**: save an answer or a conversation as a single HTML file or an editable Word (DOCX) file with diagrams and images embedded; the HTML report can also be opened in the print dialog to save it as PDF. An answer can also be saved as HTML slides (split by `---` or headings) that you can present straight from the browser, or as an editable PowerPoint (PPTX) file
 - **Keyboard shortcuts**: new conversation (⌘⇧O), search conversations (⌘K), toggle the sidebar (⌘B), focus the input (Shift+Esc), previous / next conversation (Ctrl+Shift+↑↓); ⌘/ shows the list (Ctrl on Windows / Linux)
 - **Theme switching**: Nordic Frost / Aurora Borealis / Midnight Ocean
@@ -51,7 +52,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 | Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid (HTML reports: unified + hast-util-to-html) |
 | Diff | diff (jsdiff, for the write-approval diff) |
 | LLM | Ollama (runs locally) |
-| DB | PostgreSQL 16 (Docker Compose) |
+| DB | PostgreSQL 16 + pgvector (Docker Compose) |
 | Web search | SearXNG (Docker Compose) |
 | Diagrams | mermaid, PlantUML server (Docker Compose) |
 | ORM | Prisma 7 |
@@ -66,6 +67,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 ```bash
 # 1. Pull an LLM model (a small model is recommended; the large default is ~48GB)
 ollama pull gemma3:4b
+ollama pull embeddinggemma:300m   # embeddings for RAG documents (about 621MB)
 
 # 2. Start PostgreSQL, SearXNG (web search) and PlantUML (diagrams) from the repo root
 docker compose up -d
@@ -86,6 +88,7 @@ Configured in `front/.env.local` (copy from `front/.env.example`):
 |------|-------------|---------|
 | `OLLAMA_BASE_URL` | Ollama API endpoint | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Model to use (**must match a model you pulled**) | `qwen3.8:27b` |
+| `OLLAMA_EMBED_MODEL` | Embedding model for RAG documents (changing it requires rebuilding imported documents) | `embeddinggemma:300m` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | Max tool-calling rounds in agent mode | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | Tool execution timeout (ms) | `30000` |
@@ -120,7 +123,8 @@ pnpm prisma studio   # open DB browser
 ```
 Browser -> Next.js Route Handlers -> Ollama API (localhost:11434)
                                    -> Agent Loop -> Tool Executor (datetime/calc/web-search/url-fetch/local-files)
-                                   -> Prisma ORM -> PostgreSQL (Docker)
+                                   -> Prisma ORM -> PostgreSQL + pgvector (Docker)
+                                   -> Ollama embeddings (document import)
 ```
 
 - The frontend never talks to Ollama directly (always via Route Handlers).

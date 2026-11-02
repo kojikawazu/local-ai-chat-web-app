@@ -31,7 +31,8 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | 差分 | diff（jsdiff。ファイルの書き込みの承認カードの unified diff） |
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
-| DB | PostgreSQL 16（Docker Compose） |
+| DB | PostgreSQL 16 + pgvector（Docker Compose。イメージ `pgvector/pgvector:0.8.6-pg16-trixie`） |
+| RAG | Ollama の埋め込み（既定 `embeddinggemma:300m`）+ pgvector（次元を決めない `vector` の列・索引なしで全件と比べる。#17） |
 | Web検索 | SearXNG（Docker Compose。`web_search` ツールの検索エンジン） |
 | 図の描画 | mermaid（ブラウザ内）・PlantUML サーバー（Docker Compose。`PLANTUML_SECURITY_PROFILE=SANDBOX`） |
 | ブラウザの操作 | playwright-core（エージェントのブラウザのツール。Chromium はヘッドレス。`@playwright/test` と同じ版に揃える） |
@@ -57,7 +58,7 @@ pnpm format:check    # Prettier 差分チェック（書き換えずに検出。
 pnpm typecheck       # tsc --noEmit による型チェック
 pnpm test:unit       # Vitest ユニットテスト全実行
 pnpm test:integration # Vitest+Testcontainers インテグレーションテスト（Docker必須）
-pnpm test:e2e        # Playwright E2Eテスト全実行（既定モデル qwen2.5:0.5b。要 `ollama pull qwen2.5:0.5b`）
+pnpm test:e2e        # Playwright E2Eテスト全実行（既定モデル qwen2.5:0.5b・埋め込み embeddinggemma:300m。要 `ollama pull` の両方）
 ```
 
 ルート直下の `Makefile` から上記コマンドを短縮実行できる（`make dev` / `make test` / `make db-up` 等）。`make` 単体でターゲット一覧を表示。Makefile は pnpm / docker compose の薄いラッパーであり、コマンドの正準は本節の pnpm スクリプトとする。
@@ -81,7 +82,7 @@ pnpm test:e2e tests/e2e/chat.spec.ts --headed      # ブラウザ表示付き実
 E2E_OLLAMA_MODEL=qwen3.8:27b pnpm test:e2e  # 大モデルで実行（ツール呼び出し依存のテストも走る）
 ```
 
-E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、`playwright.config.ts` が dev サーバーへ `OLLAMA_MODEL` として渡す（`.env.local` の大モデルを読み込ませないため）。起動済みの `pnpm dev` を別モデルで再利用している場合・モデル未取得の場合は、開始前に `tests/e2e/helpers/global-setup.ts` が止める。
+E2E のモデルは `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`）で決まり、`playwright.config.ts` が dev サーバーへ `OLLAMA_MODEL` として渡す（`.env.local` の大モデルを読み込ませないため）。埋め込みのモデル（RAG。#17）はアプリの既定と同じ `embeddinggemma:300m` を `OLLAMA_EMBED_MODEL` として渡す。起動済みの `pnpm dev` を別モデルで再利用している場合・モデル未取得の場合は、開始前に `tests/e2e/helpers/global-setup.ts` が止める。
 
 ### DB関連
 
@@ -100,6 +101,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 |--------|------|-----------|
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用モデル | `qwen3.8:27b` |
+| `OLLAMA_EMBED_MODEL` | RAG のドキュメントの埋め込みのモデル（変えたら取り込んだドキュメントの作り直しが要る） | `embeddinggemma:300m` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
@@ -126,14 +128,15 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
                                   → Agent Loop → Tool Executor（ツール実行）→ SearXNG (Docker・Web検索)
                                                                           → gh (GitHub CLI) → GitHub（GitHub のツール）
                                                                           → Chromium（ブラウザのツール。アプリの中のプロキシで宛先を判定）
-                                  → Prisma ORM → PostgreSQL (Docker)
+                                  → Prisma ORM → PostgreSQL + pgvector (Docker)
+                                  → Ollama の埋め込み（/api/embed。RAG のドキュメントの取り込み）
                                   → PlantUML サーバー (Docker・図の描画)
 ```
 
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。RAG のドキュメント（KnowledgeDocument → KnowledgeChunk。#17）は会話とリレーションを持たず、チャンクの埋め込みは pgvector の `vector` の列に置く。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -166,6 +169,10 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/bookmarks` | 応答にブックマークを付ける（`messageId`。user のメッセージは 400・もう付いていれば 409） |
 | PATCH | `/api/bookmarks/[id]` | ブックマークのメモの書き換え（`note`。null・空白だけで消す。500 文字まで） |
 | DELETE | `/api/bookmarks/[id]` | ブックマークを外す |
+| GET | `/api/knowledge/documents` | RAG のドキュメントの一覧（名前の順。本文・埋め込みは含めない。今の埋め込みのモデルと、違うモデルで作ったものの `needsRebuild` 付き。#17） |
+| POST | `/api/knowledge/documents` | ドキュメントの取り込み（`multipart/form-data` の `file`。`.md`・`.markdown`・`.txt`・1 MB まで。応答の中で埋め込みまで作る。同じ名前は置き換え。大きすぎれば 413） |
+| DELETE | `/api/knowledge/documents/[id]` | ドキュメントの削除（チャンクもカスケードで消える） |
+| POST | `/api/knowledge/documents/[id]/rebuild` | 保存した本文から、今の埋め込みのモデルでチャンクを作り直す |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -180,7 +187,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`docs/`** — プロジェクトドキュメント（`docs/models/` は使用 LLM モデルの評価、`docs/diagrams/` は draw.io の構成図。正準は `architecture.drawio`）
 - **`manuals/`** — セットアップガイド等のマニュアル
 - **`front/`** — Next.jsアプリケーション本体（開発はここで行う）
-- **`docker-compose.yml`** — PostgreSQL・SearXNG（Web検索）・PlantUML（図の描画）のコンテナ定義（プロジェクトルート）
+- **`docker-compose.yml`** — PostgreSQL（pgvector 入り）・SearXNG（Web検索）・PlantUML（図の描画）のコンテナ定義（プロジェクトルート）
 - **`searxng/`** — SearXNG の設定（`settings.yml`。JSON API の有効化・Web 検索のエンジンの追加等。`docker-compose.yml` がマウントする）
 
 ### front/src/ ソースコード構成（層 → 機能）
@@ -197,6 +204,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/agent/approvals/[id]/` — ツールの実行前の承認（許可・拒否）
   - `api/prompt-templates/` — プロンプトテンプレートの CRUD（`[id]/`）・例の作成（`examples/`）
   - `api/bookmarks/` — 応答のブックマークの一覧・付ける・メモの書き換え・外す（`[id]/`）
+  - `api/knowledge/documents/` — RAG のドキュメントの一覧・取り込み・削除（`[id]/`）・作り直し（`[id]/rebuild/`）（#17）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
@@ -209,9 +217,10 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
   - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
   - `features/shortcut/` — ショートカットキー（organisms: ShortcutHelpDialog）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
+  - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem / organisms: KnowledgeDialog。#17）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`knowledge/file.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/useKnowledgeDocuments`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -219,16 +228,17 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
       - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。利用者へ見せる画面（操作の前・後、開いた後）は capture.ts で撮り、応答の保存で assistant の添付画像にする。#200。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
-  - `lib/llm/` — LLM との通信（ollama.ts, current-date.ts, metrics.ts）
+  - `lib/llm/` — LLM との通信（ollama.ts（埋め込みの `embed` も。#17）, current-date.ts, metrics.ts）
   - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts, document-model.ts, report-docx.ts, pptx-layout.ts, report-pptx.ts, report-assets.ts, slides.ts, report-slides.ts, slides-style.ts）
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
+  - `lib/knowledge/` — RAG のドキュメント（file.ts: ファイルの検証、chunk.ts: チャンクの分け方、embedding-text.ts: 埋め込みへ渡す文。#17）
   - `lib/shortcut/` — ショートカットキー（match.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
-  - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
@@ -240,6 +250,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **UT**: 外部I/O非依存の純ロジックを対象。外部I/Oのみモック・ビジネスロジックはモックしない。配置: `front/tests/unit/`
 - **IT**: route handler をブラウザ抜きで実PostgreSQL（Testcontainers）相手に検証。実依存（DB）は使い、mockは真の外部（Ollama/Web）のみ。配置: `front/tests/integration/`
 - **E2Eテスト必須**（Playwright）。実際のOllama + PostgreSQLに接続。配置: `front/tests/e2e/`
+- **pgvector のイメージ**: `docker-compose.yml`・CI の E2E（`services.postgres`）・IT（Testcontainers）で同じ `pgvector/pgvector:0.8.6-pg16-trixie` を使う（#17）
 - **3分類必須**: UT・IT・E2Eとも正常系・準正常系・異常系に分割。
 - **CI**: push/PR to main で自動実行。品質（`quality`: lint / format:check / typecheck）・UT（`unit-test`）・IT（`integration-test`）・E2E（`e2e-test`）は独立ジョブ。E2Eモデル: `qwen2.5:0.5b`（ローカル・CI 共通。`E2E_OLLAMA_MODEL` で上書き）。ワークフロー定義は Workflow Lint（`workflow-lint.yml`: actionlint・4 本の `on:` の一致検査）が、秘匿ファイルの追跡は Secret scan（`secret-scan.yml`）が常時検査
 - **CI 発火除外**: ドキュメントのみの変更（`docs/**`・`manuals/**`・`**.md`・`.claude/**`・`LICENSE`）では 4 本とも発火しない（`paths-ignore`。Workflow Lint・Secret scan は常時実行）
@@ -282,10 +293,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/25-docx-export.md` | DOCX の書き出し 設計書 |
 | `docs/26-html-slides-export.md` | HTML スライドの書き出し 設計書 |
 | `docs/27-pptx-export.md` | PPTX の書き出し 設計書 |
+| `docs/28-rag.md` | RAG（手元のドキュメントで答える） 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`28-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`29-`〜）を付与する。
 
 ## Instruction Shortcuts
 

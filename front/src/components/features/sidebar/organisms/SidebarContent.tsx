@@ -1,6 +1,13 @@
 'use client';
 
-import { Layout, Settings, Plus, History, Bookmark } from 'lucide-react';
+import {
+  Layout,
+  Settings,
+  Plus,
+  History,
+  Bookmark,
+  BookOpen,
+} from 'lucide-react';
 import type { Conversation } from '@/types/conversation/conversation';
 import ConversationSearch from './ConversationSearch';
 import ConversationListItem from '@/components/features/sidebar/molecules/ConversationListItem';
@@ -31,6 +38,8 @@ type SidebarContentProps = {
   onOpenSettings: () => void;
   /** ブックマークのボタン押下時に呼ばれる（一覧のダイアログを開く。#30） */
   onOpenBookmarks: () => void;
+  /** ドキュメントのボタン押下時に呼ばれる（RAG のドキュメントの管理のダイアログを開く。#17） */
+  onOpenKnowledge: () => void;
   /** 検索欄にフォーカスする要求（#33。⌘K・Ctrl+K）。`null` なら要求なし（`ConversationSearch` へ渡す） */
   searchFocusRequest?: number | null;
   /** 検索欄にフォーカスしたときに呼ばれる（呼び出し側が要求を消す） */
@@ -38,7 +47,7 @@ type SidebarContentProps = {
 };
 
 /**
- * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・ブックマークと設定のボタン）。
+ * サイドバーの中身（ロゴ・新規会話ボタン・会話履歴・ブックマークとドキュメントと設定のボタン）。
  *
  * 応答を生成中の会話には点滅する印を付ける。履歴の上の検索欄で会話を探せる（#11）。
  * 履歴の一覧は ↑↓・Home・End で行を移れる（#33）。
@@ -58,6 +67,7 @@ export default function SidebarContent({
   onDeleteConversation,
   onOpenSettings,
   onOpenBookmarks,
+  onOpenKnowledge,
   searchFocusRequest = null,
   onSearchFocused,
 }: SidebarContentProps) {
@@ -121,6 +131,9 @@ export default function SidebarContent({
         <div className="flex gap-2 justify-center">
           <IconButton label="ブックマークを開く" onClick={onOpenBookmarks}>
             <Bookmark size={20} />
+          </IconButton>
+          <IconButton label="ドキュメントを開く" onClick={onOpenKnowledge}>
+            <BookOpen size={20} />
           </IconButton>
           <IconButton label="設定を開く" onClick={onOpenSettings}>
             <Settings size={20} />

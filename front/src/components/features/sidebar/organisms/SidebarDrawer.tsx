@@ -39,6 +39,7 @@ export default function SidebarDrawer({
   onNewConversation,
   onOpenSettings,
   onOpenBookmarks,
+  onOpenKnowledge,
   ...contentProps
 }: SidebarDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -90,6 +91,10 @@ export default function SidebarDrawer({
           onOpenBookmarks={() => {
             onClose();
             onOpenBookmarks();
+          }}
+          onOpenKnowledge={() => {
+            onClose();
+            onOpenKnowledge();
           }}
         />
       </div>

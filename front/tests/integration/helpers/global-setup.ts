@@ -15,7 +15,10 @@ export default async function setup({
 }: {
   provide: (key: 'DATABASE_URL', value: string) => void;
 }) {
-  const container = await new PostgreSqlContainer('postgres:16').start();
+  // pgvector の入った PostgreSQL 16（RAG。#17）。docker-compose.yml・CI の E2E と同じ版にそろえる
+  const container = await new PostgreSqlContainer(
+    'pgvector/pgvector:0.8.6-pg16-trixie'
+  ).start();
   const url = container.getConnectionUri();
 
   // 使い捨て DB にスキーマを適用する。Prisma CLI は datasource に url が無くても

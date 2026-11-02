@@ -70,6 +70,9 @@ src/
 │       ├── bookmark/           # 応答のブックマーク（#30）
 │       │   ├── molecules/
 │       │   └── organisms/
+│       ├── knowledge/          # RAG のドキュメント（#17）
+│       │   ├── molecules/
+│       │   └── organisms/
 │       ├── shortcut/           # ショートカットキー（#33）
 │       │   └── organisms/
 │       └── settings/
@@ -184,12 +187,14 @@ src/
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した。`ExportDialog` は #36 で書き出す対象（`target`。会話全体 / 応答 1 件）を受けるようにし、HTML・PDF・DOCX の形式と、応答 1 件だけのスライド・PPTX の形式を足した。`ChatWindow` には #36 で応答の「Markdown で保存」を、形式を選ぶダイアログを開く「保存」（`onSaveMessage`）に替えた。`ChatWindow` には #30 で応答のブックマークのボタンと、移る先（`focusMessageId`）へのスクロールと枠を足した。#29 で応答の下の「ここから分岐」のボタン（`onFork`・`forkingMessageId`）を足した。`Header` には #29 で分岐元の会話へのリンク（`forkSourceTitle`・`onOpenForkSource`）を足した） | `features/chat/components/` |
 | `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる） | — |
-| `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |
+| `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した。#17 でドキュメントのボタン `onOpenKnowledge` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン。#29 で分岐した会話の先頭のアイコンを分岐の印にした）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した。#33 でショートカットの「一覧」ボタン `onOpenShortcuts` を足した） | `components/settings/` |
 | `prompt-template` | organisms | `PromptTemplateDialog`（#28 で追加。テンプレートの一覧・作成・編集・2 段階の削除・例の追加） | — |
 | `bookmark` | organisms | `BookmarkDialog`（#30 で追加。ブックマークの一覧・検索・さらに表示。一覧のフック `useBookmarks` を呼ぶ。行を押すと `onOpenBookmark`、外すと `onRemoved` で page に伝える） | — |
 | `bookmark` | molecules | `BookmarkListItem`（#30 で追加。1 件の表示・メモの編集・2 段階の外す） | — |
+| `knowledge` | organisms | `KnowledgeDialog`（#17 で追加。RAG のドキュメントの取り込み（ファイルの選択・ドロップ）・取り込み中と失敗のファイル・一覧。フック `useKnowledgeDocuments` を呼ぶ） | — |
+| `knowledge` | molecules | `KnowledgeDocumentItem`（#17 で追加。1 件の表示・作り直しが要る印と「作り直す」・2 段階の削除） | — |
 | `shortcut` | organisms | `ShortcutHelpDialog`（#33 で追加。ショートカットの一覧。定義（`constants/shortcut/shortcuts.ts`）から作り、開いている端末の表記で `<kbd>` に出す） | — |
 
 切り出した molecules の props:
@@ -206,6 +211,7 @@ src/
 | `MessageImages`（#6） | `images`（`MessageImage[]`）。高さ 120px のサムネイルを並べ、押すと `ImageZoomDialog` を開く（開閉は UI の状態として持つ）。`width` / `height` を渡して、読み込み前から枠を確保する |
 | `ImageZoomDialog`（#6） | `image`・`alt`（見出しにも使う）・`onClose`。共通の `Modal`（`wide`・背景のクリックで閉じる）に、収まる大きさで画像を出す。添付画像は縮小済みのため倍率の切り替えは置かない |
 | `BookmarkListItem`（#30） | `bookmark`（一覧の 1 件）・`terms`（強調するキーワード）・`isEditing`（メモの入力欄を開いているか。同時に 1 件だけなので呼び出し側が持つ）・`onStartEdit`・`onEndEdit`・`onSaveNote`・`onRemove`（失敗したら例外を投げる。行の下に出し、入力を残す）・`onOpen`（元の応答へ移る）。メモの入力中の値と、外す 2 段階（「外す」→「はい、外す / やめる」）は UI の状態として持つ |
+| `KnowledgeDocumentItem`（#17） | `document`（一覧の 1 件）・`isBusy`（作り直し・削除の途中。ボタンを押せなくし「処理中…」を出す）・`error`（作り直し・削除の失敗の理由）・`onRebuild`・`onDelete`（2 段階で確かめた後に呼ぶ）。削除の 2 段階（「削除」→「削除する / やめる」）は UI の状態として持つ |
 | `PromptTemplateSuggestions`（#28） | `listId`（入力欄の `aria-controls`・`aria-activedescendant` と揃える）・`matches`（絞り込んだ候補）・`hasTemplates`（無ければ「例を追加」、あれば「一致するものが無い」）・`activeIndex`・`onSelect`・`onManage`・`onAddExamples`。キー操作は `ChatBar` が受け、ここは描画と押したときの処理だけ。押しても入力欄のフォーカスを外さないよう `mousedown` の既定の動作を止める。テンプレートの型（`types/`）だけを受け取り、管理画面（`prompt-template` の部品）は import しない |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。

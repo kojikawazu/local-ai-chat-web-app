@@ -1,5 +1,5 @@
 import type { FullConfig } from '@playwright/test';
-import { E2E_OLLAMA_MODEL } from './model';
+import { E2E_EMBED_MODEL, E2E_OLLAMA_MODEL } from './model';
 
 /** `/api/models` の成功レスポンス。 */
 type ModelsResponse = {
@@ -24,6 +24,46 @@ function isModelsResponse(data: unknown): data is ModelsResponse {
     models.every((m) => typeof m === 'string') &&
     typeof defaultModel === 'string'
   );
+}
+
+/**
+ * dev サーバーが E2E の埋め込みのモデルで動いていて、そのモデルを取得済みかを確かめる（#17）。
+ *
+ * ドキュメントの E2E は実際の埋め込みのモデルで取り込む。取得し忘れると、取り込みのテストだけが 502 で落ちるため、
+ * 開始前に止めて取得の手順を示す。
+ *
+ * @param baseURL - dev サーバーのベース URL
+ * @param models - Ollama に取得済みのモデル名（`/api/models`）
+ * @throws {Error} 一覧の API が失敗した（マイグレーションの未適用等）、サーバーの埋め込みのモデルが違う、またはモデルが未取得の場合
+ */
+async function checkEmbeddingModel(
+  baseURL: string,
+  models: string[]
+): Promise<void> {
+  const res = await fetch(new URL('/api/knowledge/documents', baseURL));
+  if (!res.ok) {
+    throw new Error(
+      `[e2e] /api/knowledge/documents が ${res.status} を返しました。\`pnpm prisma migrate dev\` でマイグレーションを適用してください。`
+    );
+  }
+  const data: unknown = await res.json();
+  const embeddingModel =
+    typeof data === 'object' && data !== null && 'embeddingModel' in data
+      ? data.embeddingModel
+      : undefined;
+  if (embeddingModel !== E2E_EMBED_MODEL) {
+    throw new Error(
+      [
+        `[e2e] dev サーバーの埋め込みのモデルが ${String(embeddingModel)} です（E2E は ${E2E_EMBED_MODEL} を想定）。`,
+        '既に起動している pnpm dev が再利用されています。停止してから再実行してください。',
+      ].join('\n')
+    );
+  }
+  if (!models.includes(E2E_EMBED_MODEL)) {
+    throw new Error(
+      `[e2e] 埋め込みのモデル ${E2E_EMBED_MODEL} が Ollama にありません。\`ollama pull ${E2E_EMBED_MODEL}\` を実行してください。`
+    );
+  }
 }
 
 /** PlantUML サーバーに繋がるかを確かめるために描かせる、最小のソース */
@@ -64,12 +104,13 @@ async function checkPlantUml(baseURL: string): Promise<void> {
  *   `webServer.env` の指定が効かず、大モデルが読み込まれてメモリを逼迫させる（#110）。
  * - **モデルを取得していない**: チャット系テストがモデル未検出で一斉に失敗し、原因が分かりにくい。
  * - **PlantUML サーバーに繋がらない**: {@link checkPlantUml} を参照。
+ * - **埋め込みのモデルが違う・取得していない**: {@link checkEmbeddingModel} を参照（#17）。
  *
  * Ollama に接続できない（`/api/models` が 502）場合は検証を省略する。Ollama を使わないテスト
  * （会話管理・レスポンシブ等）は実行でき、Ollama 依存のテストは個別に失敗として現れるため。
  *
  * @param config - Playwright の設定（`baseURL` の取得に使う）
- * @throws {Error} サーバーのモデルが想定と異なる、モデルが未取得、または PlantUML サーバーに繋がらない場合
+ * @throws {Error} サーバーのモデル（チャット・埋め込み）が想定と異なる、モデルが未取得、または PlantUML サーバーに繋がらない場合
  */
 export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:3000';
@@ -103,4 +144,6 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
       `[e2e] モデル ${E2E_OLLAMA_MODEL} が Ollama にありません。\`ollama pull ${E2E_OLLAMA_MODEL}\` を実行してください。`
     );
   }
+
+  await checkEmbeddingModel(baseURL, data.models);
 }

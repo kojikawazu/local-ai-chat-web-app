@@ -83,6 +83,31 @@ model Bookmark {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// RAG で参照する、取り込んだドキュメント（#17）。会話とはリレーションを持たない
+model KnowledgeDocument {
+  id             String           @id @default(uuid())
+  name           String           @unique // ファイル名（同じ名前で取り込むと置き換える）
+  content        String // 取り込んだ本文（BOM を外し改行をそろえた後）。作り直しに使う
+  size           Int // 本文のバイト数（UTF-8）
+  embeddingModel String // チャンクの埋め込みを作ったモデル。今のモデルと違えば検索に使わない
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  chunks         KnowledgeChunk[]
+}
+
+// ドキュメントを分けた 1 つと、その埋め込み（#17）。id はアプリで作り $executeRaw で入れる
+model KnowledgeChunk {
+  id         String                @id
+  documentId String
+  document   KnowledgeDocument     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position   Int // ドキュメントの中の並び順（0 始まり）
+  heading    String // 見出しの経路（「範囲 > 含める」）。見出しの前なら空
+  content    String // 本文
+  embedding  Unsupported("vector") // 埋め込み（次元は決めない。索引も作らず全件と比べる）
+
+  @@index([documentId])
+}
 ```
 
 - 添付画像は DB（`bytea`）に置く（ファイルに置かない）。assistant の画像（ブラウザのツールの画面。#200）は `metadata.toolCalls[].screenshots` の ID で参照し、添付画像としては表示しない。会話の削除で Conversation → Message → Attachment とカスケード削除され、取り残しが出ないため。メッセージ一覧の取得では `data` を select しない（`docs/13-image-attachment.md`）。
@@ -99,10 +124,11 @@ model Bookmark {
 ## マイグレーション
 
 - `pnpm prisma migrate dev` で開発環境のマイグレーションを管理する。
-- マイグレーションファイルは手動で編集しない。
+- マイグレーションファイルは手動で編集しない。**例外**: Prisma が作らない PostgreSQL の拡張（pgvector の `CREATE EXTENSION IF NOT EXISTS vector`。#17）は、Prisma の公式の手順どおり `pnpm prisma migrate dev --create-only` で作ったマイグレーションの先頭に手で足してから適用する。適用済みのマイグレーションは編集しない。
+- **pgvector（#17）**: `vector` の列は `Unsupported("vector")` で宣言し、Prisma の `create` では書けないため `$executeRaw`・`$queryRaw`（タグ付きテンプレート・`Prisma.sql` / `Prisma.join`）で読み書きする（`lib/server/knowledge.ts`）。埋め込みは `'[0.1,…]'` の文字列をパラメータで渡して `::vector` にする。Prisma Studio は `KnowledgeChunk` を開けない。DB のイメージは `pgvector/pgvector:0.8.6-pg16-trixie`（`docker-compose.yml`・CI・Testcontainers で同じ版）。
 - DB 接続先: `postgresql://postgres:postgres@localhost:5499/chat_db`（ポート: 5499）
 
 ## クエリ
 
 - Prisma Client のパラメータバインディングを使用する。`$queryRaw` での文字列結合は禁止。
-- Conversation 削除時はメッセージ・添付画像・ブックマークも `onDelete: Cascade` でカスケード削除される。
+- Conversation 削除時はメッセージ・添付画像・ブックマークも `onDelete: Cascade` でカスケード削除される。KnowledgeDocument の削除ではチャンク（KnowledgeChunk）がカスケード削除される。

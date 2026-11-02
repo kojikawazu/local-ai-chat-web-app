@@ -37,6 +37,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 - **応答のブックマーク**: 応答に印を付け、会話をまたいだ一覧（キーワード検索・メモ）から元の会話のその応答へ戻る
 - **会話の分岐**: 応答の「ここから分岐」で、そこまでのやり取りを新しい会話にコピーして別の方向で続ける（分岐元へのリンク付き）
 - **HTML レポート・PDF・DOCX・スライド・PPTX**: 応答・会話を、図・画像を埋め込んだ 1 ファイルの HTML や、Word で編集できる DOCX で保存する。HTML のレポートは印刷の画面で開いて PDF にもできる。応答は、`---`・見出しで 1 枚ずつ分けた、ブラウザで開いて発表できる HTML スライドや、PowerPoint で編集できる PPTX にもできる
+- **ドキュメント（RAG の準備）**: 手元の `.md`・`.txt` を取り込み、Ollama の埋め込み（`embeddinggemma:300m`）と pgvector で保存・管理する（サイドバーの「ドキュメント」。会話での参照は次の更新で入る）
 - **ショートカットキー**: 新しい会話（⌘⇧O）・会話の検索（⌘K）・サイドバーの開閉（⌘B）・入力欄へのフォーカス（Shift+Esc）・前後の会話（Ctrl+Shift+↑↓）。⌘/ で一覧を表示
 - **テーマ切替**: Nordic Frost / Aurora Borealis / Midnight Ocean の3テーマ
 - **IME対応**: 日本語入力中のEnter確定で誤送信されない
@@ -52,7 +53,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 | Markdown | react-markdown + remark-gfm + rehype-highlight + mermaid（HTML レポートは unified + hast-util-to-html） |
 | 差分 | diff（jsdiff。書き込みの承認の差分） |
 | LLM | Ollama（ローカル実行） |
-| DB | PostgreSQL 16（Docker Compose） |
+| DB | PostgreSQL 16 + pgvector（Docker Compose） |
 | Web検索 | SearXNG（Docker Compose） |
 | 図の描画 | mermaid・PlantUML サーバー（Docker Compose） |
 | ORM | Prisma 7 |
@@ -67,6 +68,7 @@ Nordic Frostデザインシステムをベースとした、プライベート�
 ```bash
 # 1. LLMモデルを取得（軽量モデル推奨。大型のデフォルトは約48GB）
 ollama pull gemma3:4b
+ollama pull embeddinggemma:300m   # RAG のドキュメントの埋め込み（約 621MB）
 
 # 2. PostgreSQL・SearXNG（Web検索）・PlantUML（図の描画）を起動（プロジェクトルートで）
 docker compose up -d
@@ -87,6 +89,7 @@ pnpm dev                          # → http://localhost:3000
 |--------|------|-----------|
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用モデル（**実際に pull したモデル名に合わせる**） | `qwen3.8:27b` |
+| `OLLAMA_EMBED_MODEL` | RAG のドキュメントの埋め込みのモデル（変えたら取り込んだドキュメントの作り直しが要る） | `embeddinggemma:300m` |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントの最大ツール呼び出しラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
@@ -143,7 +146,8 @@ make db-migrate      # マイグレーション実行
 ブラウザ → Next.js Route Handlers → Ollama API (localhost:11434)
                                   → Agent Loop → Tool Executor（日時/計算/Web検索/URL取得/ローカルのファイル）
                                                    Web検索 → SearXNG (Docker)
-                                  → Prisma ORM → PostgreSQL (Docker)
+                                  → Prisma ORM → PostgreSQL + pgvector (Docker)
+                                  → Ollama の埋め込み（ドキュメントの取り込み）
                                   → PlantUML サーバー (Docker・図の描画)
 ```
 
