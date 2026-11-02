@@ -95,7 +95,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 ## 環境変数
 
-`front/.env.local` に設定:
+`front/.env.local` に設定する。Prisma の CLI（`pnpm prisma migrate dev` 等）も `front/prisma.config.ts` で同じ `.env.local` を読む（無い値だけ `.env` から足す。すでに環境変数にある値は上書きしない。#229）:
 
 | 変数名 | 説明 | デフォルト |
 |--------|------|-----------|
