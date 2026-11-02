@@ -1,6 +1,6 @@
 # PPTX の書き出し 設計書
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 
 応答を、PowerPoint で開いて編集・発表できる PPTX として保存できるようにするための設計（#36 の Phase D。サブ issue #225）。スライドの分け方は HTML スライド（`docs/26-html-slides-export.md`。#223）の `lib/chat/slides.ts` を、Markdown の解釈と安全策は DOCX（`docs/25-docx-export.md`。#221）の文書の中間の形を使い回す。
 
@@ -109,6 +109,7 @@ HTML スライド（#223）で、応答をそのままブラウザで発表で�
 - **指定のオブジェクトの書き換え**: pptxgenjs は、渡した文字の片の `options` に図形の指定を写して書き換える。文字の片ごとに新しいオブジェクトを渡す。段落の書式（箇条書き・字下げ）は段落の先頭の片から取られ、段落は `breakLine` で分かれる。段落の中の改行は次の片の `softBreakBefore`。
 - **記号**: タスクの `☐` / `☑` は箇条書きの記号（`characterCode`）にする（記号なしの段落は字下げが 0 になり、入れ子を表せないため）。XML には `&#x2611;` の形で書かれる。
 - **書き出し**: ブラウザでは `write({ outputType: 'blob' })` で Blob にし、既存の `downloadBlob` で保存する（pptxgenjs の `writeFile` はダウンロードの仕方を自分で持つため使わない）。
+- **`image-size` の上書き（#231）**: pptxgenjs 4.0.1 は依存に `image-size` `^1.2.1` を持つが、配布のコード（`dist/*.js`）は読み込まない（使う関数がコメントアウトされ、`package.json` の `browser` でも `false`）。1.x に Dependabot の high の警告（GHSA-w3rx-r6r6-pgpr・GHSA-5p2g-fcmc-qvqq。2.0.3 で修正）があるため、`front/package.json` の `pnpm.overrides` で 2.0.3 より古い版を `^2.0.4` に上げている。pptxgenjs が `image-size` 2 以上を求める版に上げたら、この上書きを外す。
 - **型**: `lib/chat/report-pptx.ts` は pptxgenjs の型だけを import し、本体は呼び出し側から受け取る（DOCX の `report-docx.ts` と同じ）。
 
 ## 画面
