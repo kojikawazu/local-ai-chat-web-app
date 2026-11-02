@@ -313,6 +313,8 @@ pnpm prisma migrate dev
 `Enter a name for the new migration:` と聞かれた場合は `init` と入力してEnterを押してください。
 （既にマイグレーションファイルが存在する場合は自動的に適用されます）
 
+> Prisma の CLI も、アプリと同じ `front/.env.local` の `DATABASE_URL` に繋がります（`front/prisma.config.ts` が `.env.local` を先に読み、無い値だけを `.env` から足します）。
+
 ---
 
 ## 9. アプリケーションの起動
@@ -505,8 +507,8 @@ pnpm install
 # PostgreSQLが起動中か確認
 docker compose ps
 
-# .env.local のDATABASE_URLが正しいか確認
-cat .env.local
+# .env.local のDATABASE_URLが正しいか確認（ポートは 5499）
+grep DATABASE_URL .env.local
 
 # Prismaクライアントを再生成
 pnpm prisma generate
@@ -514,6 +516,8 @@ pnpm prisma generate
 # マイグレーションをリセット（データは削除されます）
 pnpm prisma migrate reset
 ```
+
+> 以前の手順で作った `front/.env` が残っていても、`.env.local` に `DATABASE_URL` があればそちらが使われます。`.env.local` に書いていない値だけが `.env` から読まれるため、古い値（以前のポート 5432 等）が混ざる場合は `front/.env` を消してください（`.env.local` と同じく Git の管理外です）。
 
 ### モデルのダウンロードが遅い・失敗する
 

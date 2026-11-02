@@ -697,6 +697,8 @@ model KnowledgeChunk {
 
 ## 環境変数
 
+`front/.env.local` に設定する。アプリ（Next.js）に加え、Prisma の CLI（`pnpm prisma migrate dev` 等）も `front/prisma.config.ts` で `.env.local` を読む（無い値だけ `.env` から足す。CI・IT が渡す環境変数の値は上書きしない。#229）。
+
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|
 | `OLLAMA_BASE_URL` | Ollama APIの接続先 | `http://localhost:11434` |

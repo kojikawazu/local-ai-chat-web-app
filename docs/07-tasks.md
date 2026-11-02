@@ -1269,3 +1269,11 @@ Ollama の応答の終わりのチャンクのメトリクスを集め、応答�
 - [x] 管理画面（サイドバーの「ドキュメント」・`KnowledgeDialog`・`KnowledgeDocumentItem`・`useKnowledgeDocuments`。設計のヘッダーからサイドバーのブックマークの隣に替えた）
 - [x] UT（`knowledge.test.ts` 30 件）・IT（`knowledge-documents.test.ts` 23 件。実 pgvector・`/api/embed` はスタブ）・E2E（`knowledge.spec.ts` 6 件。実際の `embeddinggemma:300m`。名前が `e2e-knowledge-` のドキュメントだけを作って消す）。`global-setup.ts` で埋め込みのモデルとマイグレーションを確かめる。画面は実際に取り込み・作り直しを操作して確かめた
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`28`・`README`・`diagrams/`（全体の図）、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,database,documentation,error-handling,github-actions,security,testing}.md`）
+
+## フェーズ60: Prisma の CLI が `.env.local` を読まない不具合の修正（#229）
+
+Prisma の CLI（`pnpm prisma migrate dev` 等）が `front/.env` だけを読み、セットアップガイドどおりに `front/.env.local` だけを作った環境ではマイグレーションできなかった。 — #229（2026-11-02 着手）
+
+- [x] `front/prisma.config.ts` で `.env.local` を先に、無い値だけを `.env` から読む（Next.js と同じ優先。すでに環境変数にある値は上書きしない。パスは設定のファイルの隣）
+- [x] 確認（`.env.local` だけで開発の DB（5499）に繋がる・別のフォルダから実行しても同じ・環境変数の `DATABASE_URL` が優先される・IT（`prisma migrate deploy`）が通る）。設定のファイルのため UT は対象なし
+- [x] ドキュメント（`docs/02`・`07`、`CLAUDE.md`、`manuals/setup-guide-macos.md`）
