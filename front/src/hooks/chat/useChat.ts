@@ -7,6 +7,7 @@ import type {
   Message,
   MessageImage,
   MessageSaveState,
+  ResponseInstruction,
 } from '@/types/chat/message';
 import type { PreparedImage } from '@/types/chat/attachment';
 import type { ResponseMetrics } from '@/types/chat/metrics';
@@ -50,6 +51,21 @@ import {
   updateChat,
 } from '@/lib/chat/chat-state';
 import { SAVE_MEMORY_TOOL_NAME } from '@/constants/knowledge/memory';
+
+/** 生成中のエージェントの応答 1 つの、途中の指示（#241）の状態。 */
+type ResponseInstructionsState = {
+  /** 応答のメッセージ ID */
+  messageId: string;
+  /** 送った指示（送った順。指示の API が受け付けたものだけ） */
+  instructions: ResponseInstruction[];
+  /** 指示の API の応答より先に届いた「読んだ」知らせ（指示の ID → 読んだ位置） */
+  appliedEarly: Map<
+    string,
+    Required<Pick<ResponseInstruction, 'contentOffset' | 'toolCallIndex'>>
+  >;
+  /** ここまでに始まったツールの数（指示を読んだ時点の、同じ位置のツールとの前後に使う） */
+  startedToolCalls: number;
+};
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
@@ -176,7 +192,9 @@ async function saveMessage(
  * @returns 表示中の会話のチャット状態と操作関数。`messages` はメッセージ一覧、`isLoading` は
  *   送信・応答生成中フラグ、`error` は直近のエラーメッセージ（無ければ `null`）、
  *   `activeToolCall` は実行中のツール呼び出し（無ければ `null`）、`pendingApprovals` は承認を待っている
- *   ツールの実行（#148 Phase A2）、`respondToApproval` はそれに許可か拒否かを返す関数、`generatingConversationIds` は
+ *   ツールの実行（#148 Phase A2）、`respondToApproval` はそれに許可か拒否かを返す関数、`responseId` は生成中のエージェントの
+ *   応答の ID（#241。途中の指示を送れるか）、`sendInstruction` は応答の途中に指示を送る関数（#241）、`restoredDraft` は
+ *   読まれずに終わった指示を入力欄に戻す文、`generatingConversationIds` は
  *   応答を生成中の会話 ID の一覧（表示中でない会話も含む）、`sendMessage` は
  *   本文と添付画像（#6。user メッセージと同じトランザクションで保存し、ID で LLM へ渡す）を送信して
  *   応答をストリーム受信する関数、`stopGeneration` は表示中の会話の生成中の応答を
@@ -200,10 +218,19 @@ export function useChat({
 }: UseChatOptions) {
   const [chats, setChats] = useState<ChatStates>({});
   const currentKey = chatKey(conversationId);
-  const { messages, isLoading, error, activeToolCall, pendingApprovals } =
-    getChat(chats, currentKey);
+  const {
+    messages,
+    isLoading,
+    error,
+    activeToolCall,
+    pendingApprovals,
+    responseId,
+    restoredDraft,
+  } = getChat(chats, currentKey);
   // 会話 ID → 生成中の応答の AbortController。停止は表示中の会話のものだけを中断する
   const abortControllersRef = useRef(new Map<string, AbortController>());
+  // 会話 ID → 生成中のエージェントの応答の途中の指示（#241）。指示の API と、応答のストリームの両方から更新する
+  const instructionsRef = useRef(new Map<string, ResponseInstructionsState>());
   // 保存に失敗したメッセージ ID → 再送内容。表示用の state とは分け、再試行時に参照する
   const pendingSavesRef = useRef(new Map<string, PendingSave>());
   // 削除した会話の ID。裏で続いていた生成の後始末が、消した会話の状態を作り直さないようにする
@@ -393,10 +420,38 @@ export function useChat({
     ) => {
       // 状態は送信した会話のものを更新する。表示中の会話が切り替わっても応答が届き続ける（#147）
       const convId = activeConversationId;
-      patchChat(convId, { error: null, isLoading: true, activeToolCall: null });
+      patchChat(convId, {
+        error: null,
+        isLoading: true,
+        activeToolCall: null,
+        responseId: null,
+      });
 
       // 再生成では旧応答の ID を引き継ぐ（DB 上の旧応答を同じ ID で置き換えるため）
       const aiMessageId = replacing?.id ?? crypto.randomUUID();
+      // この応答の途中の指示（#241）。指示の API（sendInstruction）も同じものを更新する
+      const responseInstructions: ResponseInstructionsState = {
+        messageId: aiMessageId,
+        instructions: [],
+        appliedEarly: new Map(),
+        startedToolCalls: 0,
+      };
+      instructionsRef.current.set(convId, responseInstructions);
+      // 途中の指示を、表示中の応答の metadata に写す
+      const showInstructions = () =>
+        setMessagesOf(convId, (prev) =>
+          prev.map((msg) =>
+            msg.id === aiMessageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    instructions: [...responseInstructions.instructions],
+                  },
+                }
+              : msg
+          )
+        );
       const aiMessage: Message = {
         id: aiMessageId,
         role: 'assistant',
@@ -478,6 +533,7 @@ export function useChat({
             interrupted,
             metrics,
             knowledgeSources,
+            instructions: responseInstructions.instructions,
           }),
           onSaved: generateTitle,
           replace: replacing !== undefined,
@@ -578,7 +634,29 @@ export function useChat({
                         : msg
                     )
                   );
+                } else if (event.type === 'response_started') {
+                  // 途中の指示（#241）を送れるようにする
+                  patchChat(convId, { responseId: event.responseId });
+                } else if (event.type === 'instruction_applied') {
+                  // 送った指示を、読んだ位置に並べる（指示の API の応答より先に届いたら、届いたときに当てる）
+                  const applied = {
+                    contentOffset: event.contentOffset,
+                    toolCallIndex: responseInstructions.startedToolCalls,
+                  };
+                  const sent = responseInstructions.instructions.find(
+                    (instruction) => instruction.id === event.instructionId
+                  );
+                  if (sent) {
+                    Object.assign(sent, applied, { pending: false });
+                    showInstructions();
+                  } else {
+                    responseInstructions.appliedEarly.set(
+                      event.instructionId,
+                      applied
+                    );
+                  }
                 } else if (event.type === 'tool_call_start') {
+                  responseInstructions.startedToolCalls++;
                   pendingToolArgs.set(event.callId, {
                     arguments: event.arguments,
                     contentOffset: event.contentOffset,
@@ -750,6 +828,7 @@ export function useChat({
                     agentDurationMs,
                     metrics,
                     knowledgeSources,
+                    instructions: responseInstructions.instructions,
                   });
                   setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
@@ -803,6 +882,7 @@ export function useChat({
             agentDurationMs,
             interrupted: true,
             knowledgeSources,
+            instructions: responseInstructions.instructions,
           });
           setMessagesOf(convId, (prev) =>
             prev.map((msg) =>
@@ -821,11 +901,22 @@ export function useChat({
         });
         discardResponse();
       } finally {
+        // 読まれずに終わった途中の指示（#241）は、入力欄に戻す（そのまま送り直せる）
+        const unread = responseInstructions.instructions
+          .filter((instruction) => instruction.contentOffset === undefined)
+          .map((instruction) => instruction.content);
+        if (instructionsRef.current.get(convId) === responseInstructions) {
+          instructionsRef.current.delete(convId);
+        }
         // 応答が終われば、答えていない承認も決着している（サーバーは停止・切断で取り消す）
         patchChat(convId, {
           isLoading: false,
           activeToolCall: null,
           pendingApprovals: [],
+          responseId: null,
+          ...(unread.length > 0 && {
+            restoredDraft: { id: Date.now(), text: unread.join('\n') },
+          }),
         });
         if (abortControllersRef.current.get(convId) === controller) {
           abortControllersRef.current.delete(convId);
@@ -1006,6 +1097,71 @@ export function useChat({
   );
 
   /**
+   * 表示中の会話の、生成中のエージェントの応答に、途中の指示を送る（割り込み。#241。`docs/30-agent-interrupt.md`）。
+   *
+   * 指示の API が受け付けたら、応答の下に「次の区切りで読みます」と出す。エージェントが読むと `instruction_applied` で
+   * 読んだ位置に並ぶ。応答の ID がまだ届いていない・API が失敗した（終わった応答・件数の上限）ときはエラーを出して false を返す
+   * （呼び出し側は入力欄に文を戻す）。
+   *
+   * @param content - 指示の本文
+   * @returns 受け付けられたら true
+   */
+  const sendInstruction = useCallback(
+    async (content: string): Promise<boolean> => {
+      const convId = currentKey;
+      const state = instructionsRef.current.get(convId);
+      const target = getChat(chats, convId).responseId;
+      if (!state || !target) {
+        patchChat(convId, {
+          error: '応答の準備中のため、まだ指示を送れません',
+        });
+        return false;
+      }
+      try {
+        const res = await fetch(`/api/agent/responses/${target}/instructions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            data.error || `指示を送れませんでした (${res.status})`
+          );
+        }
+        const id: string = data.instructionId;
+        const applied = state.appliedEarly.get(id);
+        state.instructions.push({
+          id,
+          content,
+          ...(applied ? applied : { pending: true }),
+        });
+        updateChatOf(convId, (chat) => ({
+          ...chat,
+          messages: chat.messages.map((msg) =>
+            msg.id === state.messageId
+              ? {
+                  ...msg,
+                  metadata: {
+                    ...msg.metadata,
+                    instructions: [...state.instructions],
+                  },
+                }
+              : msg
+          ),
+        }));
+        return true;
+      } catch (err) {
+        patchChat(convId, {
+          error: err instanceof Error ? err.message : '指示を送れませんでした',
+        });
+        return false;
+      }
+    },
+    [chats, currentKey, patchChat, updateChatOf]
+  );
+
+  /**
    * 承認を待っているツールの実行に、許可か拒否かを返す（#148 Phase A2）。
    *
    * 承認カードはすぐに消し、承認の API に送る。API が失敗した（時間切れで決着済み等）ときはエラーを出す。
@@ -1124,6 +1280,9 @@ export function useChat({
     regenerate,
     retrySave,
     respondToApproval,
+    responseId,
+    sendInstruction,
+    restoredDraft,
     clearMessages,
     loadMessages,
     discardConversation,

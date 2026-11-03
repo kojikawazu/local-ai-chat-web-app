@@ -19,6 +19,7 @@ import { buildAgentTimeline } from '@/lib/chat/agent-timeline';
 import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
 import type { ActiveToolCall } from '@/lib/chat/chat-state';
+import InstructionNote from '@/components/features/chat/molecules/InstructionNote';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
 import MessageImages from '@/components/features/chat/molecules/MessageImages';
 import ApprovalCard from '@/components/features/chat/molecules/ApprovalCard';
@@ -167,11 +168,22 @@ export default function ChatWindow({
       ) : (
         <>
           {messages.map((msg) => {
-            // ツールの呼び出しに本文の位置があれば、本文とツールの結果を時系列に並べる（#186）
+            // ツールの呼び出しに本文の位置があれば、本文とツールの結果を時系列に並べる（#186）。読まれた途中の指示も並べる（#241）
             const timeline =
               msg.role === 'assistant'
-                ? buildAgentTimeline(msg.content, msg.metadata?.toolCalls ?? [])
+                ? buildAgentTimeline(
+                    msg.content,
+                    msg.metadata?.toolCalls ?? [],
+                    msg.metadata?.instructions
+                  )
                 : null;
+            // まだ読まれていない・読まれなかった途中の指示（#241）は、応答の下に出す
+            const unreadInstructions =
+              msg.role === 'assistant'
+                ? (msg.metadata?.instructions ?? []).filter(
+                    (instruction) => instruction.contentOffset === undefined
+                  )
+                : [];
             // 吹き出しに出す本文。時系列のときは最後のツールの後の回答だけ
             const bubbleText = timeline ? timeline.answer : msg.content;
             // 生成中の最後の応答で、吹き出しの本文がまだ無い = 次の本文を待っている。
@@ -267,6 +279,18 @@ export default function ChatWindow({
                 )}
 
                 {!timeline && thinking}
+
+                {unreadInstructions.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {unreadInstructions.map((instruction, i) => (
+                      <InstructionNote
+                        key={instruction.id ?? i}
+                        content={instruction.content}
+                        state={instruction.pending ? 'pending' : 'unread'}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {!timeline &&
                   msg.role === 'assistant' &&

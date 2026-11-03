@@ -3,6 +3,7 @@
 import type { AgentTimelineStep } from '@/types/chat/agent-timeline';
 import MarkdownContent from './MarkdownContent';
 import { ToolCallResult } from './ToolCallResult';
+import InstructionNote from '@/components/features/chat/molecules/InstructionNote';
 
 /** {@link AgentSteps} の props。 */
 type AgentStepsProps = {
@@ -32,6 +33,9 @@ export default function AgentSteps({ steps, isStreaming }: AgentStepsProps) {
               size="compact"
             />
           </div>
+        ) : step.kind === 'instruction' ? (
+          // 応答の途中で利用者が送り、エージェントが読んだ指示（#241）。読んだ位置に並べる
+          <InstructionNote key={index} content={step.content} />
         ) : (
           <div key={index} className="space-y-1">
             {step.toolCalls.map((toolCall, callIndex) => (

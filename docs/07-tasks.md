@@ -1346,3 +1346,14 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] UT（`tool-call-progress.test.ts` に呼び出しの ID・順番待ち・中の手順、`sub-agent.test.ts` に `isBusy`）・IT（`chat-agent-sub-agent.test.ts` に中の手順の経過・順番待ち・並べて実行するツール、`chat-agent-approval.test.ts` に承認の依頼の ID）・E2E（`multi-agent.spec.ts` に 2 つ任せたときの順番待ちと中の手順。軽量モデルでスキップし、`qwen3.8:27b` で 7 件すべて通した）
 - [x] ドキュメント（`docs/02`・`03`・`06`・`07`・`09`・`12`・`29`、`CLAUDE.md`）
 
+## フェーズ67: 応答の途中で指示を割り込ませる（#241）
+
+エージェントモードの生成中に、入力欄から追加の指示を送り、エージェントが次の区切り（次の問い合わせの前）で読んで、作業を捨てずに方針を直して続ける。サブエージェントに任せている間に届いたら、ここまでの情報でまとめさせてメインに戻す。設計は [30-agent-interrupt.md](./30-agent-interrupt.md)。 — #241（2026-11-03 着手）
+
+- [x] 設計（`docs/30-agent-interrupt.md`。承認の待ち合わせ・呼び出しの ID・ラウンドの区切りを使う）・レビュー（本文を書き終えてから答え直す・サブエージェントはそこまででまとめて戻る・履歴では直前の質問に足す。ほかも推奨どおり）
+- [x] 受け箱（`lib/agent/instructions.ts`）と指示の API（`POST /api/agent/responses/[id]/instructions`。2,000 文字・1 応答 5 件・終わった応答は 404）
+- [x] ループでの反映（区切りで読む・本文を書き終えた後も続ける・サブエージェントのまとめ始め（`instructionSignal`・`limit: 'instruction'`））
+- [x] 画面（生成中の「割り込む」・`InstructionNote`・読んだ位置に並べる（`toolCallIndex`）・停止で入力欄に戻す）と保存・履歴（直前の質問に足す）
+- [x] 実際のモデル（`qwen3.8:27b`）で、調べものの途中に「日本語の出典だけ・3 行で」と割り込み、次の区切りで読まれて指示どおりに答えることを確かめた
+- [x] UT（`agent-interrupt.test.ts` 17 件）・IT（`chat-agent-instruction.test.ts` 7 件。`chat-agent.test.ts` のイベントの並びに `response_started`）・E2E（`agent-interrupt.spec.ts` 6 件。実際に割り込む 2 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`30`・`README.md`（索引）、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,error-handling,documentation}.md`）

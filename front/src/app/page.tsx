@@ -189,6 +189,9 @@ export default function Home() {
     regenerate,
     retrySave,
     respondToApproval,
+    responseId,
+    sendInstruction,
+    restoredDraft,
     clearMessages,
     loadMessages,
     discardConversation,
@@ -470,6 +473,10 @@ export default function Home() {
           disabled={isLoading}
           isGenerating={isLoading}
           onStop={stopGeneration}
+          // エージェントモードの生成中は、途中の指示を送れる（#241）
+          onInterrupt={enableTools ? sendInstruction : undefined}
+          canInterrupt={responseId !== null}
+          restoredDraft={restoredDraft}
           onAddImages={attachments.addFiles}
           images={attachments.images}
           preparingImageCount={attachments.preparingCount}

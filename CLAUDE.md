@@ -134,6 +134,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
                                   → Ollama の埋め込み（/api/embed。RAG のドキュメントの取り込み）
                                   → git（RAG の保管庫。既定のブランチを読むだけ）・手元のノートのフォルダ（KNOWLEDGE_VAULTS）
                                   → Agent Loop → save_memory（承認の後にメモの保管庫へ書き、git なら main にコミット。KNOWLEDGE_MEMORY_VAULT）
+                                  （/api/agent/responses/[id]/instructions → 応答の受け箱 → Agent Loop が次の区切りで読む。#241）
                                   → Agent Loop → delegate_to_agent → サブエージェントのループ（リサーチャー・手元の読み手。同じモデル・読むツールだけ・まとめた回答だけを返す。#26）
                                   → PlantUML サーバー (Docker・図の描画)
 ```
@@ -149,7 +150,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/enableSubAgents/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。enableSubAgents（エージェントモードのとき）なら調べもの・読みものをサブエージェントに任せる委譲のツールを渡し、委譲の記録を `tool_call_result` の `subAgent` で送る（#26）。ツールの呼び出しのイベントは呼び出しの ID（`callId`）を持ち、順番待ち（`queued`・`tool_call_begin`）とサブエージェントの中の手順（`sub_agent_step_*`）も送る（#26 Phase B）。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/enableSubAgents/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。enableSubAgents（エージェントモードのとき）なら調べもの・読みものをサブエージェントに任せる委譲のツールを渡し、委譲の記録を `tool_call_result` の `subAgent` で送る（#26）。エージェントモードの最初に応答の ID（`response_started`）を送り、途中の指示を区切りで読んだら `instruction_applied` を送る（#241）。ツールの呼び出しのイベントは呼び出しの ID（`callId`）を持ち、順番待ち（`queued`・`tool_call_begin`）とサブエージェントの中の手順（`sub_agent_step_*`）も送る（#26 Phase B）。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得（サブエージェントだけのツールは含めない。使えるサブエージェントの `subAgents` 付き。#26） |
 | GET | `/api/conversations` | 会話一覧取得（分岐元の `forkedFrom` 付き。#29） |
@@ -165,6 +166,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/diagrams/plantuml` | PlantUML のソースを PlantUML サーバーで SVG にして返す |
 | GET | `/api/attachments/[id]` | 添付画像の中身を返す |
 | POST | `/api/agent/approvals/[id]` | エージェントのツールの実行前の承認に、許可か拒否かを渡す（`approved`。#148 Phase A2） |
+| POST | `/api/agent/responses/[id]/instructions` | エージェントの応答の途中に、利用者の追加の指示を入れる（`content`。2,000 文字・1 応答 5 件まで。`[id]` はストリームの `response_started` の ID。次の区切りで読まれて `instruction_applied` が届く。終わった応答は 404。#241） |
 | GET | `/api/prompt-templates` | プロンプトテンプレートの一覧（ショートカットの昇順。#28） |
 | POST | `/api/prompt-templates` | テンプレートの作成（100 件まで。ショートカットの重複は 409） |
 | PUT | `/api/prompt-templates/[id]` | テンプレートの置き換え（名前・ショートカット・本文） |
@@ -211,6 +213,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/diagrams/plantuml/` — PlantUML の図の描画（PlantUML サーバーへ中継）
   - `api/attachments/[id]/` — 添付画像の取得
   - `api/agent/approvals/[id]/` — ツールの実行前の承認（許可・拒否）
+  - `api/agent/responses/[id]/instructions/` — 応答の途中の指示（割り込み。#241）
   - `api/prompt-templates/` — プロンプトテンプレートの CRUD（`[id]/`）・例の作成（`examples/`）
   - `api/bookmarks/` — 応答のブックマークの一覧・付ける・メモの書き換え・外す（`[id]/`）
   - `api/knowledge/documents/` — RAG のドキュメントの一覧・取り込み・削除（`[id]/`）・作り直し（`[id]/rebuild/`）（#17）
@@ -221,7 +224,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame, HighlightedText
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay, KnowledgeToggle, SubAgentToggle / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, KnowledgeSources, PromptTemplateSuggestions, SubAgentRunDetails / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay, KnowledgeToggle, SubAgentToggle / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, KnowledgeSources, PromptTemplateSuggestions, SubAgentRunDetails, InstructionNote / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
@@ -232,7 +235,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport,useElapsedSeconds}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability,useKnowledgeVaults}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
-  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts。サブエージェント（#26）は sub-agents.ts（定義・使えるものの判定・委譲の結果）と sub-agent-loop.ts（本文を集めるループ。ツールの実行は agent.ts の executeToolCall を共有））
+  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts, instructions.ts（応答の途中の指示の受け箱。globalThis。#241）。サブエージェント（#26）は sub-agents.ts（定義・使えるものの判定・委譲の結果）と sub-agent-loop.ts（本文を集めるループ。ツールの実行は agent.ts の executeToolCall を共有））
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
@@ -251,7 +254,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
   - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts, knowledge-vault-config.ts（`KNOWLEDGE_VAULTS`・検索で比べる範囲）, knowledge-vault.ts（保管庫の列挙（git / フォルダ）・同期）, knowledge-memory.ts（メモの書き込み・main へのコミット・索引への反映。#236））
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo/SubAgentRun、agent/sub-agent.ts: SUB_AGENT_NAMES/SubAgentName、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、knowledge/vault.ts: KnowledgeVaultItem/VaultSyncPlan/VaultSyncProgress、knowledge/memory.ts: MEMORY_TYPES/MemoryInput、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo/SubAgentRun、agent/sub-agent.ts: SUB_AGENT_NAMES/SubAgentName、chat/message.ts: Message/MessageImage/HistoryEntry/ResponseInstruction、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、knowledge/vault.ts: KnowledgeVaultItem/VaultSyncPlan/VaultSyncProgress、knowledge/memory.ts: MEMORY_TYPES/MemoryInput、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
@@ -308,10 +311,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/27-pptx-export.md` | PPTX の書き出し 設計書 |
 | `docs/28-rag.md` | RAG（手元のドキュメントで答える） 設計書 |
 | `docs/29-multi-agent.md` | マルチエージェント（サブエージェントに任せる） 設計書 |
+| `docs/30-agent-interrupt.md` | 応答の途中の指示（割り込み） 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`30-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`31-`〜）を付与する。
 
 ## Instruction Shortcuts
 

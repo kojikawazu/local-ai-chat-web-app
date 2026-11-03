@@ -8,10 +8,13 @@ import {
   useImperativeHandle,
   forwardRef,
 } from 'react';
-import { Send, Square } from 'lucide-react';
+import { CornerDownRight, Send, Square } from 'lucide-react';
 import type { MessageImage } from '@/types/chat/message';
 import type { PromptTemplate } from '@/types/prompt-template/prompt-template';
-import { MAX_MESSAGE_LENGTH } from '@/lib/shared/validation';
+import {
+  MAX_INSTRUCTION_LENGTH,
+  MAX_MESSAGE_LENGTH,
+} from '@/lib/shared/validation';
 import {
   filterTemplates,
   getSuggestionOptionId,
@@ -42,6 +45,15 @@ interface ChatBarProps {
   isGenerating?: boolean;
   /** 停止ボタン・Escape で呼ばれるコールバック。 */
   onStop?: () => void;
+  /**
+   * 生成中に、応答の途中の指示を送る（割り込み。#241）。受け付けられたら true を返す（false なら入力欄に文を戻す）。
+   * 省略時（通常のチャット）は、生成中は送れない
+   */
+  onInterrupt?: (content: string) => Promise<boolean>;
+  /** 途中の指示を送れる状態か（#241。応答の ID が届いた後）。省略時は送れない */
+  canInterrupt?: boolean;
+  /** 入力欄に戻す文（#241。読まれずに終わった指示）。`id` が替わるたびに入力欄へ足す */
+  restoredDraft?: { id: number; text: string } | null;
   /**
    * 画像を添付するときに呼ぶ（#6。添付ボタン・ドラッグ＆ドロップ・貼り付け）。添付するファイルを受け取る。
    * 省略時は添付ボタンを出さず、ドロップ・貼り付けのファイルも受けない。
@@ -103,6 +115,8 @@ interface ChatBarProps {
  * 一致する候補が無いときの Enter はいつもどおり送信する。
  * 添付のボタンの隣に、会話ごとの「ドキュメントを参照」の切り替え（#17 Phase B）を置く。
  * エージェントモードなら、その隣に「サブエージェントに任せる」の切り替え（#26。設定と同じ値）を置く。
+ * エージェントモードの生成中は、停止ボタンの隣に「割り込む」を出し、Enter で応答の途中の指示を送る（#241）。
+ * 受け付けられなければ文を入力欄に戻す。読まれずに応答が終わった指示（`restoredDraft`）も入力欄に戻す。
  * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
  *
  * @param props - 送信・停止のコールバックと、無効化・生成中のフラグを持つ props
@@ -114,6 +128,9 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
     disabled,
     isGenerating,
     onStop,
+    onInterrupt,
+    canInterrupt = false,
+    restoredDraft = null,
     onAddImages,
     images = [],
     preparingImageCount = 0,
@@ -129,6 +146,14 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
   ref
 ) {
   const [content, setContent] = useState('');
+  // 入力欄に戻した文（#241）の ID。新しい ID が届いたら、描画の中で一度だけ足す（effect で state を変えない）
+  const [restoredId, setRestoredId] = useState(restoredDraft?.id);
+  if (restoredDraft && restoredDraft.id !== restoredId) {
+    setRestoredId(restoredDraft.id);
+    setContent((prev) =>
+      prev ? `${prev}\n${restoredDraft.text}` : restoredDraft.text
+    );
+  }
   const [isDragging, setIsDragging] = useState(false);
   // Escape で候補を閉じたときの入力。書き換えるまで候補を出し直さない
   const [dismissedContent, setDismissedContent] = useState<string | null>(null);
@@ -154,6 +179,14 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
     (images.length > 0 && unsupportedImageModel !== null);
   const canSend =
     trimmed.length > 0 && !isOverLimit && !disabled && !isBlockedByImages;
+  // 生成中の途中の指示（#241）。画像は送らない（入力欄に残る）
+  const interrupting = isGenerating && onInterrupt !== undefined;
+  const isInstructionOverLimit = trimmed.length > MAX_INSTRUCTION_LENGTH;
+  const canSendInstruction =
+    interrupting &&
+    canInterrupt &&
+    trimmed.length > 0 &&
+    !isInstructionOverLimit;
 
   const templateQuery = templates ? getTemplateQuery(content) : null;
   const isSuggesting =
@@ -224,6 +257,16 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (interrupting) {
+      if (!canSendInstruction) return;
+      // 先に入力欄を空け、受け付けられなかったら文を戻す（打ち直させない）
+      const instruction = trimmed;
+      setContent('');
+      void onInterrupt(instruction).then((accepted) => {
+        if (!accepted) setContent((prev) => prev || instruction);
+      });
+      return;
+    }
     if (canSend) {
       onSendMessage(trimmed);
       setContent('');
@@ -365,6 +408,17 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
             />
 
             <div className="flex gap-2 pb-1 pl-1">
+              {interrupting && (
+                <IconButton
+                  label="割り込む"
+                  tone="primary"
+                  size="lg"
+                  type="submit"
+                  disabled={!canSendInstruction}
+                >
+                  <CornerDownRight size={20} />
+                </IconButton>
+              )}
               {isGenerating ? (
                 <IconButton
                   label="生成を停止"
@@ -388,6 +442,13 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
             </div>
           </form>
         </div>
+        {interrupting && isInstructionOverLimit && (
+          <p className="mt-2 text-xs text-nord-aurora-red text-right">
+            途中の指示は{MAX_INSTRUCTION_LENGTH.toLocaleString()}
+            文字以内で入力してください（現在: {trimmed.length.toLocaleString()}
+            文字）
+          </p>
+        )}
         {isOverLimit && (
           <p className="mt-2 text-xs text-nord-aurora-red text-right">
             メッセージは{MAX_MESSAGE_LENGTH.toLocaleString()}

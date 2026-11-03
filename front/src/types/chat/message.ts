@@ -60,6 +60,8 @@ export type Message = {
      * ドキュメントを参照しなかった応答は持たない
      */
     knowledgeSources?: KnowledgeSource[];
+    /** 応答の途中で利用者が送った指示（#241）。送っていない応答は持たない */
+    instructions?: ResponseInstruction[];
   } | null;
   /**
    * 保存に失敗したときだけ付く状態（{@link MessageSaveState}）。省略時は保存済み。
@@ -76,4 +78,24 @@ export type Message = {
 export type HistoryEntry = Pick<Message, 'role' | 'content'> & {
   /** そのメッセージの添付画像の ID（#6）。サーバーが DB から読んで LLM へ渡す。無ければ省略 */
   imageIds?: string[];
+};
+
+/**
+ * 応答の途中で利用者が送った指示（割り込み。#241。`docs/30-agent-interrupt.md`）。
+ *
+ * 保存するのは `content`・`contentOffset`・`toolCallIndex`・`unread`。`id`・`pending` は生成中の画面だけが持つ。
+ */
+export type ResponseInstruction = {
+  /** 指示の本文 */
+  content: string;
+  /** エージェントが読んだ時点の本文の文字数（時系列の位置）。読まれていなければ持たない */
+  contentOffset?: number;
+  /** エージェントが読んだ時点までに呼んだツールの数（同じ位置のツールとの前後を決める）。読まれていなければ持たない */
+  toolCallIndex?: number;
+  /** 読まれずに応答が終わった（停止・ラウンドの上限）なら true */
+  unread?: boolean;
+  /** 指示の ID（指示の API が返し、`instruction_applied` で当てる）。画面だけが持つ */
+  id?: string;
+  /** 送ったが、まだ読まれていないなら true。画面だけが持つ */
+  pending?: boolean;
 };

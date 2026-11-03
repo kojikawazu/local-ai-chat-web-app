@@ -90,10 +90,20 @@ export async function runSubAgent({
   };
   // まとめ始める時間（ラウンドの問い合わせと中のツールを止める）と、サブエージェント全体の時間の上限（最終回答も止める）。
   // 委譲のツールの時間の上限（withToolTimeout）より先に自分で止め、調べた分の記録を返す
+  // 利用者の途中の指示（#241）が届いたときも、まとめ始める（メインが次の区切りで指示を読む）
+  const instructionSignal = context.instructionSignal?.();
   const answerBy = AbortSignal.any([
     signal,
     AbortSignal.timeout(SUB_AGENT_ANSWER_BY_MS),
+    ...(instructionSignal ? [instructionSignal] : []),
   ]);
+  /**
+   * まとめ始めた理由を決める。
+   *
+   * @returns 届いた指示（`instruction`）か、時間（`time`）か
+   */
+  const answerByReason = (): 'instruction' | 'time' =>
+    instructionSignal?.aborted ? 'instruction' : 'time';
   const deadline = AbortSignal.any([
     signal,
     AbortSignal.timeout(SUB_AGENT_TIMEOUT_MS),
@@ -152,7 +162,7 @@ export async function runSubAgent({
   try {
     for (let round = 0; round < SUB_AGENT_MAX_ROUNDS; round++) {
       if (answerBy.aborted) {
-        limit = 'time';
+        limit = answerByReason();
         break;
       }
       let reply: Awaited<ReturnType<typeof ask>>;
@@ -161,7 +171,7 @@ export async function runSubAgent({
       } catch (error) {
         // まとめ始める時間で問い合わせを止めた。ここまでの履歴で答えさせる（この問い合わせは履歴に入れていない）
         if (!signal.aborted && answerBy.aborted) {
-          limit = 'time';
+          limit = answerByReason();
           break;
         }
         throw error;

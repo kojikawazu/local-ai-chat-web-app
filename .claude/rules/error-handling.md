@@ -6,7 +6,7 @@ globs:
 # エラーハンドリング
 
 - **バリデーション必須**: ユーザー入力・外部入力は必ずバリデーションする（フロントエンド + API 両方）。
-- **入力制限**: 上限値の定義は `lib/shared/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` / `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_BOOKMARK_NOTE_LENGTH` / `MAX_KNOWLEDGE_FILE_BYTES` / `MAX_KNOWLEDGE_DOCUMENTS` / `MAX_KNOWLEDGE_DOCUMENT_NAME_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
+- **入力制限**: 上限値の定義は `lib/shared/validation.ts` が唯一の正準（`MAX_MESSAGE_LENGTH` / `MAX_ASSISTANT_MESSAGE_LENGTH` / `MAX_TITLE_LENGTH` / `MAX_HISTORY_MESSAGES` / `MAX_SYSTEM_PROMPT_LENGTH` / `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` / `MAX_PROMPT_TEMPLATE_NAME_LENGTH` / `MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH` / `MAX_BOOKMARK_NOTE_LENGTH` / `MAX_INSTRUCTION_LENGTH` / `MAX_INSTRUCTIONS_PER_RESPONSE` / `MAX_KNOWLEDGE_FILE_BYTES` / `MAX_KNOWLEDGE_DOCUMENTS` / `MAX_KNOWLEDGE_DOCUMENT_NAME_LENGTH`、role 別の上限は `getMaxMessageLength`）。**フロントエンドと Route Handler は同じ定数を import して検証する**（値を再定義・直書きしない）。
 - **HTTP ステータスコード**: 適切なステータスコードで返す（400/401/403/404/409/413/500/502）。409 は一意制約の重複（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット。#28。応答のブックマーク。#30。RAG のドキュメントの同じ名前の同時の取り込み。#17）に使う。413 はボディが大きすぎるとき（RAG のドキュメントの取り込み。#17。`Content-Length` が上限を超えればボディを読まずに返す）に使う。502 は外部（Ollama・PlantUML サーバー）の失敗に使う。
 - **ログ**: エラー時はスタックトレースを含むログを出力する。センシティブ情報はログに含めない。
 - **ローカル利用のため**: エラー詳細をクライアントに返してよい（本番向けサービスでは要注意）。

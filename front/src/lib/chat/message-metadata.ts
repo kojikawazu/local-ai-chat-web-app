@@ -5,7 +5,7 @@ import type {
   ToolScreenshot,
 } from '@/types/agent/tool-call';
 import { isSubAgentName } from '@/lib/chat/tool-label';
-import type { Message } from '@/types/chat/message';
+import type { Message, ResponseInstruction } from '@/types/chat/message';
 import type { ResponseMetrics } from '@/types/chat/metrics';
 import type { KnowledgeSource } from '@/types/knowledge/document';
 import { isValidUUID } from '@/lib/shared/validation';
@@ -238,6 +238,52 @@ function parseSubAgentRun(value: unknown): SubAgentRun | undefined {
 }
 
 /**
+ * 途中の指示（#241）を保存の形にする。画面だけの印（ID・送信中）を外し、読まれていないものは「読まれなかった」にする
+ * （metadata を組み立てるのは応答が終わったとき。まだ読まれていなければ、もう読まれない）。
+ *
+ * @param instruction - 画面の指示
+ * @returns 保存する指示
+ */
+function toSavedInstruction(
+  instruction: ResponseInstruction
+): ResponseInstruction {
+  const read = instruction.contentOffset !== undefined;
+  return {
+    content: instruction.content,
+    ...(read && { contentOffset: instruction.contentOffset }),
+    ...(read &&
+      instruction.toolCallIndex !== undefined && {
+        toolCallIndex: instruction.toolCallIndex,
+      }),
+    ...(!read && { unread: true }),
+  };
+}
+
+/**
+ * 保存済みの途中の指示（#241）1 件を検証する。
+ *
+ * @param value - 保存済みの指示（外部入力）
+ * @returns 本文が空でない文字列なら指示（位置は 0 以上の整数のときだけ含める）、そうでなければ `null`
+ */
+function parseInstruction(value: unknown): ResponseInstruction | null {
+  if (!isRecord(value)) return null;
+  const { content, contentOffset, toolCallIndex, unread } = value;
+  if (typeof content !== 'string' || !content) return null;
+  const offset =
+    Number.isSafeInteger(contentOffset) && isNonNegativeNumber(contentOffset)
+      ? contentOffset
+      : undefined;
+  return {
+    content,
+    ...(offset !== undefined && { contentOffset: offset }),
+    ...(offset !== undefined &&
+      Number.isSafeInteger(toolCallIndex) &&
+      isNonNegativeNumber(toolCallIndex) && { toolCallIndex }),
+    ...((unread === true || offset === undefined) && { unread: true }),
+  };
+}
+
+/**
  * エージェント応答の付随情報から、表示と保存に使う metadata を組み立てる。
  *
  * 値のある項目だけを含める（空のツール呼び出し一覧・空の思考過程は含めない）。
@@ -266,6 +312,10 @@ export function buildMessageMetadata(
     ...(fields.knowledgeSources && {
       knowledgeSources: fields.knowledgeSources,
     }),
+    ...(fields.instructions &&
+      fields.instructions.length > 0 && {
+        instructions: fields.instructions.map(toSavedInstruction),
+      }),
   };
   return Object.keys(metadata).length > 0 ? metadata : null;
 }
@@ -289,6 +339,7 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
     interrupted,
     metrics,
     knowledgeSources,
+    instructions,
   } = value;
   return buildMessageMetadata({
     toolCalls: Array.isArray(toolCalls)
@@ -308,6 +359,15 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
       ? knowledgeSources
           .map(parseKnowledgeSource)
           .filter((source): source is KnowledgeSource => source !== null)
+      : undefined,
+    // 途中の指示（#241）は 1 件ずつ検証し、形の合わないものを捨てる
+    instructions: Array.isArray(instructions)
+      ? instructions
+          .map(parseInstruction)
+          .filter(
+            (instruction): instruction is ResponseInstruction =>
+              instruction !== null
+          )
       : undefined,
   });
 }

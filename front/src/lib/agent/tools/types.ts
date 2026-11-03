@@ -136,6 +136,13 @@ export type ToolContext = {
    * @param event - 送る経過（`callId` はループが付ける）
    */
   emit?: (event: ToolProgressEvent) => void;
+  /**
+   * 利用者の途中の指示（#241）が届いたら abort される signal を返す。ループが指示を読むたびに新しい signal に替わる。
+   * サブエージェントは、これを見て任せた仕事を早めにまとめる。指示を受け付けないループ（テスト等）では無い
+   *
+   * @returns 今の signal（受け箱が無ければ `undefined`）
+   */
+  instructionSignal?: () => AbortSignal | undefined;
 };
 
 /**
@@ -174,6 +181,8 @@ export type ToolProgressEvent =
  *   待ち時間の上限（`timeoutMs`）を載せ、画面は受け取った時刻から残り時間を数える（#202。時計のずれに左右されないよう、絶対時刻は送らない）。
  * - `knowledge_sources`: ドキュメントを参照する会話（#17 Phase B）で、探した結果の出典。ストリームの最初に 1 回だけ送る
  *   （通常・エージェントの両方）。空の配列は「探したが見つからなかった」。画面は応答のメタデータに写して保存する。
+ * - `response_started`: エージェントの応答の始めに 1 回だけ送る応答の ID（#241）。画面は途中の指示をこの ID の API へ送る。
+ * - `instruction_applied`: 利用者の途中の指示（#241）を、区切りで履歴に入れた。その時点の本文の文字数（`contentOffset`）を含む。
  * - `tool_call_begin`: 順番待ち（`tool_call_start` の `queued`）だったツールが動き始めた（#26 Phase B）。
  * - `sub_agent_step_start`・`sub_agent_step_result`: 委譲のツールの途中の経過（{@link ToolProgressEvent}。#26 Phase B）。
  *
@@ -192,6 +201,12 @@ export type AgentStreamEvent =
       queued?: boolean;
     }
   | { type: 'tool_call_begin'; callId: string }
+  | { type: 'response_started'; responseId: string }
+  | {
+      type: 'instruction_applied';
+      instructionId: string;
+      contentOffset: number;
+    }
   | ({ type: 'tool_call_result'; callId: string; name: string } & ToolOutput &
       Pick<ToolCallInfo, 'approval' | 'screenshots'>)
   | (ToolProgressEvent & { callId: string })
