@@ -11,7 +11,11 @@ import {
   E2E_BROWSER_FIXTURE_ORIGIN,
   E2E_BROWSER_FIXTURE_PORT,
 } from './tests/e2e/helpers/browser';
-import { E2E_VAULT_DIR } from './tests/e2e/helpers/knowledge-vault';
+import {
+  E2E_MEMORY_DIR,
+  E2E_MEMORY_VAULT_NAME,
+  E2E_VAULT_DIR,
+} from './tests/e2e/helpers/knowledge-vault';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -56,8 +60,10 @@ export default defineConfig({
         // ブラウザのツールは、確認用のページのサーバーだけを手元の開発サーバーとして開ける（#149）
         BROWSER_ENABLED: 'true',
         BROWSER_LOCAL_ORIGINS: E2E_BROWSER_FIXTURE_ORIGIN,
-        // RAG の保管庫は OS の一時フォルダの E2E 用のフォルダだけ（#235）。.env.local の保管庫（開発者のノート）を読ませない
-        KNOWLEDGE_VAULTS: E2E_VAULT_DIR,
+        // RAG の保管庫は OS の一時フォルダの E2E 用のフォルダだけ（#235）。.env.local の保管庫（開発者のノート）を読ませない。
+        // メモを書く保管庫（#236）も、一時フォルダの E2E 用のフォルダ（git でない）だけ
+        KNOWLEDGE_VAULTS: `${E2E_VAULT_DIR},${E2E_MEMORY_DIR}`,
+        KNOWLEDGE_MEMORY_VAULT: E2E_MEMORY_VAULT_NAME,
       },
     },
     {

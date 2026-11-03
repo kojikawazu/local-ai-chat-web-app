@@ -175,6 +175,28 @@ export type BrowserActionApprovalPreview = {
 };
 
 /**
+ * 会話から覚えさせたメモを書く前に、利用者へ見せる内容（#236。`docs/28-rag.md`「会話から覚えさせる（Phase D）」の D7）。
+ */
+export type MemoryApprovalPreview = {
+  /** 何をするか。常に `save-memory` */
+  action: 'save-memory';
+  /** 新しいメモか、同じ名前のメモの上書きか */
+  mode: 'create' | 'overwrite';
+  /** メモの保管庫の名前（`KNOWLEDGE_MEMORY_VAULT`） */
+  vault: string;
+  /** 保管庫の中のパス（`memories/<名前>.md`） */
+  path: string;
+  /** 書く中身の差分（unified diff。新規なら全体が追加の行） */
+  diff: string;
+  /** 追加する行数 */
+  added: number;
+  /** 削除する行数 */
+  removed: number;
+  /** 書いた後にコミットするブランチ（push はしない）。git でない保管庫なら `null`（書くだけ） */
+  branch: string | null;
+};
+
+/**
  * 実行前に承認を求めるときに、利用者へ見せる内容。何をするか（`action`）で形が決まる。
  */
 export type ApprovalPreview =
@@ -182,7 +204,8 @@ export type ApprovalPreview =
   | CommandApprovalPreview
   | GitHubCommentApprovalPreview
   | GitHubCreatePrApprovalPreview
-  | BrowserActionApprovalPreview;
+  | BrowserActionApprovalPreview
+  | MemoryApprovalPreview;
 
 /**
  * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。

@@ -295,6 +295,8 @@ EOF
 >
 > **任意**: 手元のノートのリポジトリ（Markdown のメモなど）を RAG の保管庫にする場合は、そのフォルダを `KNOWLEDGE_VAULTS` に絶対パス（カンマ区切り・`~` 可）で足します（例: `KNOWLEDGE_VAULTS=~/developer/my-knowledge-notes`）。サイドバーの「ドキュメント」の「保管庫」で「同期」を押すと、変わったファイルだけを取り込みます。git のリポジトリは、開いているブランチに関わらず既定のブランチ（main）のコミット済みの中身だけを読みます（`git fetch` はしないため、リモートの変更は `git pull` してから同期します）。`.claude/`・`CLAUDE.md` などのノートでないファイルは取り込みません（`docs/28-rag.md`「保管庫の同期」）。
 >
+> **任意**: 会話で「これ覚えておいて」と頼んだことをエージェントに書かせる場合は、メモ用のリポジトリ（例: `~/developer/my-chat-memory`。最初のコミットを作っておく）を `KNOWLEDGE_VAULTS` に足し、そのフォルダ名を `KNOWLEDGE_MEMORY_VAULT` に書きます（例: `KNOWLEDGE_MEMORY_VAULT=my-chat-memory`）。エージェントモードで頼むと、`memories/<名前>.md` に書く前に中身を見せて許可を求め、許可すると main にコミット（push はしない）して索引に入れます。メモのリポジトリは main をチェックアウトしておきます（`docs/28-rag.md`「会話から覚えさせる」）。
+>
 > **任意**: エージェントにローカルのファイルを探して読ませる場合は、読んでよいフォルダを `LOCAL_FILE_ROOTS` に絶対パス（カンマ区切り・`~` 可）で足します（例: `LOCAL_FILE_ROOTS=~/developer/my-project`）。未設定ならファイルのツールは使われません。プロジェクトのフォルダなど必要な範囲だけを指定してください（`docs/14-local-file-tools.md`）。
 >
 > **任意**: ファイルの作成・編集もさせる場合は、書いてよいフォルダを `LOCAL_FILE_WRITE_ROOTS` に足します（`LOCAL_FILE_ROOTS` の中だけ。例: `LOCAL_FILE_WRITE_ROOTS=~/developer/my-project`）。書き込みのたびに画面に差分が出て、許可するまで書かれません（`docs/15-tool-approval.md`）。

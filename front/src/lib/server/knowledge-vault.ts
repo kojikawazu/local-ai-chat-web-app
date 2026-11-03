@@ -72,13 +72,15 @@ export class VaultUnavailableError extends Error {
 /**
  * 保管庫の中で git を実行する（シェルを介さない。#235 の「セキュリティ」）。
  *
- * 渡す環境変数はコマンドの実行のツールと同じく絞る（`buildCommandEnv`）。読むだけのサブコマンドにだけ使う。
+ * 渡す環境変数はコマンドの実行のツールと同じく絞る（`buildCommandEnv`）。同期では読むだけのサブコマンドに使う。
+ * 書き込むサブコマンド（`add`・`commit`）は、メモの保管庫（#236。`lib/server/knowledge-memory.ts`）だけが決まった引数で使う。
  *
  * @param root - 保管庫のフォルダ
  * @param args - git の引数（`-C` の後ろ）
  * @returns 標準出力
+ * @throws {Error} git が 0 以外で終わった・時間の上限を超えた場合（`stderr` を持つ）
  */
-async function git(root: string, args: string[]): Promise<Buffer> {
+export async function git(root: string, args: string[]): Promise<Buffer> {
   const { stdout } = await execFileAsync('git', ['-C', root, ...args], {
     // Next.js は ProcessEnv の NODE_ENV を必須にしているが、git には要らない（渡す変数を絞るのが目的）。
     // 値はすべて文字列なので、実行時の形は ProcessEnv と同じ
@@ -172,7 +174,7 @@ function isGitFile(entry: { mode: string; type: string }): boolean {
  * @returns ブランチの名前と、そのコミットの ID
  * @throws {VaultUnavailableError} どのブランチも無い場合
  */
-async function resolveDefaultBranch(
+export async function resolveDefaultBranch(
   root: string
 ): Promise<{ branch: string; commit: string }> {
   const candidates: string[] = [];
@@ -332,6 +334,22 @@ function openFolderVault(root: string): OpenedVault {
 }
 
 /**
+ * 保管庫の最上位に `.git` があるか（git のリポジトリとして扱うか）を確かめる。
+ *
+ * @param root - 保管庫のフォルダ
+ * @returns `.git` があれば true
+ */
+export async function hasGitDir(root: string): Promise<boolean> {
+  try {
+    await lstat(path.join(root, '.git'));
+    return true;
+  } catch {
+    // .git が無い。フォルダとして扱う
+    return false;
+  }
+}
+
+/**
  * 保管庫を開く。最上位に `.git` があれば git のリポジトリとして、無ければフォルダとして開く。
  *
  * `.git` があるのに git を実行できないときは、作業ツリーを読まずに失敗させる（既定のブランチだけを読む約束を守るため）。
@@ -350,14 +368,7 @@ async function openVault(vault: VaultRoot): Promise<OpenedVault> {
       error
     );
   }
-  let hasGit = false;
-  try {
-    await lstat(path.join(vault.root, '.git'));
-    hasGit = true;
-  } catch {
-    // .git が無い。フォルダとして読む
-  }
-  if (!hasGit) return openFolderVault(vault.root);
+  if (!(await hasGitDir(vault.root))) return openFolderVault(vault.root);
   try {
     await git(vault.root, ['rev-parse', '--git-dir']);
   } catch (error) {

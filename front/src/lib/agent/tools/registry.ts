@@ -33,6 +33,8 @@ import { createBrowserScreenshotTool } from './browser/screenshot';
 import { createBrowserClickTool } from './browser/click';
 import { createBrowserTypeTool } from './browser/type';
 import { createBrowserSelectTool } from './browser/select';
+import { createSaveMemoryTool } from './memory/save-memory';
+import { getMemoryVault } from '@/lib/server/knowledge-vault-config';
 
 let initialized = false;
 
@@ -49,6 +51,8 @@ let initialized = false;
  * #148 Phase C）は、扱ってよいリポジトリ（`GITHUB_REPOS`）が 1 つ以上あるときだけ登録する。
  * ブラウザのツール（読み取りの `browser_navigate`・`browser_snapshot`・`browser_screenshot`。#149。操作の `browser_click`・`browser_type`・`browser_select`。#149 Phase C）は、`BROWSER_ENABLED=true` のときだけ登録する。
  * 手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` に書いたものだけを開ける（無ければ公開の Web だけ）。
+ * 会話から覚えさせたことをメモの保管庫に書く `save_memory`（実行前に承認が要る。#236）は、`KNOWLEDGE_MEMORY_VAULT` が
+ * `KNOWLEDGE_VAULTS` の保管庫の名前のときだけ登録する。
  * 2 回目以降の呼び出しは何もしない（`initialized` フラグで冪等性を保証）。
  * `/api/chat` と `/api/tools` の両方から呼ばれても登録は 1 回だけ行われる。
  */
@@ -108,4 +112,7 @@ export function initializeTools(): void {
     registerTool(createBrowserTypeTool(localOrigins));
     registerTool(createBrowserSelectTool(localOrigins));
   }
+
+  const memoryVault = getMemoryVault();
+  if (memoryVault) registerTool(createSaveMemoryTool(memoryVault));
 }

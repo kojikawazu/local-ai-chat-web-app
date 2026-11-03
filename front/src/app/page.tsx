@@ -202,6 +202,8 @@ export default function Home() {
     knowledgeEnabled,
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
+    // メモを保存したら、ドキュメントが無かった状態から「ドキュメントを参照」を入れられるようにする（#236）
+    onMemorySaved: knowledgeAvailability.refresh,
   });
 
   useEffect(() => {
