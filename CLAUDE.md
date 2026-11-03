@@ -136,7 +136,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。RAG のドキュメント（KnowledgeDocument → KnowledgeChunk。#17）は会話とリレーションを持たず、チャンクの埋め込みは pgvector の `vector` の列に置く。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。RAG のドキュメント（KnowledgeDocument → KnowledgeChunk。#17）は会話とリレーションを持たず、チャンクの埋め込みは pgvector の `vector` の列に置く。会話ごとの参照の切り替えは `Conversation.knowledgeEnabled`、応答の出典は Message の metadata（`knowledgeSources`）に写しを持つ（#17 Phase B）。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -144,15 +144,15 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/systemPrompt/imageIds指定可。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得 |
 | GET | `/api/conversations` | 会話一覧取得（分岐元の `forkedFrom` 付き。#29） |
 | GET | `/api/conversations/search` | 会話のキーワード検索（タイトル・本文。空白区切りの AND、20 件ずつ） |
-| POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt` を指定可） |
-| PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）の変更 |
+| POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt`・ドキュメントの参照 `knowledgeEnabled` を指定可） |
+| PATCH | `/api/conversations/[id]` | 会話の役割（システムプロンプト）・ドキュメントの参照（`knowledgeEnabled`。#17 Phase B）の変更（送った項目だけ変える） |
 | DELETE | `/api/conversations/[id]` | 会話削除（メッセージもカスケード削除。分岐した会話は残る） |
-| POST | `/api/conversations/[id]/fork` | 応答から会話を分岐する（`messageId`。その応答までを新しい会話にコピー。user のメッセージは 400。#29） |
+| POST | `/api/conversations/[id]/fork` | 応答から会話を分岐する（`messageId`。その応答までを新しい会話にコピー。役割・ドキュメントの参照は引き継ぐ。user のメッセージは 400。#29） |
 | GET | `/api/conversations/[id]/messages` | 会話のメッセージ一覧取得（添付画像の情報・付いているブックマークの ID 付き。中身は含めない） |
 | POST | `/api/conversations/[id]/messages` | メッセージ保存（クライアント採番の `id` を指定可。`attachments` は user の添付画像、assistant はブラウザのツールが撮った画面（#200）） |
 | PUT | `/api/conversations/[id]/messages/[messageId]` | 応答の置き換え（再生成。旧応答の画面は `attachments` に入れ替え、旧応答のブックマークは消す） |
@@ -211,7 +211,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame, HighlightedText
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, PromptTemplateSuggestions / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay, KnowledgeToggle / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, KnowledgeSources, PromptTemplateSuggestions / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
@@ -220,7 +220,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem / organisms: KnowledgeDialog。#17）
 - **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`knowledge/file.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/useKnowledgeDocuments`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -233,12 +233,12 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
-  - `lib/knowledge/` — RAG のドキュメント（file.ts: ファイルの検証、chunk.ts: チャンクの分け方、embedding-text.ts: 埋め込みへ渡す文。#17）
+  - `lib/knowledge/` — RAG のドキュメント（file.ts: ファイルの検証、chunk.ts: チャンクの分け方、embedding-text.ts: 埋め込みへ渡す文。#17。prompt.ts: 見つかったチャンク → システムプロンプトの節・出典。#17 Phase B）
   - `lib/shortcut/` — ショートカットキー（match.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
   - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts）
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 

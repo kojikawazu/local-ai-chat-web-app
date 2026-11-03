@@ -85,7 +85,7 @@ globs: "front/tests/**"
 - **モデル**: `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`。ローカル・CI 共通）を `webServer.env` で dev サーバーの `OLLAMA_MODEL` として渡す。定義は `tests/e2e/helpers/model.ts` のみ。
   - 理由: アプリ既定の大モデル（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫する（#110）。
   - **埋め込みのモデル**（RAG。#17）は、アプリの既定と同じ `embeddinggemma:300m`（`E2E_EMBED_MODEL`）を `OLLAMA_EMBED_MODEL` として渡す（類似度のしきい値はこのモデルで測った値のため、小さい別のモデルにしない）。`globalSetup` が取得済みか・再利用した dev サーバーのモデルが同じかを確かめる。
-  - **開発の DB の RAG のドキュメント**: 一覧の API は本文を返さず控えて戻せないため、`knowledge.spec.ts` は名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントに触らない）。
+  - **開発の DB の RAG のドキュメント**: 一覧の API は本文を返さず控えて戻せないため、`knowledge.spec.ts`・`knowledge-chat.spec.ts` は名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントに触らない）。会話での参照（#17 Phase B）の E2E は、開発の DB にほかのドキュメントがあっても通るよう、出典に自分のドキュメントが含まれることだけを見る。ドキュメントの有無で変わる切り替えの表示は、一覧の API を `page.route` で決める。
   - 大モデルで回す場合は `E2E_OLLAMA_MODEL=<model> pnpm test:e2e`。
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。

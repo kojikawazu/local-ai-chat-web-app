@@ -64,6 +64,8 @@ export type ChatBody = {
   enableTools: boolean;
   /** 先頭に付けるシステムプロンプト（会話の役割と、エージェントモードならそのプリセットを連結したもの） */
   systemPrompt?: string;
+  /** 登録したドキュメントから質問に近い部分を探して渡すか（RAG。#17 Phase B。未指定は false） */
+  knowledgeEnabled: boolean;
 };
 
 /** `POST /api/conversations` の検証済みボディ。 */
@@ -72,12 +74,16 @@ export type CreateConversationBody = {
   title: string;
   /** 前後の空白を除いた会話の役割（システムプロンプト）。未指定・空なら `null`（役割なし） */
   systemPrompt: string | null;
+  /** 登録したドキュメントを参照するか（#17 Phase B。未指定は false） */
+  knowledgeEnabled: boolean;
 };
 
-/** `PATCH /api/conversations/[id]` の検証済みボディ。 */
+/** `PATCH /api/conversations/[id]` の検証済みボディ。省いた項目は変えない（少なくとも 1 つはある）。 */
 export type UpdateConversationBody = {
-  /** 前後の空白を除いた会話の役割。`null`・空なら役割を外す */
-  systemPrompt: string | null;
+  /** 前後の空白を除いた会話の役割。`null`・空なら役割を外す。`undefined` は変えない */
+  systemPrompt?: string | null;
+  /** 登録したドキュメントを参照するか（#17 Phase B）。`undefined` は変えない */
+  knowledgeEnabled?: boolean;
 };
 
 /** `POST /api/conversations/[id]/messages` の検証済みボディ。 */
@@ -204,6 +210,24 @@ function parseOptionalString(
   if (value == null) return { ok: true, value: undefined };
   if (typeof value !== 'string') {
     return { ok: false, error: `${name}は文字列で指定してください` };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * 任意の真偽値のフィールドを検証する。
+ *
+ * @param value - フィールドの値
+ * @param name - エラーメッセージに出すフィールド名
+ * @returns 未指定（`undefined` / `null`）なら `value: undefined`、真偽値ならその値、それ以外は失敗
+ */
+function parseOptionalBoolean(
+  value: unknown,
+  name: string
+): ParseResult<boolean | undefined> {
+  if (value == null) return { ok: true, value: undefined };
+  if (typeof value !== 'boolean') {
+    return { ok: false, error: `${name}は真偽値で指定してください` };
   }
   return { ok: true, value };
 }
@@ -440,10 +464,14 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
   const model = parseOptionalString(body.model, 'model');
   if (!model.ok) return model;
 
-  const { enableTools } = body;
-  if (enableTools != null && typeof enableTools !== 'boolean') {
-    return { ok: false, error: 'enableToolsは真偽値で指定してください' };
-  }
+  const enableTools = parseOptionalBoolean(body.enableTools, 'enableTools');
+  if (!enableTools.ok) return enableTools;
+
+  const knowledgeEnabled = parseOptionalBoolean(
+    body.knowledgeEnabled,
+    'knowledgeEnabled'
+  );
+  if (!knowledgeEnabled.ok) return knowledgeEnabled;
 
   const systemPrompt = parseOptionalString(body.systemPrompt, 'systemPrompt');
   if (!systemPrompt.ok) return systemPrompt;
@@ -464,8 +492,9 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
       imageIds: imageIds.value,
       conversationHistory: history.value,
       model: model.value,
-      enableTools: enableTools ?? false,
+      enableTools: enableTools.value ?? false,
       systemPrompt: systemPrompt.value,
+      knowledgeEnabled: knowledgeEnabled.value ?? false,
     },
   };
 }
@@ -496,7 +525,7 @@ function parseConversationSystemPrompt(
  * `POST /api/conversations` のボディを検証する。
  *
  * @param body - {@link readJsonBody} で読み取った値（空ボディは `{}`）
- * @returns 検証済みのボディ（`title` 未指定・空白のみなら既定タイトル、`systemPrompt` 未指定・空白のみなら `null`）。オブジェクトでない・`title`/`systemPrompt` が文字列でない・上限超過なら失敗
+ * @returns 検証済みのボディ（`title` 未指定・空白のみなら既定タイトル、`systemPrompt` 未指定・空白のみなら `null`、`knowledgeEnabled` 未指定なら false）。オブジェクトでない・`title`/`systemPrompt` が文字列でない・`knowledgeEnabled` が真偽値でない・上限超過なら失敗
  */
 export function parseCreateConversationBody(
   body: unknown
@@ -517,36 +546,59 @@ export function parseCreateConversationBody(
   const systemPrompt = parseConversationSystemPrompt(body.systemPrompt);
   if (!systemPrompt.ok) return systemPrompt;
 
+  const knowledgeEnabled = parseOptionalBoolean(
+    body.knowledgeEnabled,
+    'knowledgeEnabled'
+  );
+  if (!knowledgeEnabled.ok) return knowledgeEnabled;
+
   return {
     ok: true,
-    value: { title: resolved, systemPrompt: systemPrompt.value },
+    value: {
+      title: resolved,
+      systemPrompt: systemPrompt.value,
+      knowledgeEnabled: knowledgeEnabled.value ?? false,
+    },
   };
 }
 
 /**
- * `PATCH /api/conversations/[id]` のボディを検証する（会話の役割の変更。#10）。
+ * `PATCH /api/conversations/[id]` のボディを検証する（会話の役割（#10）・ドキュメントの参照（#17 Phase B）の変更）。
  *
- * 変更できるのは役割だけ。`systemPrompt` キーの省略は「何も変えない」と「役割を外す」の
- * 区別が付かないため失敗にし、外すときは `null` か空文字を明示させる。
+ * 変えたい項目だけを送る。キーの無い項目は変えない。役割を外すときは `systemPrompt` に `null` か空文字を
+ * 明示させる（キーの省略は「変えない」）。どちらのキーも無ければ、何を変えるのか分からないため失敗にする。
  *
  * @param body - {@link readJsonBody} で読み取った値
- * @returns 検証済みのボディ（`null`・空白のみなら役割を外す `null`）。オブジェクトでない・`systemPrompt` キーが無い・文字列/`null` でない・上限超過なら失敗
+ * @returns 検証済みのボディ（`systemPrompt` は `null`・空白のみなら役割を外す `null`）。オブジェクトでない・`systemPrompt` と `knowledgeEnabled` のどちらのキーも無い・`systemPrompt` が文字列/`null` でない・`knowledgeEnabled` が真偽値でない・上限超過なら失敗
  */
 export function parseUpdateConversationBody(
   body: unknown
 ): ParseResult<UpdateConversationBody> {
   if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
-  if (!('systemPrompt' in body)) {
+  const hasSystemPrompt = 'systemPrompt' in body;
+  const hasKnowledgeEnabled = 'knowledgeEnabled' in body;
+  if (!hasSystemPrompt && !hasKnowledgeEnabled) {
     return {
       ok: false,
-      error: 'systemPromptを指定してください（外す場合は null）',
+      error:
+        'systemPrompt（外す場合は null）かknowledgeEnabledを指定してください',
     };
   }
 
-  const systemPrompt = parseConversationSystemPrompt(body.systemPrompt);
-  if (!systemPrompt.ok) return systemPrompt;
-
-  return { ok: true, value: { systemPrompt: systemPrompt.value } };
+  const value: UpdateConversationBody = {};
+  if (hasSystemPrompt) {
+    const systemPrompt = parseConversationSystemPrompt(body.systemPrompt);
+    if (!systemPrompt.ok) return systemPrompt;
+    value.systemPrompt = systemPrompt.value;
+  }
+  if (hasKnowledgeEnabled) {
+    // キーがあるのに null は「変えない」と区別が付かないため、真偽値だけを受け付ける
+    if (typeof body.knowledgeEnabled !== 'boolean') {
+      return { ok: false, error: 'knowledgeEnabledは真偽値で指定してください' };
+    }
+    value.knowledgeEnabled = body.knowledgeEnabled;
+  }
+  return { ok: true, value };
 }
 
 /** `POST /api/agent/approvals/[id]` の検証済みボディ。 */

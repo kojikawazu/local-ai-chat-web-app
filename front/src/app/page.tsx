@@ -28,6 +28,7 @@ import { useConversationFork } from '@/hooks/chat/useConversationFork';
 import { useKeyboardShortcuts } from '@/hooks/shortcut/useKeyboardShortcuts';
 import { useSidebarVisibility } from '@/hooks/sidebar/useSidebarVisibility';
 import { useTheme } from '@/hooks/theme/useTheme';
+import { useKnowledgeAvailability } from '@/hooks/knowledge/useKnowledgeAvailability';
 import { getPresetById } from '@/lib/agent/agent-prompts';
 import { getRoleLabel } from '@/lib/chat/system-prompt';
 import { adjacentConversationId } from '@/lib/sidebar/list-navigation';
@@ -88,6 +89,14 @@ export default function Home() {
   const promptTemplates = usePromptTemplates();
   // 会話を作る前に選んだ役割。最初の送信で会話と同時に保存する
   const [draftSystemPrompt, setDraftSystemPrompt] = useState('');
+  // 会話を作る前に入れた「ドキュメントを参照」（#17 Phase B）。最初の送信で会話と同時に保存する
+  const [draftKnowledgeEnabled, setDraftKnowledgeEnabled] = useState(false);
+  // 「ドキュメントを参照」の切り替えに失敗した会話と理由。その会話を開いている間だけ出す
+  const [knowledgeToggleError, setKnowledgeToggleError] = useState<{
+    conversationId: string;
+    message: string;
+  } | null>(null);
+  const knowledgeAvailability = useKnowledgeAvailability();
   // ヘッダーのメニューボタン（aria-controls）とドロワーのパネル（id）を結ぶ id
   const menuId = useId();
   // ヘッダーのサイドバーの切り替えボタン（aria-controls）とデスクトップのサイドバー（id）を結ぶ id
@@ -107,6 +116,7 @@ export default function Home() {
     deleteConversation,
     selectConversation,
     updateSystemPrompt,
+    updateKnowledgeEnabled,
     refreshConversations,
   } = useConversations();
 
@@ -117,6 +127,31 @@ export default function Home() {
   const systemPrompt = currentConversation
     ? (currentConversation.systemPrompt ?? '')
     : draftSystemPrompt;
+  const knowledgeEnabled = currentConversation
+    ? currentConversation.knowledgeEnabled
+    : draftKnowledgeEnabled;
+
+  const handleKnowledgeChange = useCallback(
+    async (enabled: boolean) => {
+      if (!currentConversationId) {
+        setDraftKnowledgeEnabled(enabled);
+        return;
+      }
+      setKnowledgeToggleError(null);
+      try {
+        await updateKnowledgeEnabled(currentConversationId, enabled);
+      } catch (err) {
+        setKnowledgeToggleError({
+          conversationId: currentConversationId,
+          message:
+            err instanceof Error
+              ? err.message
+              : 'ドキュメントの参照の切り替えに失敗しました',
+        });
+      }
+    },
+    [currentConversationId, updateKnowledgeEnabled]
+  );
 
   const handleSaveRole = useCallback(
     async (prompt: string) => {
@@ -164,6 +199,7 @@ export default function Home() {
     agentPrompt: enableTools
       ? (getPresetById(agentPromptPresetId)?.prompt ?? '')
       : '',
+    knowledgeEnabled,
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
   });
@@ -247,6 +283,10 @@ export default function Home() {
     conversationFork.error?.conversationId === currentConversationId
       ? conversationFork.error.message
       : null;
+  const knowledgeError =
+    knowledgeToggleError?.conversationId === currentConversationId
+      ? knowledgeToggleError.message
+      : null;
 
   const handleSelectConversation = useCallback(
     (id: string) => {
@@ -262,6 +302,7 @@ export default function Home() {
     selectConversation(null);
     clearMessages();
     setDraftSystemPrompt('');
+    setDraftKnowledgeEnabled(false);
     setTimeout(() => chatBarRef.current?.focus(), 0);
   }, [selectConversation, clearMessages]);
 
@@ -274,6 +315,7 @@ export default function Home() {
         clearMessages();
         // 消した会話の作成時の下書きが、次の新規会話に持ち越されないようにする
         setDraftSystemPrompt('');
+        setDraftKnowledgeEnabled(false);
       }
     },
     [
@@ -415,7 +457,7 @@ export default function Home() {
           onOpenForkSource={handleOpenForkSource}
         />
       }
-      notice={forkError ?? error}
+      notice={forkError ?? knowledgeError ?? error}
       composer={
         <ChatBar
           ref={chatBarRef}
@@ -432,6 +474,11 @@ export default function Home() {
           templates={promptTemplates.templates}
           onManageTemplates={handleOpenTemplateDialog}
           onAddExampleTemplates={handleAddExampleTemplates}
+          knowledge={{
+            enabled: knowledgeEnabled,
+            noDocuments: knowledgeAvailability.hasDocuments === false,
+            onChange: handleKnowledgeChange,
+          }}
         />
       }
       footer={<Footer />}
@@ -478,7 +525,13 @@ export default function Home() {
             />
           )}
           {isKnowledgeDialogOpen && (
-            <KnowledgeDialog onClose={() => setIsKnowledgeDialogOpen(false)} />
+            <KnowledgeDialog
+              onClose={() => {
+                setIsKnowledgeDialogOpen(false);
+                // 取り込み・削除で、入力欄の切り替えを入れられるかが変わる（#17 Phase B）
+                knowledgeAvailability.refresh();
+              }}
+            />
           )}
           {isRoleDialogOpen && (
             <RoleDialog

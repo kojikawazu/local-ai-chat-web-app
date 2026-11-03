@@ -23,6 +23,7 @@ import IconButton from '@/components/common/atoms/IconButton';
 import AttachButton from '@/components/features/chat/atoms/AttachButton';
 import AttachmentPreview from '@/components/features/chat/molecules/AttachmentPreview';
 import PromptTemplateSuggestions from '@/components/features/chat/molecules/PromptTemplateSuggestions';
+import KnowledgeToggle from '@/components/features/chat/atoms/KnowledgeToggle';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {
@@ -67,6 +68,16 @@ interface ChatBarProps {
   onManageTemplates?: () => void;
   /** 候補の「例を追加」（テンプレートが 1 件も無いとき）で呼ぶ。 */
   onAddExampleTemplates?: () => void;
+  /**
+   * 会話ごとの「ドキュメントを参照」（#17 Phase B）。省略時は切り替えを出さない。
+   * `enabled` は今の値、`noDocuments` は取り込んだドキュメントが無いか（入れることだけを止める）、
+   * `onChange` は切り替えた後の値を受け取る
+   */
+  knowledge?: {
+    enabled: boolean;
+    noDocuments: boolean;
+    onChange: (enabled: boolean) => void;
+  };
 }
 
 /**
@@ -81,6 +92,7 @@ interface ChatBarProps {
  * 入力欄の先頭で `/` を打つとプロンプトテンプレートの候補を出し（#28）、↑↓ で選び、Enter・Tab・クリックで
  * `/…` を本文に置き換える。候補が出ている間の Escape は候補を閉じるだけで、生成は止めない。
  * 一致する候補が無いときの Enter はいつもどおり送信する。
+ * 添付のボタンの隣に、会話ごとの「ドキュメントを参照」の切り替え（#17 Phase B）を置く。
  * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
  *
  * @param props - 送信・停止のコールバックと、無効化・生成中のフラグを持つ props
@@ -101,6 +113,7 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
     templates = null,
     onManageTemplates,
     onAddExampleTemplates,
+    knowledge,
   },
   ref
 ) {
@@ -291,9 +304,16 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
               isDragging && 'ring-2 ring-nord-frost-1'
             )}
           >
-            {onAddImages && (
-              <div className="pb-1">
-                <AttachButton onSelectFiles={onAddImages} />
+            {(onAddImages || knowledge) && (
+              <div className="flex gap-1 pb-1">
+                {onAddImages && <AttachButton onSelectFiles={onAddImages} />}
+                {knowledge && (
+                  <KnowledgeToggle
+                    pressed={knowledge.enabled}
+                    noDocuments={knowledge.noDocuments}
+                    onChange={knowledge.onChange}
+                  />
+                )}
               </div>
             )}
             <textarea

@@ -1285,3 +1285,16 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] `front/package.json` の `pnpm.overrides` で 2.0.3 より古い `image-size` を `^2.0.4` に（`pnpm why image-size` が 2.0.4 だけ。1.x の依存の `queue` も消えた）
 - [x] 確認（UT の `report-pptx`・`pptx-layout`・E2E の `report-export.spec.ts`・`pnpm build`）
 - [x] ドキュメント（`docs/04`・`07`・`27`、`CLAUDE.md`、`.claude/rules/coding-standards.md`）
+
+## フェーズ62: RAG — 会話でのドキュメントの参照と出典（#17 Phase B）
+
+会話ごとに「ドキュメントを参照」を切り替え、送るたびに今回の質問に近い部分を探してモデルへ渡し、応答に出典を出して保存する。設計は [28-rag.md](./28-rag.md)「会話での参照（Phase B）」。 — #17・サブ issue #233（2026-11-03 着手）
+
+- [x] 設計の細部を今のコードと突き合わせる（28-rag.md「着手時に決め直したこと（Phase B）」）・レビュー（切り替えは入力欄の左・探すのに失敗したらエラーにして止める。どちらも推奨どおり）
+- [x] マイグレーション（`Conversation.knowledgeEnabled`）と会話の API（作成・`PATCH` は送った項目だけ変える・分岐で引き継ぐ。一覧・作成・変更・分岐の応答に `knowledgeEnabled`）
+- [x] 検索（`lib/server/knowledge.ts` の `searchKnowledge`。今のモデルのチャンクから類似度の高い順に 5 件・0.40 以上。今のモデルのドキュメントが無ければ埋め込みを作らない）
+- [x] 抜き出しをシステムプロンプトにする（`lib/knowledge/prompt.ts`。役割の後・現在の日時の前）・`/api/chat` の `knowledgeEnabled`・最初の `knowledge_sources` のイベント・探すのに失敗したら 502 / 500
+- [x] エージェントモードで、抜き出しを渡した応答では最初から外部と通信するツールを止める（`runAgentLoop` の `knowledgeSources`。止めた理由の文に「登録したドキュメント」を足した）
+- [x] 画面（入力欄の左の `KnowledgeToggle`・ドキュメントが無いと入れられない（`useKnowledgeAvailability`）・会話を作る前の下書き・切り替えの失敗のお知らせ・応答の下の `KnowledgeSources`・メタデータの `knowledgeSources`（空の配列は「見つからなかった」）・管理画面の説明の文）
+- [x] UT（`knowledge.test.ts` に prompt の 9 件・`message-metadata.test.ts` に 6 件・`request-body.test.ts` に knowledgeEnabled と会話の変更の項目）・IT（`chat-knowledge.test.ts` 15 件・会話の作成 / 変更 / 分岐の knowledgeEnabled）・E2E（`knowledge-chat.spec.ts` 8 件。実際に探して答えるものは CI でスキップ）。全体の E2E で、入れられない理由を名前に混ぜた切り替えが「サイドバー」のボタンの部分一致に当たると分かり、理由を `title` へ移した
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`28`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,security,testing}.md`）

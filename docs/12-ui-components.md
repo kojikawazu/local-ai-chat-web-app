@@ -1,6 +1,6 @@
 # UI コンポーネント 設計書（Atomic Design）
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 
 フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
@@ -185,8 +185,8 @@ src/
 | 機能 | 階層 | 部品 | 移す前の場所 |
 |---|---|---|---|
 | `chat` | organisms | `ChatWindow`・`ChatBar`・`Header`・`Footer`・`MarkdownContent`・`RoleDialog`・`AgentThinking`・`ToolCallResult`（`ExportDialog` は #12 で追加。`AgentSteps` は #186 で追加。`MarkdownContent` には #186 で文字の大きさの `size`（`default` / `compact`）を足した。`ExportDialog` は #36 で書き出す対象（`target`。会話全体 / 応答 1 件）を受けるようにし、HTML・PDF・DOCX の形式と、応答 1 件だけのスライド・PPTX の形式を足した。`ChatWindow` には #36 で応答の「Markdown で保存」を、形式を選ぶダイアログを開く「保存」（`onSaveMessage`）に替えた。`ChatWindow` には #30 で応答のブックマークのボタンと、移る先（`focusMessageId`）へのスクロールと枠を足した。#29 で応答の下の「ここから分岐」のボタン（`onFork`・`forkingMessageId`）を足した。`Header` には #29 で分岐元の会話へのリンク（`forkSourceTitle`・`onOpenForkSource`）を足した） | `features/chat/components/` |
-| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
-| `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる） | — |
+| `chat` | molecules | `ToolCallIndicator`（実行中のツール）・`WebSearchResult`（検索結果の一覧）（`DiagramView` は #169 で `MermaidDiagram` として追加し、#171 で表示だけの部品に改名。`DiagramZoomDialog` は #176 で追加。`AttachmentPreview`・`MessageImages`・`ImageZoomDialog` は #6 で追加。`ApprovalCard`（ツールの実行前の承認）は #148 Phase A2 で追加し、Phase B でコマンドの実行の表示を `action` で出し分けるようにした。Phase C で GitHub へのコメント・PR の作成（リポジトリと公開か・送る本文をそのままの文字で）を足した。#149 Phase C でブラウザの操作（ページと手元か公開か・参照から引いた実際の要素・入れる文字や選ぶ項目。見出しは操作の種類ごと）を足した。`ToolScreenshots`（ブラウザのツールが撮った画面を並べる・押すと拡大）は #200 で追加し、`ImageZoomDialog` に要素の枠（`box`）、`ApprovalCard` のブラウザの操作に操作の前の画面を足した。#202 で `ApprovalCard` の見出しの横に承認の残り時間（`useApprovalCountdown`）を足し、時間切れで許可・拒否を押せなくした。`ResponseMetrics`（応答のトークン数・生成の速さの要約と、押して開く内訳）は #31 で追加。`PromptTemplateSuggestions`（入力欄の上に重ねるプロンプトテンプレートの候補）は #28 で追加。`KnowledgeSources`（応答の出典の要約と、押して開く一覧）は #17 Phase B で追加） | `features/chat/components/`（`WebSearchResult` は `ToolCallResult` の中） |
+| `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる）・`KnowledgeToggle`（#17 Phase B で追加。会話ごとの「ドキュメントを参照」の本のボタン） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した。#17 でドキュメントのボタン `onOpenKnowledge` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン。#29 で分岐した会話の先頭のアイコンを分岐の印にした）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
 | `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した。#33 でショートカットの「一覧」ボタン `onOpenShortcuts` を足した） | `components/settings/` |
@@ -207,12 +207,14 @@ src/
 | `DiagramView`（#169・#171・#176） | `diagram`（描画の状態 `DiagramState`。フックの戻り値）・`kind`（図の種類。`alt`・見出し・ファイル名に使う）・`language`・`code`（見出し行の言語名とコピーする原文）・`fallback`（描けるまで・描けないとき・ソースへ切り替えたときに出すソースの `pre`）。`CodeBlockFrame` で枠ごと描き、描けたときだけ切り替え・拡大のボタンを出す。切り替えとダイアログの開閉は UI の状態として持つ。フックは呼ばず、`MarkdownContent` 内の organisms（`MermaidCodeBlock`・`PlantUmlCodeBlock`）が描画のフックを呼んで渡す |
 | `DiagramZoomDialog`（#176） | `kind`・`title`・`src`（SVG の data: URI）・`svg`（保存する SVG）・`onClose`。共通の `Modal`（`wide`）の中で倍率を変え（`ResizeObserver` で表示の倍率を測る）、SVG / PNG で保存する。PNG にできなかった理由はダイアログの中に出す |
 | `AttachButton`（#6） | `onSelectFiles`（選んだファイルを受け取る）。共通の `IconButton` と隠した `<input type="file" accept multiple>`。受け付ける形式は `constants/chat/imageAttachment.ts`。形式の検証はしない（`useImageAttachments` に任せる） |
+| `KnowledgeToggle`（#17 Phase B） | `pressed`（`aria-pressed`）・`noDocuments`（取り込んだドキュメントが無い。入れることだけを止め、入っていれば外せる）・`onChange`（切り替えた後の値）。止めるときは `disabled` にせず `aria-disabled` にし、理由を `title`（説明として読み上げられる）に入れる。名前（`aria-label`）は「ドキュメントを参照」のまま変えない（理由を名前に混ぜると、名前の部分一致で探すほかのボタン（「サイドバー」）と取り違える。#17 Phase B の E2E で見つけた）。入っている間の色を持つため、`IconButton` ではなく自前の `<button>` |
 | `AttachmentPreview`（#6） | `images`・`preparingCount`・`errors`・`unsupportedModel`（非対応ならモデル名、対応・不明なら `null`）・`onRemove`。サムネイルと削除ボタン・準備中の枠・添付できなかった理由・非対応モデルの案内（画像を添付しているときだけ）を出す。どれも無ければ何も描かない |
 | `MessageImages`（#6） | `images`（`MessageImage[]`）。高さ 120px のサムネイルを並べ、押すと `ImageZoomDialog` を開く（開閉は UI の状態として持つ）。`width` / `height` を渡して、読み込み前から枠を確保する |
 | `ImageZoomDialog`（#6） | `image`・`alt`（見出しにも使う）・`onClose`。共通の `Modal`（`wide`・背景のクリックで閉じる）に、収まる大きさで画像を出す。添付画像は縮小済みのため倍率の切り替えは置かない |
 | `BookmarkListItem`（#30） | `bookmark`（一覧の 1 件）・`terms`（強調するキーワード）・`isEditing`（メモの入力欄を開いているか。同時に 1 件だけなので呼び出し側が持つ）・`onStartEdit`・`onEndEdit`・`onSaveNote`・`onRemove`（失敗したら例外を投げる。行の下に出し、入力を残す）・`onOpen`（元の応答へ移る）。メモの入力中の値と、外す 2 段階（「外す」→「はい、外す / やめる」）は UI の状態として持つ |
 | `KnowledgeDocumentItem`（#17） | `document`（一覧の 1 件）・`isBusy`（作り直し・削除の途中。ボタンを押せなくし「処理中…」を出す）・`error`（作り直し・削除の失敗の理由）・`onRebuild`・`onDelete`（2 段階で確かめた後に呼ぶ）。削除の 2 段階（「削除」→「削除する / やめる」）は UI の状態として持つ |
 | `PromptTemplateSuggestions`（#28） | `listId`（入力欄の `aria-controls`・`aria-activedescendant` と揃える）・`matches`（絞り込んだ候補）・`hasTemplates`（無ければ「例を追加」、あれば「一致するものが無い」）・`activeIndex`・`onSelect`・`onManage`・`onAddExamples`。キー操作は `ChatBar` が受け、ここは描画と押したときの処理だけ。押しても入力欄のフォーカスを外さないよう `mousedown` の既定の動作を止める。テンプレートの型（`types/`）だけを受け取り、管理画面（`prompt-template` の部品）は import しない |
+| `KnowledgeSources`（#17 Phase B） | `sources`（出典の配列）。1 件以上なら「参照したドキュメント（件数）」のボタン（`aria-expanded`）と、押して開く一覧（名前・見出し・抜き出し・類似度。文字のまま）。空なら「参照できるドキュメントが見つかりませんでした」。`ResponseMetrics` と同じく折り返す横並びの中に置き、一覧は `basis-full` で次の行に出す |
 
 - molecules は呼び出し側の状態（選択中の会話 ID・生成中の会話 ID の一覧）を受け取らず、その行についての真偽値だけを受け取る。一覧の中での判定は organisms が行う。
 - 見た目・DOM は切り出す前と同じにした（クラス・要素の並びを変えていない）。

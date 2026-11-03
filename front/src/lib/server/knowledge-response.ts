@@ -22,20 +22,22 @@ export function knowledgeLimitResponse(
 }
 
 /**
- * ドキュメントの取り込み・作り直しで投げられた例外を応答にする（#17）。
+ * ドキュメントの取り込み・作り直し・会話での検索（#17 Phase B）で投げられた例外を応答にする（#17）。
  *
  * - 埋め込みのモデルが無い → 502（`ollama pull` を案内する）
  * - 埋め込みを作れない（Ollama に繋がらない等）→ 502
  * - 同じ名前を同時に取り込んだ（一意制約の違反）→ 409
  * - そのほか（DB の失敗）→ 500
  *
- * @param error - 取り込み・作り直しが投げた例外
+ * @param error - 取り込み・作り直し・検索が投げた例外
  * @param action - ログに出す処理の名前
+ * @param dbErrorMessage - DB の失敗（500）のときに返すメッセージ。省略すると保存の失敗の文言
  * @returns JSON エラーレスポンス
  */
 export function knowledgeErrorResponse(
   error: unknown,
-  action: string
+  action: string,
+  dbErrorMessage = 'ドキュメントの保存に失敗しました'
 ): NextResponse {
   if (error instanceof EmbeddingModelNotFoundError) {
     return NextResponse.json(
@@ -62,8 +64,5 @@ export function knowledgeErrorResponse(
     );
   }
   console.error(`Failed to ${action}:`, error);
-  return NextResponse.json(
-    { error: 'ドキュメントの保存に失敗しました' },
-    { status: 500 }
-  );
+  return NextResponse.json({ error: dbErrorMessage }, { status: 500 });
 }

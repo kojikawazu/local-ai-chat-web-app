@@ -10,6 +10,7 @@ import type {
 } from '@/types/chat/message';
 import type { PreparedImage } from '@/types/chat/attachment';
 import type { ResponseMetrics } from '@/types/chat/metrics';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 import type { AgentStreamEvent } from '@/lib/agent/tools/types';
 import { MAX_TITLE_LENGTH } from '@/lib/shared/validation';
 import { toConversationHistory } from '@/lib/chat/conversation-history';
@@ -61,6 +62,11 @@ interface UseChatOptions {
   systemPrompt?: string;
   /** エージェントモードのプリセットの本文。役割の後ろに連結して送る。通常モードでは空にする。省略時は空。 */
   agentPrompt?: string;
+  /**
+   * 登録したドキュメントを参照するか（#17 Phase B）。新規会話の作成時は会話に保存し、送信・再生成のたびに API へ送る。
+   * 省略時は参照しない。
+   */
+  knowledgeEnabled?: boolean;
   /** 新規会話が作成されたときのコールバック。作成された会話 ID を受け取る。 */
   onConversationCreated?: (id: string) => void;
   /** 初回応答後にタイトル自動生成が完了したときのコールバック。 */
@@ -175,6 +181,7 @@ export function useChat({
   enableTools = false,
   systemPrompt = '',
   agentPrompt = '',
+  knowledgeEnabled = false,
   onConversationCreated,
   onTitleGenerated,
 }: UseChatOptions) {
@@ -408,6 +415,8 @@ export function useChat({
       let agentDurationMs: number | undefined;
       // done イベントで届くトークン数・所要時間（#31）。停止した応答には届かない
       let metrics: ResponseMetrics | undefined;
+      // 最初の knowledge_sources で届く、探したドキュメントの出典（#17 Phase B）。探さなかった応答は undefined
+      let knowledgeSources: KnowledgeSource[] | undefined;
       const toolCallRecords: ToolCallInfo[] = [];
       // tool_call_result で届いたスクリーンショットの中身（ID → Base64。#200）。done の記録（中身なし）に戻し、保存で送る
       const screenshotData = new Map<string, string>();
@@ -449,6 +458,7 @@ export function useChat({
             agentDurationMs,
             interrupted,
             metrics,
+            knowledgeSources,
           }),
           onSaved: generateTitle,
           replace: replacing !== undefined,
@@ -470,6 +480,8 @@ export function useChat({
             // 役割は送信のたびに今の値を送る。途中で変えた役割は以降の送信から効く
             systemPrompt:
               buildSystemPrompt(systemPrompt, agentPrompt) || undefined,
+            // 役割と同じく、送信のたびに今の値を送る（#17 Phase B）
+            knowledgeEnabled,
           }),
           signal: controller.signal,
         });
@@ -506,7 +518,24 @@ export function useChat({
               try {
                 const event: AgentStreamEvent = JSON.parse(line);
 
-                if (event.type === 'thinking') {
+                if (event.type === 'knowledge_sources') {
+                  // 本文より先に届く。生成中から出典を見せる（#17 Phase B）
+                  knowledgeSources = event.sources;
+                  const sources = event.sources;
+                  setMessagesOf(convId, (prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? {
+                            ...msg,
+                            metadata: {
+                              ...msg.metadata,
+                              knowledgeSources: sources,
+                            },
+                          }
+                        : msg
+                    )
+                  );
+                } else if (event.type === 'thinking') {
                   // thinking イベントは思考のブロック（ラウンドごと）単位で届く。
                   // 区切らずに連結すると前のブロックの文末に次の文頭がくっつくため、空行で区切る
                   thinkingText += (thinkingText ? '\n\n' : '') + event.content;
@@ -660,6 +689,7 @@ export function useChat({
                     agentRounds,
                     agentDurationMs,
                     metrics,
+                    knowledgeSources,
                   });
                   setMessagesOf(convId, (prev) =>
                     prev.map((msg) =>
@@ -712,6 +742,7 @@ export function useChat({
             agentRounds,
             agentDurationMs,
             interrupted: true,
+            knowledgeSources,
           });
           setMessagesOf(convId, (prev) =>
             prev.map((msg) =>
@@ -746,6 +777,7 @@ export function useChat({
       enableTools,
       systemPrompt,
       agentPrompt,
+      knowledgeEnabled,
       persist,
       requestTitleGeneration,
       patchChat,
@@ -786,6 +818,8 @@ export function useChat({
             body: JSON.stringify({
               title: content.slice(0, MAX_TITLE_LENGTH),
               systemPrompt: systemPrompt || null,
+              // 最初の送信の前に入れたドキュメントの参照も、会話と同時に保存する（#17 Phase B）
+              knowledgeEnabled,
             }),
           });
           if (!res.ok) throw new Error('会話の作成に失敗しました');
@@ -871,6 +905,7 @@ export function useChat({
       currentKey,
       messages,
       systemPrompt,
+      knowledgeEnabled,
       onConversationCreated,
       persist,
       generateResponse,

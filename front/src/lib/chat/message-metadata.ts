@@ -5,6 +5,7 @@ import type {
 } from '@/types/agent/tool-call';
 import type { Message } from '@/types/chat/message';
 import type { ResponseMetrics } from '@/types/chat/metrics';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 import { isValidUUID } from '@/lib/shared/validation';
 
 /** メッセージに付く metadata（`null` を除いた形）。 */
@@ -131,6 +132,28 @@ function parseMetrics(value: unknown): ResponseMetrics | undefined {
 }
 
 /**
+ * 保存済みの出典 1 件を検証する（#17 Phase B）。
+ *
+ * @param value - 保存済みの出典（外部入力）
+ * @returns 名前が空でない文字列・見出しと抜き出しが文字列・類似度が有限な数なら出典、そうでなければ `null`
+ */
+function parseKnowledgeSource(value: unknown): KnowledgeSource | null {
+  if (!isRecord(value)) return null;
+  const { documentName, heading, excerpt, similarity } = value;
+  if (
+    typeof documentName !== 'string' ||
+    !documentName ||
+    typeof heading !== 'string' ||
+    typeof excerpt !== 'string' ||
+    typeof similarity !== 'number' ||
+    !Number.isFinite(similarity)
+  ) {
+    return null;
+  }
+  return { documentName, heading, excerpt, similarity };
+}
+
+/**
  * 保存済みのツール呼び出し 1 件を検証して {@link ToolCallInfo} に戻す。
  *
  * ツール名と結果が文字列なら有効とし、欠けた項目は既定値で補う（引数 `{}`・成功・所要時間 0）。
@@ -179,9 +202,10 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
  * エージェント応答の付随情報から、表示と保存に使う metadata を組み立てる。
  *
  * 値のある項目だけを含める（空のツール呼び出し一覧・空の思考過程は含めない）。
+ * ただしドキュメントの出典（`knowledgeSources`。#17 Phase B）は空の配列も含める（「探したが見つからなかった」を表すため）。
  * 表示用の state と保存 API へ渡す値を同じ関数で作り、片方だけ項目が欠けるのを防ぐ（#94）。
  *
- * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間・停止の有無・トークン数（いずれも任意）
+ * @param fields - ツール呼び出し・思考過程・ラウンド数・所要時間・停止の有無・トークン数・ドキュメントの出典（いずれも任意）
  * @returns 組み立てた metadata。値のある項目が 1 つも無ければ `null`（通常チャットの応答など）
  */
 export function buildMessageMetadata(
@@ -200,6 +224,9 @@ export function buildMessageMetadata(
     // 停止していない応答に false を持たせない（値の無い通常チャットの応答は metadata 自体を null に保つ）
     ...(fields.interrupted && { interrupted: true }),
     ...(fields.metrics && { metrics: fields.metrics }),
+    ...(fields.knowledgeSources && {
+      knowledgeSources: fields.knowledgeSources,
+    }),
   };
   return Object.keys(metadata).length > 0 ? metadata : null;
 }
@@ -222,6 +249,7 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
     agentDurationMs,
     interrupted,
     metrics,
+    knowledgeSources,
   } = value;
   return buildMessageMetadata({
     toolCalls: Array.isArray(toolCalls)
@@ -236,5 +264,11 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
       : undefined,
     interrupted: interrupted === true,
     metrics: parseMetrics(metrics),
+    // 形の合わない出典だけを捨てる。配列でなければ「探さなかった」応答として扱う
+    knowledgeSources: Array.isArray(knowledgeSources)
+      ? knowledgeSources
+          .map(parseKnowledgeSource)
+          .filter((source): source is KnowledgeSource => source !== null)
+      : undefined,
   });
 }

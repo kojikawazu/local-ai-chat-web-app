@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-03
 
 ## 目次
 
@@ -85,7 +85,7 @@ Ollama のネイティブ Tool Calling API を使用し、LangChain 等のフレ
 
 ### スコープ外
 
-- RAG（検索拡張生成）— 別 issue #17 で対応
+- RAG（検索拡張生成）— 別 issue #17 で対応（`docs/28-rag.md`）。Phase B で、送るたびにアプリが探して抜き出しをシステムプロンプトに入れる（ツールとしての検索 `search_documents` は持たない）。エージェントモードで抜き出しを渡した応答では、下の「外部への持ち出しの抑止」を最初から効かせる
 - カスタムツールの動的追加（UI からのツール定義） — 将来的な拡張として検討
 
 ---
@@ -569,7 +569,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 - **既定では使えない**: 環境変数 `LOCAL_FILE_ROOTS`（読んでよいフォルダ）を設定したときだけ登録する（`registry.ts`）。
 - **パスの判定**: `realpath` で実体のパスにしてから、許可したフォルダの中にあるかを `path.relative` で判定する。検索ではシンボリックリンクをたどらない。
 - **秘匿ファイル**: `.env`・鍵・認証情報のファイルと `.ssh`・`.aws` などのフォルダは、一覧・検索に出さず読み取りも断る（範囲は CI の Secret scan と同じ）。
-- **外部への持ち出しの抑止**: ツールに `access`（`local` / `network`）の印を付け、同じ応答の中で `local` のツールが成功した後は、`network` のツール（`web_search`・`url_fetch`）を実行せずに理由を返す（`agent.ts` の `shouldBlockTool`）。`local` は「利用者の手元の情報を読む」の意味で、コマンドの実行（Phase B）と GitHub を読むツール（Phase C）にも付ける。
+- **外部への持ち出しの抑止**: ツールに `access`（`local` / `network`）の印を付け、同じ応答の中で `local` のツールが成功した後は、`network` のツール（`web_search`・`url_fetch`）を実行せずに理由を返す（`agent.ts` の `shouldBlockTool`）。`local` は「利用者の手元の情報を読む」の意味で、コマンドの実行（Phase B）と GitHub を読むツール（Phase C）にも付ける。登録したドキュメント（RAG。#17 Phase B）の抜き出しを渡した応答は、`runAgentLoop` の `knowledgeSources` で最初から読んだ扱いにする（止めたときの理由の文にも「登録したドキュメント」を含める）。
 - 書き込み（`write_file`・`edit_file`）と実行前の承認は Phase A2（[15-tool-approval.md](./15-tool-approval.md)）。`prepare` を持つツールは、ループが準備 → `tool_approval_request` → 承認の API（`POST /api/agent/approvals/[id]`）の結果を待つ → 実行の順に進める（`runWithApproval`）。
 - コマンドの実行（`run_command`）は Phase B（[16-command-execution.md](./16-command-execution.md)）。`LOCAL_COMMANDS` のプログラムだけを、`LOCAL_FILE_WRITE_ROOTS` の中を作業フォルダにして、シェルを介さずに実行する（実行前に承認が要る）。実行の時間の上限はツールが持つ `runTimeoutMs`（`LOCAL_COMMAND_TIMEOUT_MS` + 10 秒）で、ツール全般の `AGENT_TOOL_TIMEOUT_MS` より長い。`access` は `local` で、ファイルを読んだ後でも止めず、成功した後はその応答で `network` のツールを止める。
 - GitHub のツールは Phase C（[17-github-tools.md](./17-github-tools.md)）。`GITHUB_REPOS` のリポジトリだけを扱い、`gh` の引数はアプリが組み立てる（`lib/agent/tools/github/`）。読む `github_list`（PR・issue の一覧）・`github_view`（詳細。PR なら変更したファイル・CI・レビューも）・`github_pr_diff`（PR の差分。`file` で絞る）は承認なしで、`access` は `local`（非公開のリポジトリの内容を読むため、成功した後はその応答で `network` のツールを止める）。`github_comment`・`github_create_pr` は `prepare` を持ち、承認カードに送る本文を出してから送る（`access` は付けない。ファイルを読んだ後でも止めない）。`gh` の起動は `run_command` の `runProcess`（標準出力を別に受ける `stdout` を足した）を使い回す。

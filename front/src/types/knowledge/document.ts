@@ -21,3 +21,35 @@ export type KnowledgeDocumentItem = {
   /** 最後に取り込み・作り直しをした日時（ISO 文字列） */
   updatedAt: string;
 };
+
+/**
+ * 応答の出典の 1 件（#17 Phase B）。送ったときに探して見つかった、ドキュメントの一部。
+ *
+ * `/api/chat` の `knowledge_sources` のイベントで届き、応答のメタデータ（`knowledgeSources`）に写して保存する。
+ * ドキュメントを消しても過去の応答の出典が残るよう、ドキュメントへの参照ではなく写しを持つ。
+ */
+export type KnowledgeSource = {
+  /** ドキュメントの名前（ファイル名） */
+  documentName: string;
+  /** 見出しの経路（「範囲 > 含める」）。見出しの前の部分なら空文字 */
+  heading: string;
+  /** 抜き出しの先頭（200 文字まで。`lib/knowledge/prompt.ts`）。Markdown として描かず、文字のまま出す */
+  excerpt: string;
+  /** 質問との類似度（コサイン類似度。-1〜1。大きいほど近い） */
+  similarity: number;
+};
+
+/**
+ * 会話で探して見つかったチャンク（#17 Phase B）。検索（`lib/server/knowledge.ts`）が返し、
+ * システムプロンプトと出典（`lib/knowledge/prompt.ts`）に直す。
+ */
+export type KnowledgeHit = {
+  /** ドキュメントの名前 */
+  documentName: string;
+  /** 見出しの経路。見出しの前なら空文字 */
+  heading: string;
+  /** チャンクの本文 */
+  content: string;
+  /** 質問とのコサイン類似度 */
+  similarity: number;
+};

@@ -7,6 +7,8 @@ export interface TestConversation {
   id: string;
   title: string;
   systemPrompt: string | null;
+  /** 登録したドキュメントを参照するか（#17 Phase B） */
+  knowledgeEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

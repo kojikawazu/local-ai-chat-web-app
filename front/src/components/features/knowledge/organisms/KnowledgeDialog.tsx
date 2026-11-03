@@ -73,7 +73,7 @@ export default function KnowledgeDialog({ onClose }: KnowledgeDialogProps) {
         }}
       >
         <p className="text-sm text-nord-4/80">
-          取り込んだドキュメントは、会話で参照できるようになります（会話での参照は次の更新で入ります）。
+          取り込んだドキュメントは、入力欄の本のボタンで「ドキュメントを参照」を入れた会話で、質問に近い部分を探して答えに使います。
           {KNOWLEDGE_FILE_EXTENSIONS.join('・')} のファイルを、1 つ{' '}
           {MAX_KNOWLEDGE_FILE_BYTES / 1024 / 1024} MB
           まで取り込めます。同じ名前のファイルは置き換えます。

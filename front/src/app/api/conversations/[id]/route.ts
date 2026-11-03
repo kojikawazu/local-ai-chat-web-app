@@ -12,13 +12,13 @@ import {
 import { isValidUUID } from '@/lib/shared/validation';
 
 /**
- * 会話の役割（システムプロンプト）を変更する（#10）。変更は以降の送信から効く。
+ * 会話の役割（システムプロンプト。#10）・ドキュメントの参照（`knowledgeEnabled`。#17 Phase B）を変更する。変更は以降の送信から効く。
  *
- * 変更できるのは `systemPrompt` だけ。`null`・空白のみなら役割を外す。存在しない会話は 404 を返す。
+ * 送った項目だけを変える（キーの無い項目は変えない）。`systemPrompt` が `null`・空白のみなら役割を外す。存在しない会話は 404 を返す。
  * 判定は UPDATE 1 文の更新件数で行い（{@link DELETE} と同じ）、存在確認と更新の間に消されても食い違わない。
  * `updatedAt` は `@updatedAt` で更新され、会話一覧の先頭に来る（タイトルの自動生成と同じ扱い）。
  *
- * @param request - `systemPrompt`（文字列か `null`。最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）を含む JSON ボディを持つリクエスト
+ * @param request - `systemPrompt`（文字列か `null`。最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）・`knowledgeEnabled`（真偽値）の少なくとも一方を含む JSON ボディを持つリクエスト
  * @param context - ルートコンテキスト。`params` は対象会話の UUID（`id`）を解決する Promise
  * @returns 成功時は変更後の会話（一覧の 1 件と同じ形。分岐元の `forkedFrom` を含む）の JSON。ID フォーマット・ボディの不正は 400、会話が存在しなければ 404、更新失敗は 500 の JSON エラーレスポンス
  */
@@ -41,7 +41,8 @@ export async function PATCH(
   try {
     const { count } = await prisma.conversation.updateMany({
       where: { id },
-      data: { systemPrompt: parsed.value.systemPrompt },
+      // undefined の項目は Prisma が書き換えない（送られなかった項目は変えない）
+      data: parsed.value,
     });
 
     if (count === 0) {

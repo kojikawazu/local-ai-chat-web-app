@@ -16,6 +16,7 @@ import type {
   ToolScreenshot,
 } from '@/types/agent/tool-call';
 import type { ResponseMetrics } from '@/types/chat/metrics';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 import type {
   AgentStreamEvent,
   OllamaToolCall,
@@ -74,7 +75,7 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
 }
 
 /**
- * ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
+ * ローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメント（#17 Phase B）を読んだ後のため、外部と通信するツールを実行しなかったことを表す結果（#148）。
  *
  * 読んだ内容を検索語・URL に埋めて外へ送らせないため。Web の結果などに仕込まれた指示で
  * ファイルを読まされた場合でも、そこから外へ出す手段を無くす。
@@ -84,10 +85,10 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
  */
 function blockedNetworkToolOutput(name: string): ToolOutput {
   return {
-    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力・GitHub の内容を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
+    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメントを読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
     isError: true,
     summary:
-      '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容を読んだ後のため）',
+      '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメントを読んだ後のため）',
   };
 }
 
@@ -547,6 +548,15 @@ async function relayOllamaResponse(
   return { toolCalls, hasText, metrics };
 }
 
+/** {@link runAgentLoop} の応答ごとの指定。 */
+type AgentLoopOptions = {
+  /**
+   * 送る前に登録したドキュメントを探した結果の出典（#17 Phase B）。探さなかった応答は `undefined`、
+   * 探したが見つからなかった応答は空の配列
+   */
+  knowledgeSources?: KnowledgeSource[];
+};
+
 /**
  * エージェントループを実行し、進捗を NDJSON イベントとして流す ReadableStream を返す。
  *
@@ -572,20 +582,25 @@ async function relayOllamaResponse(
  * @param systemPrompt - 先頭に付与するシステムプロンプト。空・未指定なら付与しない
  * @param signal - 中断の信号（Route Handler の `request.signal`）。未指定ならストリームの cancel でのみ止まる
  * @param appOrigin - このアプリ自身のオリジン（ブラウザのツールで開かせない。#149）。未指定なら判定しない
- * @returns NDJSON イベント（text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
+ * @param options - 応答ごとの指定。`knowledgeSources`（#17 Phase B）があれば、ストリームの最初に `knowledge_sources` を送る。
+ *   1 件以上なら、抜き出しをシステムプロンプトで渡した応答として、最初から手元の情報を読んだ扱いにする（外部と通信するツールを止める）
+ * @returns NDJSON イベント（knowledge_sources / text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
  */
 export function runAgentLoop(
   messages: OllamaChatMessage[],
   model?: string,
   systemPrompt?: string,
   signal?: AbortSignal,
-  appOrigin?: string
+  appOrigin?: string,
+  options: AgentLoopOptions = {}
 ): ReadableStream<Uint8Array> {
+  const { knowledgeSources } = options;
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
-  // この応答で手元の情報を読むツール（access: local。ファイル・コマンド・GitHub）が成功したか。以降は外部と通信するツールを止める
-  let hasReadLocalFiles = false;
+  // この応答で手元の情報を読むツール（access: local。ファイル・コマンド・GitHub）が成功したか。以降は外部と通信するツールを止める。
+  // 登録したドキュメントの抜き出しを渡した応答（#17 Phase B）は、最初から読んだ扱いにする
+  let hasReadLocalFiles = (knowledgeSources?.length ?? 0) > 0;
   // 応答の終わりに行う後始末（ブラウザのページを閉じる等。#149）
   const disposers: (() => Promise<void>)[] = [];
   const toolContext: ToolContext = {
@@ -642,6 +657,11 @@ export function runAgentLoop(
         }
         emitText(event.content);
       };
+
+      // 探したドキュメントの出典は、本文より先に 1 回だけ送る（#17 Phase B）
+      if (knowledgeSources) {
+        send({ type: 'knowledge_sources', sources: knowledgeSources });
+      }
 
       // システムプロンプトがあれば先頭に追加
       const history = withSystemPrompt(messages, systemPrompt);

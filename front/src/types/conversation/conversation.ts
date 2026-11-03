@@ -20,6 +20,8 @@ export type Conversation = {
   title: string;
   /** 会話の役割（システムプロンプト）。役割なしは `null`（#10） */
   systemPrompt: string | null;
+  /** 登録したドキュメントを参照するか（RAG。#17 Phase B）。送るたびに質問に近い部分を探してモデルへ渡す */
+  knowledgeEnabled: boolean;
   /** 作成日時（API から ISO 文字列で受け取る） */
   createdAt: string;
   /** 最終更新日時（API から ISO 文字列で受け取る） */

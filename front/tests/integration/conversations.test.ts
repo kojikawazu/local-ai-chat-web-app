@@ -52,6 +52,25 @@ describe('POST /api/conversations（作成）', () => {
       expect(stored?.systemPrompt).toBe('あなたは翻訳者です。');
     });
 
+    it('knowledgeEnabled（ドキュメントの参照。#17 Phase B）を保存し、一覧でも返す', async () => {
+      const res = await POST(
+        jsonRequest(URL, 'POST', { title: '設計', knowledgeEnabled: true })
+      );
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.knowledgeEnabled).toBe(true);
+      const stored = await prisma.conversation.findUnique({
+        where: { id: body.id },
+      });
+      expect(stored?.knowledgeEnabled).toBe(true);
+
+      const { conversations } = await (await GET()).json();
+      expect(conversations[0]).toMatchObject({
+        id: body.id,
+        knowledgeEnabled: true,
+      });
+    });
+
     it('title 未指定なら既定タイトル「新しい会話」で作成する', async () => {
       const res = await POST(jsonRequest(URL, 'POST', {}));
       expect(res.status).toBe(201);
@@ -68,6 +87,11 @@ describe('POST /api/conversations（作成）', () => {
     it('空白のみ title はトリムされ既定タイトルになる', async () => {
       const res = await POST(jsonRequest(URL, 'POST', { title: '   ' }));
       expect((await res.json()).title).toBe('新しい会話');
+    });
+
+    it('knowledgeEnabled を省略するとドキュメントを参照しない（false）', async () => {
+      const res = await POST(jsonRequest(URL, 'POST', { title: '会話' }));
+      expect((await res.json()).knowledgeEnabled).toBe(false);
     });
 
     it('ボディを省略すると既定タイトルで作成する', async () => {
@@ -98,6 +122,17 @@ describe('POST /api/conversations（作成）', () => {
   });
 
   describe('異常系', () => {
+    it('knowledgeEnabled が真偽値でなければ 400（DB には保存されない。#17 Phase B）', async () => {
+      const res = await POST(
+        jsonRequest(URL, 'POST', { title: '会話', knowledgeEnabled: 'true' })
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(
+        'knowledgeEnabledは真偽値で指定してください'
+      );
+      expect(await prisma.conversation.count()).toBe(0);
+    });
+
     it('title が上限文字数を超えると 400（DB には保存されない）', async () => {
       const res = await POST(
         jsonRequest(URL, 'POST', { title: 'あ'.repeat(MAX_TITLE_LENGTH + 1) })
@@ -150,11 +185,12 @@ describe('GET /api/conversations（一覧）', () => {
       expect(conversations).toHaveLength(2);
       expect(conversations[0].id).toBe(second.id);
       expect(conversations[1].id).toBe(first.id);
-      // 一覧は id/title/systemPrompt/createdAt/updatedAt と分岐元（#29）のみ返す
+      // 一覧は id/title/systemPrompt/knowledgeEnabled（#17 Phase B）/createdAt/updatedAt と分岐元（#29）のみ返す
       expect(Object.keys(conversations[0]).sort()).toEqual([
         'createdAt',
         'forkedFrom',
         'id',
+        'knowledgeEnabled',
         'systemPrompt',
         'title',
         'updatedAt',
