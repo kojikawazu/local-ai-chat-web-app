@@ -46,6 +46,7 @@ type ForkedConversation = {
   id: string;
   title: string;
   systemPrompt: string | null;
+  knowledgeEnabled: boolean;
   forkedFrom: { conversationId: string; messageId: string; title: string };
 };
 
@@ -193,6 +194,7 @@ describe('POST /api/conversations/[id]/fork', () => {
       expect(forked.id).not.toBe(source.conversationId);
       expect(forked.title).toBe('旅行の計画（分岐）');
       expect(forked.systemPrompt).toBe('旅行の案内係');
+      expect(forked.knowledgeEnabled).toBe(false);
       expect(forked.forkedFrom).toEqual({
         conversationId: source.conversationId,
         messageId: source.messageIds[1],
@@ -217,6 +219,26 @@ describe('POST /api/conversations/[id]/fork', () => {
 
       // 元の会話は変わらない
       expect(await readMessages(source.conversationId)).toHaveLength(4);
+    });
+
+    it('ドキュメントの参照（knowledgeEnabled。#17 Phase B）を引き継ぐ', async () => {
+      const source = await createConversation();
+      await prisma.conversation.update({
+        where: { id: source.conversationId },
+        data: { knowledgeEnabled: true },
+      });
+
+      const res = await fork(source.conversationId, {
+        messageId: source.messageIds[1],
+      });
+
+      expect(res.status).toBe(201);
+      const forked: ForkedConversation = await res.json();
+      expect(forked.knowledgeEnabled).toBe(true);
+      expect(
+        (await prisma.conversation.findUnique({ where: { id: forked.id } }))
+          ?.knowledgeEnabled
+      ).toBe(true);
     });
 
     it('最後の応答から分岐すると、会話全体をコピーする', async () => {

@@ -13,7 +13,7 @@ import {
 /**
  * 会話一覧を更新日時の降順（最新順）で取得する。
  *
- * 一覧表示に必要な `id` / `title` / `systemPrompt`（会話の役割。#10）/ `createdAt` / `updatedAt` と、
+ * 一覧表示に必要な `id` / `title` / `systemPrompt`（会話の役割。#10）/ `knowledgeEnabled`（ドキュメントの参照。#17 Phase B）/ `createdAt` / `updatedAt` と、
  * 分岐元（`forkedFrom`。#29。分岐していなければ `null`）を返す（{@link toConversationResponse}）。
  *
  * @returns 成功時は会話配列を含む JSON（`{ conversations }`）。取得失敗は 500 の JSON エラーレスポンス
@@ -43,10 +43,11 @@ export async function GET() {
  * `title` は任意で、未指定・空文字・空のボディの場合は既定値「新しい会話」を用いる。
  * `systemPrompt`（会話の役割。#10）も任意で、未指定・空白のみなら役割なし（`null`）で作る。
  * 最初の送信の前に選んだ役割を、会話の作成と同時に保存するために受け付ける。
- * ボディがあるのに JSON として不正・オブジェクトでない・`title` / `systemPrompt` が文字列でない場合は 400 を返す
+ * `knowledgeEnabled`（ドキュメントの参照。#17 Phase B）も同じ理由で任意に受け付ける（未指定は false）。
+ * ボディがあるのに JSON として不正・オブジェクトでない・`title` / `systemPrompt` が文字列でない・`knowledgeEnabled` が真偽値でない場合は 400 を返す
  * （{@link parseCreateConversationBody}）。
  *
- * @param request - 任意の `title`（最大 `MAX_TITLE_LENGTH` 文字）と `systemPrompt`（最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）を含む JSON ボディを持つリクエスト（ボディ省略可）
+ * @param request - 任意の `title`（最大 `MAX_TITLE_LENGTH` 文字）・`systemPrompt`（最大 `MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` 文字）・`knowledgeEnabled` を含む JSON ボディを持つリクエスト（ボディ省略可）
  * @returns 成功時は作成された会話の JSON（一覧の 1 件と同じ形。`forkedFrom` は `null`。ステータス 201）。JSON 構文・形・型の不正と長さ超過は 400、作成失敗は 500 の JSON エラーレスポンス
  */
 export async function POST(request: NextRequest) {
@@ -56,11 +57,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { title, systemPrompt } = parsed.value;
+  const { title, systemPrompt, knowledgeEnabled } = parsed.value;
 
   try {
     const conversation = await prisma.conversation.create({
-      data: { title, systemPrompt },
+      data: { title, systemPrompt, knowledgeEnabled },
       select: CONVERSATION_SELECT,
     });
 

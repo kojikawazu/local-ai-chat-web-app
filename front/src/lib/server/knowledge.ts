@@ -4,6 +4,7 @@ import { chunkDocument } from '@/lib/knowledge/chunk';
 import type { KnowledgeChunkDraft } from '@/lib/knowledge/chunk';
 import {
   documentEmbeddingText,
+  queryEmbeddingText,
   toVectorLiteral,
 } from '@/lib/knowledge/embedding-text';
 import { compareKnowledgeNames, knowledgeFileKind } from '@/lib/knowledge/file';
@@ -15,7 +16,10 @@ import {
 } from '@/lib/llm/ollama';
 import { prisma } from '@/lib/server/prisma';
 import { MAX_KNOWLEDGE_DOCUMENTS } from '@/lib/shared/validation';
-import type { KnowledgeDocumentItem } from '@/types/knowledge/document';
+import type {
+  KnowledgeDocumentItem,
+  KnowledgeHit,
+} from '@/types/knowledge/document';
 
 /**
  * 1 つのドキュメントのチャンクの最大数（#17）。
@@ -23,6 +27,19 @@ import type { KnowledgeDocumentItem } from '@/types/knowledge/document';
  * 1 MB のファイルでも約 1,700 に収まる。見出しだけが並ぶような極端なファイルで、埋め込みの作成が長引かないための上限。
  */
 const MAX_CHUNKS_PER_DOCUMENT = 2_000;
+
+/**
+ * 会話で探すときに渡すチャンクの最大数（#17 Phase B）。1 チャンクは約 600 字なので、5 件で約 3,000 字に収まる
+ */
+const SEARCH_LIMIT = 5;
+
+/**
+ * 会話で探すときに渡すチャンクの類似度の下限（コサイン類似度。#17 Phase B）。
+ *
+ * `embeddinggemma:300m` で docs の質問 20 件を比べたとき、正解は 0.48 以上・答えの無い質問は 0.37 以下だった
+ * （`docs/28-rag.md`「前提の調査」）。ほかのモデルにすると合わないことがある
+ */
+const SEARCH_MIN_SIMILARITY = 0.4;
 
 /** 1 回に Ollama へ送る埋め込みの件数（1 回の量を抑える） */
 const EMBED_BATCH_SIZE = 32;
@@ -321,4 +338,43 @@ export async function deleteKnowledgeDocument(id: string): Promise<boolean> {
     where: { id },
   });
   return count > 0;
+}
+
+/**
+ * 質問に近いチャンクを、今の埋め込みのモデルで作ったドキュメントから探す（#17 Phase B）。
+ *
+ * 質問の埋め込みを作り、類似度の高い順に {@link SEARCH_LIMIT} 件を取り、{@link SEARCH_MIN_SIMILARITY} 未満を外す。
+ * 違うモデルで作ったドキュメントは比べられないため含めない（一覧で作り直しを促す）。索引は無く、全件と比べる。
+ * ドキュメントが 1 つも無ければ Ollama を呼ばずに空を返す。
+ *
+ * @param query - 利用者の今回のメッセージ
+ * @returns 見つかったチャンク（類似度の高い順）。無ければ空
+ * @throws {EmbeddingModelNotFoundError} 埋め込みのモデルが Ollama に無い場合
+ * @throws {EmbeddingUnavailableError} そのほかの理由で質問の埋め込みを作れない場合
+ */
+export async function searchKnowledge(query: string): Promise<KnowledgeHit[]> {
+  const model = getEmbeddingModel();
+  // 今のモデルのドキュメントが無ければ比べる相手が無い。埋め込みのモデルを読み込ませない
+  const count = await prisma.knowledgeDocument.count({
+    where: { embeddingModel: model },
+  });
+  if (count === 0) return [];
+
+  let vector: number[];
+  try {
+    [vector] = await embed([queryEmbeddingText(model, query)]);
+  } catch (error) {
+    if (error instanceof EmbeddingModelNotFoundError) throw error;
+    throw new EmbeddingUnavailableError(error);
+  }
+
+  const literal = toVectorLiteral(vector);
+  const rows = await prisma.$queryRaw<
+    KnowledgeHit[]
+  >`SELECT d."name" AS "documentName", c."heading", c."content", (1 - (c."embedding" <=> ${literal}::vector))::float8 AS "similarity"
+    FROM "KnowledgeChunk" c JOIN "KnowledgeDocument" d ON d."id" = c."documentId"
+    WHERE d."embeddingModel" = ${model}
+    ORDER BY c."embedding" <=> ${literal}::vector, d."name", c."position"
+    LIMIT ${SEARCH_LIMIT}`;
+  return rows.filter((row) => row.similarity >= SEARCH_MIN_SIMILARITY);
 }

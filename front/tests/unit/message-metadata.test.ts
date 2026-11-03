@@ -209,3 +209,67 @@ describe('parseMessageMetadata', () => {
     });
   });
 });
+
+describe('knowledgeSources（#17 Phase B）', () => {
+  const SOURCE = {
+    documentName: '設計書.md',
+    heading: '範囲',
+    excerpt: '会話ごとに切り替える。',
+    similarity: 0.62,
+  };
+
+  describe('正常系', () => {
+    it('出典を metadata に含め、保存したものをそのまま復元する', () => {
+      const built = buildMessageMetadata({
+        knowledgeSources: [SOURCE],
+        metrics: undefined,
+      });
+      expect(built).toEqual({ knowledgeSources: [SOURCE] });
+      expect(parseMessageMetadata(built)).toEqual(built);
+    });
+  });
+
+  describe('準正常系', () => {
+    it('空の配列（探したが見つからなかった）は、ほかの項目が無くても残す', () => {
+      expect(buildMessageMetadata({ knowledgeSources: [] })).toEqual({
+        knowledgeSources: [],
+      });
+      expect(parseMessageMetadata({ knowledgeSources: [] })).toEqual({
+        knowledgeSources: [],
+      });
+    });
+
+    it('見出しが空の出典も復元する（見出しの前の部分）', () => {
+      const source = { ...SOURCE, heading: '' };
+      expect(parseMessageMetadata({ knowledgeSources: [source] })).toEqual({
+        knowledgeSources: [source],
+      });
+    });
+
+    it('探さなかった応答（項目なし）は出典を持たない', () => {
+      expect(buildMessageMetadata({ knowledgeSources: undefined })).toBeNull();
+    });
+  });
+
+  describe('異常系', () => {
+    it('形の合わない出典だけを捨てる', () => {
+      expect(
+        parseMessageMetadata({
+          knowledgeSources: [
+            SOURCE,
+            { ...SOURCE, documentName: '' },
+            { ...SOURCE, heading: null },
+            { ...SOURCE, excerpt: 1 },
+            { ...SOURCE, similarity: Number.NaN },
+            { ...SOURCE, similarity: '0.5' },
+            null,
+          ],
+        })
+      ).toEqual({ knowledgeSources: [SOURCE] });
+    });
+
+    it('配列でなければ探さなかった応答として扱う', () => {
+      expect(parseMessageMetadata({ knowledgeSources: SOURCE })).toBeNull();
+    });
+  });
+});

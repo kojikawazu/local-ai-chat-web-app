@@ -4,8 +4,8 @@ import { prisma, resetDb, jsonRequest, routeContext } from './helpers/db';
 import { MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH } from '@/lib/shared/validation';
 
 /**
- * `PATCH /api/conversations/[id]`（会話の役割の変更。#10）の IT。
- * 役割の保存・外す操作・変更できる項目の制限・400 / 404 / 500 の区別を実 DB に対して検証する。
+ * `PATCH /api/conversations/[id]`（会話の役割の変更。#10。ドキュメントの参照の切り替え。#17 Phase B）の IT。
+ * 役割の保存・外す操作・ドキュメントの参照の切り替え・変更できる項目の制限・400 / 404 / 500 の区別を実 DB に対して検証する。
  */
 const URL = 'http://localhost/api/conversations/x';
 const NONEXISTENT = '00000000-0000-0000-0000-000000000000';
@@ -54,6 +54,7 @@ describe('PATCH /api/conversations/[id]（役割の変更）', () => {
         'createdAt',
         'forkedFrom',
         'id',
+        'knowledgeEnabled',
         'systemPrompt',
         'title',
         'updatedAt',
@@ -70,6 +71,50 @@ describe('PATCH /api/conversations/[id]（役割の変更）', () => {
   });
 
   describe('準正常系', () => {
+    it('knowledgeEnabled だけを送ると、ドキュメントの参照だけを変え、役割は変えない（#17 Phase B）', async () => {
+      const conv = await createConversation('旧い役割');
+
+      const on = await PATCH(
+        jsonRequest(URL, 'PATCH', { knowledgeEnabled: true }),
+        routeContext(conv.id)
+      );
+      expect(on.status).toBe(200);
+      expect(await on.json()).toMatchObject({
+        knowledgeEnabled: true,
+        systemPrompt: '旧い役割',
+      });
+
+      const off = await PATCH(
+        jsonRequest(URL, 'PATCH', { knowledgeEnabled: false }),
+        routeContext(conv.id)
+      );
+      expect((await off.json()).knowledgeEnabled).toBe(false);
+      const stored = await prisma.conversation.findUnique({
+        where: { id: conv.id },
+      });
+      expect(stored).toMatchObject({
+        knowledgeEnabled: false,
+        systemPrompt: '旧い役割',
+      });
+    });
+
+    it('役割だけを送ると、ドキュメントの参照は変えない', async () => {
+      const conv = await createConversation();
+      await prisma.conversation.update({
+        where: { id: conv.id },
+        data: { knowledgeEnabled: true },
+      });
+
+      const res = await PATCH(
+        jsonRequest(URL, 'PATCH', { systemPrompt: '役割' }),
+        routeContext(conv.id)
+      );
+      expect(await res.json()).toMatchObject({
+        systemPrompt: '役割',
+        knowledgeEnabled: true,
+      });
+    });
+
     it.each([
       ['null', null],
       ['空文字', ''],
@@ -132,8 +177,10 @@ describe('PATCH /api/conversations/[id]（役割の変更）', () => {
     it.each([
       ['不正な JSON', 'not-json'],
       ['ボディが null', null],
-      ['systemPrompt キーが無い', {}],
+      ['systemPrompt・knowledgeEnabled のキーが無い', {}],
       ['systemPrompt が数値', { systemPrompt: 1 }],
+      ['knowledgeEnabled が文字列', { knowledgeEnabled: 'true' }],
+      ['knowledgeEnabled が null', { knowledgeEnabled: null }],
       [
         'systemPrompt が上限超過',
         {

@@ -1,5 +1,6 @@
 import type { ToolCallInfo } from '@/types/agent/tool-call';
 import type { ResponseMetrics } from './metrics';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 
 /**
  * 永続化に失敗したメッセージのクライアント側の状態。API・DB には存在しない。
@@ -54,6 +55,11 @@ export type Message = {
     interrupted?: boolean;
     /** 応答のトークン数・所要時間（#31）。停止した応答・この機能より前の応答は持たない */
     metrics?: ResponseMetrics;
+    /**
+     * 送ったときに探したドキュメントの出典（#17 Phase B）。空の配列は「探したが見つからなかった」。
+     * ドキュメントを参照しなかった応答は持たない
+     */
+    knowledgeSources?: KnowledgeSource[];
   } | null;
   /**
    * 保存に失敗したときだけ付く状態（{@link MessageSaveState}）。省略時は保存済み。

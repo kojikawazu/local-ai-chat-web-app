@@ -28,6 +28,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
     id: 'c1',
     title: '旅行の計画',
     systemPrompt: null,
+    knowledgeEnabled: false,
     createdAt: '2026-10-24T09:00:00.000Z',
     updatedAt: '2026-10-24T09:10:00.000Z',
     forkedFrom: null,

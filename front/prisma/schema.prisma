@@ -11,6 +11,7 @@ model Conversation {
   id                  String    @id @default(uuid())
   title               String
   systemPrompt        String? // 会話の役割（システムプロンプト）。null は役割なし
+  knowledgeEnabled    Boolean   @default(false) // 登録したドキュメントを参照するか（RAG。#17 Phase B）
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   messages            Message[]

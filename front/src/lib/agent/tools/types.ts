@@ -4,6 +4,7 @@ import type {
   ToolScreenshot,
 } from '@/types/agent/tool-call';
 import type { ResponseMetrics } from '@/types/chat/metrics';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 
 /**
  * Ollama API の function calling へ渡すツール定義。
@@ -136,6 +137,8 @@ export type ToolContext = {
  * - `tool_approval_request`: 承認が要るツールの実行前に、承認 ID と見せる内容を送る（#148 Phase A2）。
  *   画面は承認の API で許可か拒否かを返す。決着は続く `tool_call_result`（`approval` 付き）で分かる。
  *   待ち時間の上限（`timeoutMs`）を載せ、画面は受け取った時刻から残り時間を数える（#202。時計のずれに左右されないよう、絶対時刻は送らない）。
+ * - `knowledge_sources`: ドキュメントを参照する会話（#17 Phase B）で、探した結果の出典。ストリームの最初に 1 回だけ送る
+ *   （通常・エージェントの両方）。空の配列は「探したが見つからなかった」。画面は応答のメタデータに写して保存する。
  */
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
@@ -157,6 +160,7 @@ export type AgentStreamEvent =
       };
     }
   | { type: 'error'; message: string }
+  | { type: 'knowledge_sources'; sources: KnowledgeSource[] }
   | { type: 'thinking'; content: string } // Phase C
   | {
       type: 'tool_approval_request';

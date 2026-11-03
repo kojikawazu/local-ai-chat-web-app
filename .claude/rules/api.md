@@ -14,14 +14,14 @@ globs: "front/src/app/api/**"
 - **ツールの承認待ちはモジュールの変数に置かない。** `/api/chat` が登録し、承認の API（`/api/agent/approvals/[id]`）が決着させるため、`lib/agent/approvals.ts` が `globalThis` に持つ（route ごとにモジュールが別に読み込まれても共有するため。#148 Phase A2）。
 - **一意制約の重複は 409 で返す。** 事前に数えて確かめず、Prisma の一意制約の違反（`P2002`）を `lib/server/prisma-error.ts` の `isUniqueConstraintError()` で判定する（メッセージのクライアント採番の `id`・プロンプトテンプレートのショートカット。#28。応答のブックマーク（1 つの応答に 1 つ）。#30）。確認と作成の間に同じ値で作られても食い違わないため。参照先を読んでから作る間に消された場合の外部キーの違反（`P2003`）は、同ファイルの `isForeignKeyConstraintError()` で 404 にする（#30）。
 - **会話を返す API は同じ形にそろえる。** 一覧・作成・役割の変更・分岐は、`lib/server/conversation.ts` の `CONVERSATION_SELECT` で読み、`toConversationResponse()` で分岐元（`forkedFrom`。#29）をまとめて返す。クライアントは役割の変更の応答で一覧の会話を差し替えるため、形がずれると分岐元のリンクが消える。
-- **RAG のドキュメント（#17）の DB の処理は `lib/server/knowledge.ts` にまとめる。** `vector` の列を読み書きする raw SQL を route に書かない。埋め込みは `lib/llm/ollama.ts` の `embed()` を経由し、埋め込みの失敗（502）と DB の失敗（500）を分けて返す（`lib/server/knowledge-response.ts`）。取り込みはボディを JSON ではなく `multipart/form-data` で受け、`Content-Length` が大きすぎればボディを読まずに 413 を返す。
+- **RAG のドキュメント（#17）の DB の処理は `lib/server/knowledge.ts` にまとめる。** `vector` の列を読み書きする raw SQL を route に書かない。埋め込みは `lib/llm/ollama.ts` の `embed()` を経由し、埋め込みの失敗（502）と DB の失敗（500）を分けて返す（`lib/server/knowledge-response.ts`）。取り込みはボディを JSON ではなく `multipart/form-data` で受け、`Content-Length` が大きすぎればボディを読まずに 413 を返す。会話での参照（Phase B）も、`/api/chat` は `searchKnowledge()` を呼ぶだけにし、探すのに失敗したら応答を始めずに同じ形（502 / 500）で返す（黙ってドキュメント無しで答えない）。
 - **Route Handler から PlantUML サーバーへ直接 `fetch` しない。** 接続先（`PLANTUML_URL`）の解決とエラーの解釈は `lib/server/plantuml.ts` の `renderPlantUml()` に集約する（#171）。
 
 ## ディレクトリ構成
 
 ```
 front/src/app/api/
-├── chat/route.ts                          # Ollama ストリーミング通信（通常 / エージェント）
+├── chat/route.ts                          # Ollama ストリーミング通信（通常 / エージェント。knowledgeEnabled でドキュメントを探して入れる。#17 Phase B）
 ├── models/route.ts                        # 利用可能モデル一覧取得
 ├── tools/route.ts                         # エージェントの利用可能ツール一覧取得
 ├── diagrams/plantuml/route.ts             # PlantUML の図の描画（PlantUML サーバーへ中継）
@@ -39,10 +39,10 @@ front/src/app/api/
 │   ├── [id]/route.ts                      # 削除
 │   └── [id]/rebuild/route.ts              # 今の埋め込みのモデルで作り直す
 └── conversations/
-    ├── route.ts                           # 会話一覧取得・新規作成（分岐元の forkedFrom 付き。#29）
+    ├── route.ts                           # 会話一覧取得・新規作成（分岐元の forkedFrom・ドキュメントの参照の knowledgeEnabled 付き。#29・#17）
     ├── search/route.ts                    # 会話のキーワード検索
     └── [id]/
-        ├── route.ts                       # 会話の役割の変更（PATCH）・会話削除
+        ├── route.ts                       # 会話の役割・ドキュメントの参照の変更（PATCH。送った項目だけ）・会話削除
         ├── fork/route.ts                  # 応答から会話を分岐する（その応答までを新しい会話にコピー。#29）
         ├── messages/route.ts              # メッセージ取得（付いているブックマークの ID 付き。#30）・保存（assistant はブラウザのツールの画面を添付。#200）
         ├── messages/[messageId]/route.ts  # 応答の置き換え（再生成。旧応答のブックマークは消す）

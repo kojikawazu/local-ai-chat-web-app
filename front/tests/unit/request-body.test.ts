@@ -142,6 +142,7 @@ describe('parseChatBody', () => {
           model: 'qwen2.5:0.5b',
           enableTools: true,
           systemPrompt: 'あなたはリサーチャーです',
+          knowledgeEnabled: true,
         })
       ).toEqual({
         ok: true,
@@ -155,11 +156,12 @@ describe('parseChatBody', () => {
           model: 'qwen2.5:0.5b',
           enableTools: true,
           systemPrompt: 'あなたはリサーチャーです',
+          knowledgeEnabled: true,
         },
       });
     });
 
-    it('message だけなら履歴は空・enableTools は false になる', () => {
+    it('message だけなら履歴は空・enableTools と knowledgeEnabled は false になる', () => {
       expect(parseChatBody({ message: 'やあ' })).toEqual({
         ok: true,
         value: {
@@ -169,6 +171,7 @@ describe('parseChatBody', () => {
           model: undefined,
           enableTools: false,
           systemPrompt: undefined,
+          knowledgeEnabled: false,
         },
       });
     });
@@ -182,6 +185,7 @@ describe('parseChatBody', () => {
         model: null,
         enableTools: null,
         systemPrompt: null,
+        knowledgeEnabled: null,
       });
       expect(result).toEqual({
         ok: true,
@@ -192,6 +196,7 @@ describe('parseChatBody', () => {
           model: undefined,
           enableTools: false,
           systemPrompt: undefined,
+          knowledgeEnabled: false,
         },
       });
     });
@@ -286,6 +291,11 @@ describe('parseChatBody', () => {
         'enableTools',
         { enableTools: 'true' },
         'enableToolsは真偽値で指定してください',
+      ],
+      [
+        'knowledgeEnabled',
+        { knowledgeEnabled: 1 },
+        'knowledgeEnabledは真偽値で指定してください',
       ],
       [
         'systemPrompt',
@@ -424,7 +434,7 @@ describe('parseCreateConversationBody', () => {
     it('title の前後の空白を除いて返す', () => {
       expect(parseCreateConversationBody({ title: ' 会話 ' })).toEqual({
         ok: true,
-        value: { title: '会話', systemPrompt: null },
+        value: { title: '会話', systemPrompt: null, knowledgeEnabled: false },
       });
     });
 
@@ -433,7 +443,20 @@ describe('parseCreateConversationBody', () => {
         parseCreateConversationBody({ title: '会話', systemPrompt: ' 翻訳者 ' })
       ).toEqual({
         ok: true,
-        value: { title: '会話', systemPrompt: '翻訳者' },
+        value: {
+          title: '会話',
+          systemPrompt: '翻訳者',
+          knowledgeEnabled: false,
+        },
+      });
+    });
+
+    it('knowledgeEnabled を受け取る（最初の送信の前に入れた参照を会話と同時に保存する。#17 Phase B）', () => {
+      expect(
+        parseCreateConversationBody({ title: '会話', knowledgeEnabled: true })
+      ).toEqual({
+        ok: true,
+        value: { title: '会話', systemPrompt: null, knowledgeEnabled: true },
       });
     });
   });
@@ -446,7 +469,11 @@ describe('parseCreateConversationBody', () => {
     ])('title が%sなら既定タイトルになる', (_label, body) => {
       expect(parseCreateConversationBody(body)).toEqual({
         ok: true,
-        value: { title: '新しい会話', systemPrompt: null },
+        value: {
+          title: '新しい会話',
+          systemPrompt: null,
+          knowledgeEnabled: false,
+        },
       });
     });
 
@@ -456,7 +483,11 @@ describe('parseCreateConversationBody', () => {
     ])('systemPrompt が%sなら役割なし（null）', (_label, systemPrompt) => {
       expect(parseCreateConversationBody({ systemPrompt })).toEqual({
         ok: true,
-        value: { title: '新しい会話', systemPrompt: null },
+        value: {
+          title: '新しい会話',
+          systemPrompt: null,
+          knowledgeEnabled: false,
+        },
       });
     });
 
@@ -502,6 +533,12 @@ describe('parseCreateConversationBody', () => {
       );
     });
 
+    it('knowledgeEnabled が真偽値でなければ失敗（#17 Phase B）', () => {
+      expect(
+        errorOf(parseCreateConversationBody({ knowledgeEnabled: 'true' }))
+      ).toBe('knowledgeEnabledは真偽値で指定してください');
+    });
+
     it('systemPrompt が上限を超えると失敗', () => {
       expect(
         errorOf(
@@ -537,7 +574,26 @@ describe('parseUpdateConversationBody', () => {
       });
     });
 
-    it('systemPrompt 以外のフィールドは無視する（役割だけを変更できる）', () => {
+    it('knowledgeEnabled だけなら役割は変えない（systemPrompt を返さない。#17 Phase B）', () => {
+      expect(parseUpdateConversationBody({ knowledgeEnabled: true })).toEqual({
+        ok: true,
+        value: { knowledgeEnabled: true },
+      });
+    });
+
+    it('両方を送れば両方を変える', () => {
+      expect(
+        parseUpdateConversationBody({
+          systemPrompt: '役割',
+          knowledgeEnabled: false,
+        })
+      ).toEqual({
+        ok: true,
+        value: { systemPrompt: '役割', knowledgeEnabled: false },
+      });
+    });
+
+    it('systemPrompt・knowledgeEnabled 以外のフィールドは無視する', () => {
       expect(
         parseUpdateConversationBody({ systemPrompt: '役割', title: '変更' })
       ).toEqual({ ok: true, value: { systemPrompt: '役割' } });
@@ -549,11 +605,24 @@ describe('parseUpdateConversationBody', () => {
       expect(parseUpdateConversationBody(body).ok).toBe(false);
     });
 
-    it('systemPrompt キーが無ければ失敗（変えないのか外すのか区別できないため）', () => {
+    it('systemPrompt と knowledgeEnabled のどちらのキーも無ければ失敗（何を変えるのか分からないため）', () => {
       expect(errorOf(parseUpdateConversationBody({}))).toBe(
-        'systemPromptを指定してください（外す場合は null）'
+        'systemPrompt（外す場合は null）かknowledgeEnabledを指定してください'
       );
     });
+
+    it.each([
+      ['null', null],
+      ['文字列', 'true'],
+      ['数値', 1],
+    ])(
+      'knowledgeEnabled が%sなら失敗（キーがあるのに変えないのと区別できないため）',
+      (_label, knowledgeEnabled) => {
+        expect(errorOf(parseUpdateConversationBody({ knowledgeEnabled }))).toBe(
+          'knowledgeEnabledは真偽値で指定してください'
+        );
+      }
+    );
 
     it('systemPrompt が文字列でも null でもなければ失敗', () => {
       expect(

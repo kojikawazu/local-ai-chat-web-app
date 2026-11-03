@@ -1,6 +1,6 @@
 # アーキテクチャ設計書
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 
 ## 目次
 
@@ -45,7 +45,7 @@ Next.js Route Handlers (API層)
 
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
-- RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。
+- RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。「ドキュメントを参照」を入れた会話（`Conversation.knowledgeEnabled`。Phase B）では、`/api/chat` が送るたびに今回のメッセージの埋め込みを作って近いチャンクを探し、システムプロンプトに入れ、出典をストリームの最初の `knowledge_sources` で返す。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
 - GitHub のツール（#148 Phase C）は、利用者の `gh`（`gh auth login` 済み）をシェルを介さずに起動する。引数はアプリが組み立て、モデルは `gh` の引数を書けない。コメント・PR の作成は実行前に承認を挟む（`docs/17-github-tools.md`）。
@@ -152,6 +152,7 @@ front/src/
 │       ├── chat/
 │       │   ├── atoms/
 │       │   │   ├── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
+│       │   │   ├── KnowledgeToggle.tsx   # 会話ごとの「ドキュメントを参照」の本のボタン（aria-pressed・ドキュメントが無いと入れられない。#17 Phase B）
 │       │   │   └── ElementBoxOverlay.tsx # スクリーンショットに、操作する要素を囲む枠を重ねる（SVG。#200）
 │       │   ├── molecules/
 │       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素と操作の前の画面・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C、#200）
@@ -160,6 +161,7 @@ front/src/
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
 │       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
 │       │   │   ├── ResponseMetrics.tsx   # 応答のトークン数・生成の速さの要約と、押して開く内訳（#31）
+│       │   │   ├── KnowledgeSources.tsx  # 応答の出典（参照したドキュメント）の要約と、押して開く一覧・見つからなかったときの文（#17 Phase B）
 │       │   │   ├── PromptTemplateSuggestions.tsx # 入力欄の上に重ねるプロンプトテンプレートの候補（例を追加・管理の入口。#28）
 │       │   │   ├── ToolCallIndicator.tsx # ツール実行中インジケーター
 │       │   │   ├── WebSearchResult.tsx   # web_search の結果をリンク付きの一覧に整形
@@ -242,7 +244,8 @@ front/src/
 │   │   ├── useBookmarks.ts    #     ブックマークの一覧の読み込み・検索（入力の待ち合わせ・前の要求の中断）・さらに表示・メモ・外す（#30）
 │   │   └── useMessageBookmark.ts #  応答の下のボタンで付ける・外す（返事を待つ間の表示・失敗で戻す。#30）
 │   ├── knowledge/
-│   │   └── useKnowledgeDocuments.ts # RAG のドキュメントの一覧・1 つずつ取り込み（送る前の確かめ）・作り直し・削除（#17）
+│   │   ├── useKnowledgeDocuments.ts # RAG のドキュメントの一覧・1 つずつ取り込み（送る前の確かめ）・作り直し・削除（#17）
+│   │   └── useKnowledgeAvailability.ts # 取り込んだドキュメントがあるか（入力欄の切り替えを入れられるか。管理画面を閉じたら読み直す。#17 Phase B）
 │   ├── settings/
 │   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
 │   ├── shortcut/
@@ -346,7 +349,8 @@ front/src/
 │   ├── knowledge/             #   RAG のドキュメント（#17）
 │   │   ├── file.ts            #     取り込むファイルの検証（拡張子・UTF-8・NUL・BOM・改行）・名前の並び順
 │   │   ├── chunk.ts           #     チャンクの分け方（見出しの経路・空行で約 600 字・コードブロック・長い段落）
-│   │   └── embedding-text.ts  #     埋め込みへ渡す文（embeddinggemma の前置き）・pgvector の文字の形
+│   │   ├── embedding-text.ts  #     埋め込みへ渡す文（embeddinggemma の前置き。文書・質問）・pgvector の文字の形
+│   │   └── prompt.ts          #     見つかったチャンク → システムプロンプトの節・出典（抜き出しの先頭 200 字。#17 Phase B）
 │   ├── prompt-template/       #   プロンプトテンプレート
 │   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
 │   ├── shortcut/              #   ショートカット
@@ -361,6 +365,8 @@ front/src/
 │   │   ├── plantuml.ts        #     PlantUML サーバーとの通信（POST /svg・エラーの解釈。#171）
 │   │   ├── attachment.ts      #     添付画像の形式の判定（マジックナンバー）・Base64 の復号（#6）
 │   │   ├── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
+│   │   ├── knowledge.ts       #     RAG のドキュメントの DB の処理（取り込み・作り直し・削除・会話での検索。raw SQL。#17）
+│   │   ├── knowledge-response.ts #  取り込み・作り直し・検索の失敗の応答（502 / 409 / 500・上限の 400。#17）
 │   │   └── prisma-error.ts    #     Prisma の一意制約の違反（409。メッセージの id・テンプレートのショートカット・ブックマーク。#28・#30）と外部キーの違反（404。ブックマーク・分岐。#30・#29）の判定
 │   └── shared/                #   サーバー・クライアント共通
 │       ├── validation.ts      #     入力の上限値・UUID・テンプレートのショートカットの形の検証（フロントと API が同じ定数を使う）
@@ -385,7 +391,7 @@ front/src/
     ├── bookmark/
     │   └── bookmark.ts        #     Bookmark・BookmarkListItem（ブックマークと一覧の 1 件。#30）
     ├── knowledge/
-    │   └── document.ts        #     KnowledgeDocumentItem（RAG のドキュメントの一覧の 1 件。#17）
+    │   └── document.ts        #     KnowledgeDocumentItem（RAG のドキュメントの一覧の 1 件。#17）・KnowledgeHit・KnowledgeSource（会話で見つかったチャンクと出典。#17 Phase B）
     ├── shortcut/
     │   └── shortcut.ts        #     ShortcutId・ShortcutBinding・ShortcutDefinition（#33）
     └── theme/
@@ -445,6 +451,7 @@ front/tests/
     ├── token-metrics.spec.ts      # 応答のトークン数・生成速度（要約と内訳の開閉・エージェントの内訳・値の無い応答・形の合わない値・実際の生成（CI はスキップ））
     ├── prompt-templates.spec.ts   # プロンプトテンプレート（`/` の候補・Enter / Tab / クリックで入れる・絞り込み・管理画面の作成 / 編集 / 2 段階の削除・例を追加・一致しないときの送信・途中の `/`・Escape で生成を止めない・重複・一覧の取得と保存の失敗）
     ├── knowledge.spec.ts          # RAG のドキュメント（ファイルを選んで取り込む・一覧の大きさとチャンクの数・同じ名前の置き換え・2 段階の削除・取り込めない拡張子・テキストでない中身・取り込みの通信の失敗）
+    ├── knowledge-chat.spec.ts     # 会話でのドキュメントの参照（切り替えて送ると出典が出て再読み込みの後も残る（CI はスキップ）・出典の要約と一覧（文字のまま）・開いている会話での切り替えの保存・見つからなかった応答・ドキュメントが無いと入れられない・参照しなかった応答・切り替えの保存・ドキュメントを探すことの失敗）
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）
@@ -474,6 +481,8 @@ Conversation           Message                     Attachment
 │ id (UUID PK) │──┐    │ id (UUID PK)     │──┐     │ id (UUID PK)     │
 │ title        │  │    │ conversationId   │  │     │ messageId        │──→ Message.id (FK)
 │ systemPrompt │  │    │ role             │  │     │ position         │
+│ knowledge-   │  │    │                  │  │     │                  │
+│  Enabled     │  │    │                  │  │     │                  │
 │ createdAt    │  └───<│ content          │  └────<│ mimeType         │    ('image/png' | 'image/jpeg')
 │ updatedAt    │       │ metadata         │        │ width / height   │
 └──────────────┘       │ createdAt        │        │ size             │
@@ -530,6 +539,7 @@ model Conversation {
   id           String    @id @default(uuid())
   title        String
   systemPrompt String? // 会話の役割（システムプロンプト）。null は役割なし
+  knowledgeEnabled Boolean @default(false) // 登録したドキュメントを参照するか（RAG。#17 Phase B）
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   messages     Message[]
@@ -657,6 +667,14 @@ model KnowledgeChunk {
 4. `/api/chat` は通常・エージェントとも、後ろに「現在の日時」の節を足し（`withCurrentDate`。#154）、会話履歴の先頭に `role: 'system'` として付ける（`withSystemPrompt`）。役割が無くても日時の節だけは付ける
 
 役割は会話ごとに本文だけを保存する（プリセットの ID は保存しない）。途中で変えた役割は以降の送信（再生成を含む）から効く。
+
+### 会話でのドキュメントの参照のフロー（#17 Phase B）
+
+1. 入力欄の左の本のボタン（`KnowledgeToggle`）で「ドキュメントを参照」を切り替える。既存の会話なら `PATCH /api/conversations/[id]` の `knowledgeEnabled` で保存し、会話を作る前なら `page.tsx` の下書きに持って最初の `POST /api/conversations` で一緒に保存する（役割と同じ）。ドキュメントが 1 つも無いとき（`useKnowledgeAvailability`）は入れられない
+2. 送信・再生成のたびに、`useChat` が `/api/chat` へ `knowledgeEnabled` を送る
+3. `/api/chat` は今回のメッセージの埋め込みを作り（`embed`・検索の前置き）、今の埋め込みのモデルのチャンクから類似度の高い順に 5 件を取り、0.40 未満を外す（`searchKnowledge`）。探すのに失敗したら応答を始めずに 502 / 500
+4. 見つかった部分を `lib/knowledge/prompt.ts` で節にし、役割の後・現在の日時の前に入れる。出典（`toKnowledgeSources`）はストリームの最初の `knowledge_sources` で送る（見つからなければ空の配列）。エージェントモードで 1 件以上を渡した応答では、最初から手元の情報を読んだ扱いにし、外部と通信するツールを止める
+5. 画面は出典を応答のメタデータ（`knowledgeSources`）に入れて保存し、応答の下に `KnowledgeSources` で出す
 
 ### プロンプトテンプレートのフロー（#28）
 

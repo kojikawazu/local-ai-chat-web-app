@@ -19,6 +19,14 @@ import {
   withOmittedImagesNote,
 } from '@/lib/server/chat-images';
 import { prisma } from '@/lib/server/prisma';
+import { searchKnowledge } from '@/lib/server/knowledge';
+import { knowledgeErrorResponse } from '@/lib/server/knowledge-response';
+import {
+  buildKnowledgePrompt,
+  toKnowledgeSources,
+  withKnowledgePrompt,
+} from '@/lib/knowledge/prompt';
+import type { KnowledgeSource } from '@/types/knowledge/document';
 
 // ツールを登録（registry.ts で一元管理）
 initializeTools();
@@ -131,11 +139,15 @@ async function buildMessages(body: ChatBody): Promise<BuildResult> {
  * ボディは {@link parseChatBody} で検証し、不正なら Ollama を呼ばずに 400 を返す。
  * 添付画像の ID（`imageIds`・履歴の各要素の `imageIds`。#6）は DB から読んで Ollama の `images` へ渡す
  * （{@link buildMessages}）。
+ * `knowledgeEnabled`（#17 Phase B）が真なら、今回のメッセージに近い部分を登録したドキュメントから探し
+ * （{@link searchKnowledge}）、システムプロンプトの役割の後・現在の日時の前に足す。探した結果は
+ * ストリームの最初の `knowledge_sources` で送る（見つからなければ空の配列）。エージェントモードで 1 件以上を渡した応答では、
+ * 外部と通信するツールを止める。探すのに失敗したら応答を始めずにエラーを返す（黙ってドキュメント無しで答えない）。
  * ブラウザが停止・切断した場合（`request.signal` の abort・応答ストリームの cancel）は、
  * Ollama への接続を切って生成を止める。
  *
- * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`systemPrompt` を含む JSON ボディを持つリクエスト
- * @returns 成功時はストリーミング `Response`（NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時は 502、添付の読み込み失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
+ * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`systemPrompt`・`knowledgeEnabled` を含む JSON ボディを持つリクエスト
+ * @returns 成功時はストリーミング `Response`（NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時・ドキュメントを探す埋め込みを作れない（モデルが無い・Ollama に繋がらない）ときは 502、添付の読み込み・ドキュメントの検索の DB の失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
  */
 export async function POST(request: NextRequest) {
   const raw = await readJsonBody(request);
@@ -144,19 +156,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { model, enableTools, systemPrompt } = parsed.value;
+  const { model, enableTools, systemPrompt, knowledgeEnabled } = parsed.value;
 
   const built = await buildMessages(parsed.value);
   if (!built.ok) {
     return NextResponse.json({ error: built.error }, { status: built.status });
   }
   const { messages } = built;
+
+  // 登録したドキュメントから、今回のメッセージに近い部分を探す（#17 Phase B）。履歴の前の質問では探さない
+  let knowledgeSources: KnowledgeSource[] | undefined;
+  let knowledgePrompt = '';
+  if (knowledgeEnabled) {
+    try {
+      const hits = await searchKnowledge(parsed.value.message);
+      knowledgeSources = toKnowledgeSources(hits);
+      knowledgePrompt = buildKnowledgePrompt(hits);
+    } catch (error) {
+      return knowledgeErrorResponse(
+        error,
+        'search knowledge',
+        'ドキュメントの検索に失敗しました'
+      );
+    }
+  }
+
   // 今日の日付を必ず知らせる。知らせないと「最新」を学習時点の年で検索・回答する（#154）
-  const prompt = withCurrentDate(systemPrompt, {
-    now: new Date(),
-    timeZone: getLocalTimeZone(),
-    enableTools,
-  });
+  const prompt = withCurrentDate(
+    withKnowledgePrompt(systemPrompt, knowledgePrompt),
+    {
+      now: new Date(),
+      timeZone: getLocalTimeZone(),
+      enableTools,
+    }
+  );
 
   // エージェントモード: NDJSON イベントストリームを返す
   if (enableTools) {
@@ -165,7 +198,8 @@ export async function POST(request: NextRequest) {
       model,
       prompt,
       request.signal,
-      request.nextUrl.origin
+      request.nextUrl.origin,
+      { knowledgeSources }
     );
     return new Response(agentStream, {
       headers: {
@@ -227,6 +261,10 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'));
       };
       try {
+        // 探したドキュメントの出典は、本文より先に 1 回だけ送る（#17 Phase B）
+        if (knowledgeSources) {
+          send({ type: 'knowledge_sources', sources: knowledgeSources });
+        }
         let buffer = '';
 
         while (true) {

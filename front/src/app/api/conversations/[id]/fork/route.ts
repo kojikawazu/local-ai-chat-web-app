@@ -50,7 +50,8 @@ export async function POST(
   try {
     const source = await prisma.conversation.findUnique({
       where: { id },
-      select: { title: true, systemPrompt: true },
+      // 役割とドキュメントの参照（#17 Phase B）は引き継ぐ（分岐は同じ話の続きを試すためのもの）
+      select: { title: true, systemPrompt: true, knowledgeEnabled: true },
     });
     if (!source) {
       return NextResponse.json(
@@ -100,6 +101,7 @@ export async function POST(
       data: {
         title: toForkTitle(source.title),
         systemPrompt: source.systemPrompt,
+        knowledgeEnabled: source.knowledgeEnabled,
         forkedFromMessageId: messageId,
         messages: {
           create: rows.map((row) => {

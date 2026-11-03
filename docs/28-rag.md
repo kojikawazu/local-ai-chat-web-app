@@ -1,8 +1,8 @@
 # RAG（手元のドキュメントで答える）設計書
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 
-利用者が登録したテキストのドキュメントを、質問に近い部分だけ探して応答のときにモデルへ渡し、手元の知識で答えさせるための設計（#17）。Phase A（取り込みと管理。サブ issue #227）と Phase B（会話での参照と出典。後のサブ issue）を、この 1 つの設計書にまとめる。
+利用者が登録したテキストのドキュメントを、質問に近い部分だけ探して応答のときにモデルへ渡し、手元の知識で答えさせるための設計（#17）。Phase A（取り込みと管理。サブ issue #227）と Phase B（会話での参照と出典。サブ issue #233）を、この 1 つの設計書にまとめる。
 
 ## 目次
 
@@ -187,7 +187,7 @@ type KnowledgeDocumentItem = {
   - 「ファイルを選ぶ」ボタン（複数選べる。`accept=".md,.markdown,.txt"`）と、ダイアログへのドラッグ＆ドロップ。
   - 選んだファイルは 1 つずつ取り込み、取り込み中のファイルに「取り込み中…」を出す。失敗したファイルは理由を出し、残りは続ける。
   - 一覧: 名前・大きさ・チャンク数・登録 / 更新の日時。今のモデルと違うモデルで作ったものに「作り直しが要る」と「作り直す」のボタン。削除のボタン（確かめてから消す）。
-  - ダイアログの先頭に、取り込める形式・大きさ・同じ名前は置き換えること・会話での参照は次の更新で入ることを書く（Phase B のマージで文言を直す）。空のときは「ドキュメントはまだありません」。
+  - ダイアログの先頭に、取り込める形式・大きさ・同じ名前は置き換えること・入力欄の本のボタンで「ドキュメントを参照」を入れた会話で使うことを書く（Phase A では「会話での参照は次の更新で入る」と書き、Phase B で直した）。空のときは「ドキュメントはまだありません」。
   - 今の埋め込みのモデルの名前を小さく出す。
 - 部品: `components/features/knowledge/{molecules/KnowledgeDocumentItem,organisms/KnowledgeDialog}`。フックは `hooks/knowledge/useKnowledgeDocuments`。`eslint.config.mjs` の `UI_FEATURES` に `knowledge` を足す。
 - ダイアログのショートカットキーは付けない（使ってから決める）。
@@ -240,6 +240,21 @@ type KnowledgeDocumentItem = {
 - 応答の下（指標の近く）に「参照したドキュメント（3）」を折りたたみで出し、開くとドキュメントの名前・見出し・抜き出しの先頭・類似度を並べる。抜き出しは Markdown として描かず、文字のまま出す。
 - 探したが見つからなかったときは「参照できるドキュメントが見つかりませんでした」と出す（探したことは分かるようにする）。
 
+### 着手時に決め直したこと（Phase B）
+
+Phase B の着手（#233・2026-11-03）で上の設計を今のコードと突き合わせ、食い違い・書いていなかった点を決めた。
+
+| # | 点 | 決めたこと | 理由 |
+|---|---|---|---|
+| B1 | 切り替えの置き場所 | **入力欄の左の、画像の添付のボタンの隣**に、本のアイコンの切り替え（`aria-pressed`・「ドキュメントを参照」）を置く | 設計の「エージェントモードの切り替えの隣」は、今は設定のモーダルの中にあり、入力欄の近くに無い。送るたびに効く会話の設定なので、送る場所の近くに置く |
+| B2 | ドキュメントが無いとき | **入れることだけ止める**（理由を `title` と読み上げで出す）。入っている会話の切り替えは、ドキュメントが無くても外せる | 入れたままドキュメントを全部消した会話でも、外せなくならないように |
+| B3 | 探すのに失敗したとき | **応答を始めずにエラーにする**（埋め込みのモデルが無い → 502 で `ollama pull` を案内、Ollama に繋がらない → 502、DB → 500） | 入れたのに黙ってドキュメント無しで答えると、出典が無い理由が「見つからなかった」と区別できない。切り替えを外せば送れる |
+| B4 | 出典の受け渡し | **ストリームの最初の `knowledge_sources` のイベントだけ**で送り、画面が応答のメタデータ（`knowledgeSources`）に入れて保存する。`done` には入れない | 画面はツールの呼び出しと同じく受けたイベントからメタデータを作る（`buildMessageMetadata`）。2 か所で送ると食い違いうる。停止した応答にも出典が残る |
+| B5 | 「見つからなかった」の保存 | **空の配列 `knowledgeSources: []` を保存する**（探さなかった応答は項目自体を持たない） | 再読み込みの後も「探したが見つからなかった」と出すため。ほかの項目は空なら持たないが、これだけは空に意味がある |
+| B6 | エージェントモードの止め方 | `runAgentLoop` に「最初から手元の情報を読んだ扱い」の指定を足し、止めたときの説明に「登録したドキュメント」を足す | 既存の `hasReadLocal`（ブラウザのツールも見ている）をそのまま使える。ブラウザも公開のページを開かなくなる |
+| B7 | 分岐した会話 | **`knowledgeEnabled` を引き継ぐ**（役割と同じ） | 分岐は同じ話の続きを試すためのもの |
+| B8 | 送る値 | `/api/chat` のボディに `knowledgeEnabled`（真偽値・任意）を足す。会話の値を DB から読み直さず、画面が送る | 役割（`systemPrompt`）・エージェントモードと同じく、画面が送る値で決まる。会話を作る前（最初の送信）にも効く |
+
 ## 上限値
 
 `lib/shared/validation.ts`（画面と API の両方で使うもの）と `lib/knowledge/`（サーバーだけ）に置く。
@@ -271,11 +286,16 @@ docker-compose.yml                                 # postgres のイメージを
 front/
 ├── prisma/schema.prisma                           # KnowledgeDocument・KnowledgeChunk（B で Conversation.knowledgeEnabled）
 ├── prisma/migrations/<日時>_add_knowledge/         # CREATE EXTENSION vector を足す
+├── prisma/migrations/<日時>_add_conversation_knowledge_enabled/ # Conversation.knowledgeEnabled（B）
 ├── src/
 │   ├── app/api/knowledge/documents/
 │   │   ├── route.ts                               # 一覧・取り込み
 │   │   ├── [id]/route.ts                          # 削除
 │   │   └── [id]/rebuild/route.ts                  # 作り直し
+│   ├── app/api/chat/route.ts                      # knowledgeEnabled で探して入れる・knowledge_sources（B）
+│   ├── app/api/conversations/**                   # 作成・PATCH・分岐の knowledgeEnabled（B）
+│   ├── lib/agent/agent.ts                         # knowledgeSources で最初から外部のツールを止める（B）
+│   ├── lib/chat/message-metadata.ts               # 出典（knowledgeSources）の保存と読み込み（B）
 │   ├── lib/llm/ollama.ts                          # embed・getEmbeddingModel
 │   ├── lib/knowledge/
 │   │   ├── file.ts                                # ファイルの検証・本文の正規化（純関数）
@@ -283,18 +303,25 @@ front/
 │   │   ├── embedding-text.ts                      # モデルごとの前置き（純関数）
 │   │   └── prompt.ts                              # 抜き出しをシステムプロンプトにする（B。純関数）
 │   ├── lib/server/knowledge.ts                    # 取り込み・作り直し・削除・検索の DB の処理（raw SQL）
-│   ├── lib/server/knowledge-response.ts           # 取り込み・作り直しの失敗の応答（502 / 409 / 500・上限の 400）
+│   ├── lib/server/knowledge-response.ts           # 取り込み・作り直し・検索の失敗の応答（502 / 409 / 500・上限の 400）
 │   ├── lib/shared/validation.ts                   # MAX_KNOWLEDGE_FILE_BYTES 等
 │   ├── constants/knowledge/file.ts                # 取り込める拡張子（画面の accept と API の検証で共有）
-│   ├── types/knowledge/document.ts                # KnowledgeDocumentItem・KnowledgeSource（B）
+│   ├── types/knowledge/document.ts                # KnowledgeDocumentItem・KnowledgeHit・KnowledgeSource（B）
 │   ├── hooks/knowledge/useKnowledgeDocuments.ts
-│   └── components/features/knowledge/
-│       ├── molecules/KnowledgeDocumentItem.tsx
-│       └── organisms/KnowledgeDialog.tsx
+│   ├── hooks/knowledge/useKnowledgeAvailability.ts # ドキュメントがあるか（入力欄の切り替え。B）
+│   ├── hooks/{chat/useChat,sidebar/useConversations}.ts # knowledgeEnabled を送る・出典を受ける・切り替えを保存する（B）
+│   ├── components/features/knowledge/
+│   │   ├── molecules/KnowledgeDocumentItem.tsx
+│   │   └── organisms/KnowledgeDialog.tsx
+│   └── components/features/chat/
+│       ├── atoms/KnowledgeToggle.tsx              # 入力欄の「ドキュメントを参照」（B）
+│       └── molecules/KnowledgeSources.tsx         # 応答の出典（B）
 └── tests/
-    ├── unit/knowledge.test.ts                      # ファイルの検証・チャンクの分け方・前置き（1 ファイルにまとめた）
+    ├── unit/knowledge.test.ts                      # ファイルの検証・チャンクの分け方・前置き・抜き出し → プロンプト・出典（1 ファイルにまとめた）
     ├── integration/knowledge-documents.test.ts     # Testcontainers のイメージも pgvector に
-    └── e2e/knowledge.spec.ts
+    ├── integration/chat-knowledge.test.ts          # /api/chat の knowledgeEnabled（B）
+    ├── e2e/knowledge.spec.ts
+    └── e2e/knowledge-chat.spec.ts                  # 会話での参照と出典（B）
 ```
 
 ## テスト
@@ -315,7 +342,7 @@ front/
 | サブ issue | 内容 | 単独でマージしたとき |
 |---|---|---|
 | **Phase A（#227）** | pgvector・マイグレーション・埋め込み・チャンク・ドキュメントの API・管理画面・UT / IT / E2E | ドキュメントを登録・管理できるが、会話ではまだ使わない（既存の動作は変わらない） |
-| Phase B（後で起票） | 会話の切り替え・検索・システムプロンプト・出典の表示と保存・エージェントモードの持ち出しの止め方・UT / IT / E2E | 会話でドキュメントを参照できる |
+| **Phase B（#233）** | 会話の切り替え・検索・システムプロンプト・出典の表示と保存・エージェントモードの持ち出しの止め方・UT / IT / E2E | 会話でドキュメントを参照できる |
 
 ## 実装で分かったこと（Phase A）
 
@@ -327,6 +354,16 @@ front/
 - **置き換えは ID と最初の日時を保つ**: 同じ名前は消して作り直さず、`upsert` で本文とモデルを書き換えてチャンクを入れ替える（一覧での位置・`createdAt` が変わらない）。同じ名前を同時に新しく取り込むと、後のほうが一意制約の違反で 409 になる。
 - **トランザクションの時間の上限**: Prisma の既定（5 秒）では 2,000 チャンク（文字で約 16 MB）を入れきれないことがあるため、60 秒にした。埋め込みはトランザクションの前に作り終える（Ollama を待つ間、DB の接続を握らない）。
 - **E2E の埋め込みのモデル**: チャットのモデルと同じく、`playwright.config.ts` が dev サーバーへ `OLLAMA_EMBED_MODEL` を渡し、`global-setup.ts` がマイグレーションの適用・モデルの一致・取得を確かめる。
+
+## 実装で分かったこと（Phase B）
+
+- **Prisma 7 の `migrate dev` はクライアントを作り直さない**: `knowledgeEnabled` の列を足して適用しても型が古いままで、`pnpm prisma generate` が要った。
+- **今のモデルのドキュメントが無ければ埋め込みを作らない**: 先に件数を数え、0 件なら Ollama を呼ばない（ドキュメントが無い・全部が作り直し待ちの会話で、送るたびに埋め込みのモデルを読み込ませない）。
+- **並びを決めきる**: 類似度が同じチャンクの順が実行ごとに変わらないよう、`ORDER BY` に距離の後ろ、ドキュメントの名前・チャンクの位置を足した。
+- **切り替えでも会話は一覧の先頭に来る**: `PATCH` は `updatedAt` を更新する（役割の変更と同じ）。切り替えも「会話を触った」ことにして、そのままにした。
+- **理由はボタンの名前に混ぜない**: 最初は入れられない理由を `aria-label` に足していたが、全体の E2E で、名前の部分一致で「サイドバー」のボタンを探すテスト（`keyboard-shortcuts.spec.ts`）が、理由の文（「サイドバーの『ドキュメント』から…」）を含むこのボタンにも当たって落ちた。名前は「ドキュメントを参照」に固定し、理由は `title`（説明として読み上げられる）に入れた。
+- **`aria-disabled` のボタンを Playwright は押せないものとして待つ**: ドキュメントが無いときの切り替えは `disabled` ではなく `aria-disabled` にした（フォーカスでき、理由を読み上げられる）。E2E は押せないことを確かめるときだけ `force` で押す。開発の DB のドキュメントの有無に左右されないよう、入れられる前提のテストは一覧の API を `page.route` で 1 件にした。
+- **E2E で再読み込みの後に会話を開くときはタイトルで探さない**: 応答の後に裏でタイトルを作り直すため、取っておいたタイトルが変わり、クリックが空振りした（一覧の先頭を開く。`agent-metadata.spec.ts` と同じ）。
 
 ## やらないこと
 

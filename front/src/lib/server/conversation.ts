@@ -12,6 +12,7 @@ export const CONVERSATION_SELECT = {
   id: true,
   title: true,
   systemPrompt: true,
+  knowledgeEnabled: true,
   createdAt: true,
   updatedAt: true,
   forkedFromMessage: {

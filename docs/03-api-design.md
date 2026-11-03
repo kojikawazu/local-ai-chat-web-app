@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 
 ## 目次
 
@@ -73,6 +73,7 @@
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
   systemPrompt?: string;   // システムプロンプト。通常・エージェントとも先頭の system メッセージにする（後ろに現在の日時を足す）。最大 10,000 文字
+  knowledgeEnabled?: boolean; // true で登録したドキュメントから今回のメッセージに近い部分を探して渡す（#17 Phase B）。デフォルト false
 }
 ```
 
@@ -86,10 +87,16 @@
 
 `systemPrompt` は、クライアントが会話の役割（`Conversation.systemPrompt`）を先に、エージェントモードならそのプリセットを後に置き、空行で区切って連結したもの（`lib/chat/system-prompt.ts` の `buildSystemPrompt`。#10）。サーバーは前後の空白を除き、その後ろに「現在の日時」の節（日付・曜日・時刻・サーバーのタイムゾーンと、モードごとの「最新」の扱いの指示）を空行で区切って足し、会話履歴の先頭に `role: 'system'` として付ける（`lib/llm/current-date.ts` の `withCurrentDate` と `lib/llm/ollama.ts` の `withSystemPrompt`。#154）。`systemPrompt` が空でも、日時の節だけの system メッセージを付ける。日時はリクエストごとに作る。会話の役割の上限（5,000 文字）に最長のエージェントのプリセットを足しても 10,000 文字に収まる（UT で検証）。クライアント（`lib/chat/conversation-history.ts`）は送信前に履歴を上限内に収める（新しい方から 1,000 件、本文は role 別の上限で切り詰め）。
 
+**ドキュメントの参照（#17 Phase B）**: `knowledgeEnabled: true` なら、今回の `message`（履歴の前の質問ではない）に検索の前置きを付けて Ollama の `/api/embed` で埋め込みを作り、今の埋め込みのモデル（`OLLAMA_EMBED_MODEL`）で作ったドキュメントのチャンクから、コサイン類似度の高い順に 5 件を取り、0.40 未満を外す（`lib/server/knowledge.ts` の `searchKnowledge`。違うモデルのドキュメントは比べない。今のモデルのドキュメントが無ければ埋め込みを作らない）。見つかった部分は `## 参照するドキュメント` の節（扱い方の指示と、`### [番号] 名前 > 見出し` で区切った本文）にし、`systemPrompt` の後ろ・現在の日時の節の前に入れる（`lib/knowledge/prompt.ts`）。見つからなければ何も足さない。設計は `docs/28-rag.md`「会話での参照（Phase B）」。
+
+- 探した結果は、ストリームの最初に `{ type: 'knowledge_sources', sources }` で 1 回だけ送る（通常・エージェントとも。見つからなければ空の配列）。`sources` の各要素は `{ documentName, heading, excerpt, similarity }`（`excerpt` は本文の先頭 200 文字。空白の連続は 1 つにまとめ、切ったら末尾に `…`）。`knowledgeEnabled` でなければ送らない。
+- エージェントモードで 1 件以上を渡した応答では、最初から手元の情報を読んだ扱いにし、外部と通信するツール（`web_search`・`url_fetch`・公開のページを開くブラウザ）を実行しない（`docs/14-local-file-tools.md`「外部への持ち出しを止める」と同じ）。
+- 探すのに失敗したら応答を始めずにエラーを返す（埋め込みのモデルが無い → 502 で `ollama pull` を案内、Ollama に繋がらない → 502、DB の失敗 → 500）。
+
 **レスポンス**
 
 - 通常モード（`enableTools: false`）: Content-Type `application/x-ndjson`。本文を `text_delta` で逐次返し、終わりに `done` を送る。`done` の `metadata.metrics` は Ollama の終わりのチャンクのトークン数・所要時間（#31。`docs/19-token-metrics.md`。Ollama が返さなければ `metadata` を持たない）。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。#31 より前は本文の文字列を `text/event-stream` で返していた。
-- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31）。
+- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31）。
 
 **停止・切断**: ブラウザが停止・切断すると（応答ストリームの cancel・`request.signal` の abort）、Ollama への接続を切って生成を止める（#8）。エージェントモードでは実行中のツールも中断し、次のラウンドへ進まず、イベントを送らずにストリームを閉じる（`error` は送らない）。停止はエラーとして記録しない。
 
@@ -102,10 +109,10 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 成功（ストリーミング開始） |
-| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・メッセージ空・10,000文字超・各フィールドの型不正・履歴の件数／role／content 長さ不正・systemPrompt 上限超過・`imageIds` の形式／枚数／重複の不正・assistant の `imageIds`・画像に対応していないモデルへの画像の送信・見つからない添付） |
-| 502 | Ollama接続エラー（画像があるときのモデルの対応機能の問い合わせを含む） |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・メッセージ空・10,000文字超・各フィールドの型不正（`knowledgeEnabled` が真偽値でない等）・履歴の件数／role／content 長さ不正・systemPrompt 上限超過・`imageIds` の形式／枚数／重複の不正・assistant の `imageIds`・画像に対応していないモデルへの画像の送信・見つからない添付） |
+| 502 | Ollama接続エラー（画像があるときのモデルの対応機能の問い合わせ・ドキュメントを探す埋め込み（モデルが無い・作れない）を含む） |
 | 499 | Ollama の応答前（モデルの読み込み待ちなど）にブラウザが停止・切断した（本文なし。受け取る相手はいない） |
-| 500 | サーバー内部エラー |
+| 500 | サーバー内部エラー（添付の読み込み・ドキュメントの検索の DB の失敗を含む） |
 
 ---
 
@@ -121,6 +128,7 @@
     id: string;
     title: string;
     systemPrompt: string | null;  // 会話の役割。役割なしは null（#10）
+    knowledgeEnabled: boolean;    // 登録したドキュメントを参照するか（#17 Phase B）
     createdAt: string;
     updatedAt: string;
     // 分岐元（#29）。分岐していない会話・分岐元が消えた会話は null
@@ -189,10 +197,11 @@
 {
   title?: string;         // 省略・空文字時は既定タイトル「新しい会話」。最大100文字
   systemPrompt?: string | null;  // 会話の役割。省略・null・空白のみなら役割なし（null）。前後の空白は除く。最大 5,000 文字（#10）
+  knowledgeEnabled?: boolean;    // ドキュメントを参照するか。省略・null なら false（#17 Phase B）
 }
 ```
 
-最初の送信の前に選んだ役割を、会話の作成と同時に保存するために `systemPrompt` を受け付ける。
+最初の送信の前に選んだ役割・ドキュメントの参照を、会話の作成と同時に保存するために `systemPrompt`・`knowledgeEnabled` を受け付ける。
 
 ボディ自体を省略（空の本文）した場合も既定タイトルで作成する。本文があるのに JSON として不正・オブジェクトでない場合は 400（#95 以前は構文エラーを握りつぶして既定タイトルで作成していた）。
 
@@ -203,7 +212,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 201 | 作成成功 |
-| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title / systemPrompt が文字列でない・title が100文字超・systemPrompt が 5,000 文字超） |
+| 400 | リクエスト不正（JSON不正・ボディが非オブジェクト・title / systemPrompt が文字列でない・knowledgeEnabled が真偽値でない・title が100文字超・systemPrompt が 5,000 文字超） |
 | 500 | サーバー内部エラー |
 
 上限値は `front/src/lib/shared/validation.ts` の `MAX_TITLE_LENGTH`・`MAX_CONVERSATION_SYSTEM_PROMPT_LENGTH` が正準。
@@ -212,18 +221,19 @@
 
 ### PATCH /api/conversations/[id]
 
-会話の役割（システムプロンプト）を変更する（#10）。変更は以降の送信から効き、これまでの応答はそのまま残る。
+会話の役割（システムプロンプト。#10）・ドキュメントの参照（`knowledgeEnabled`。#17 Phase B）を変更する。変更は以降の送信から効き、これまでの応答はそのまま残る。
 
 **リクエスト**
 
 ```typescript
 {
-  systemPrompt: string | null;  // 必須。null・空白のみなら役割を外す。前後の空白は除く。最大 5,000 文字
+  systemPrompt?: string | null;  // null・空白のみなら役割を外す。前後の空白は除く。最大 5,000 文字。キーが無ければ変えない
+  knowledgeEnabled?: boolean;    // ドキュメントを参照するか。キーが無ければ変えない（null は 400）
 }
 ```
 
-- 変更できるのは `systemPrompt` だけ（`title` 等の他のフィールドは無視する）。
-- `systemPrompt` キーの省略は 400。「変えない」と「外す」を区別できないため、外すときは `null` か空文字を明示する。
+- 変えたい項目のキーだけを送る（キーの無い項目は変えない）。どちらのキーも無ければ 400。役割を外すときは `systemPrompt` に `null` か空文字を明示する。
+- 変更できるのは `systemPrompt`・`knowledgeEnabled` だけ（`title` 等の他のフィールドは無視する）。
 - `updatedAt` も更新されるため、会話一覧の先頭に来る（タイトルの自動生成と同じ扱い）。
 - 存在しない会話は、UPDATE の更新件数（`updateMany` の `count`）で 404 と判定する（DELETE と同じ）。
 
@@ -234,7 +244,7 @@
 | ステータス | 説明 |
 |-----------|------|
 | 200 | 変更成功 |
-| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・systemPrompt キーが無い・文字列 / null でない・5,000 文字超） |
+| 400 | リクエスト不正（無効なUUID・JSON不正・ボディが非オブジェクト・systemPrompt と knowledgeEnabled のどちらのキーも無い・systemPrompt が文字列 / null でない・5,000 文字超・knowledgeEnabled が真偽値でない） |
 | 404 | 会話が見つからない |
 | 500 | サーバー内部エラー |
 
@@ -266,7 +276,7 @@
 ```
 
 - コピーするのは、表示と同じ順（`createdAt` の昇順）でその応答までのメッセージ（その応答を含む）。本文・role・`createdAt`（元のまま）・metadata・添付画像（中身ごと新しい ID で。metadata の中のツールの画面の ID も書き換える）。ブックマークはコピーしない。
-- 新しい会話のタイトルは `元のタイトル（分岐）`（もう `（分岐）` で終わっていれば足さない。100 文字に収める）。役割（`systemPrompt`）は元のまま。`forkedFromMessageId` に分岐した応答を入れる。
+- 新しい会話のタイトルは `元のタイトル（分岐）`（もう `（分岐）` で終わっていれば足さない。100 文字に収める）。役割（`systemPrompt`）とドキュメントの参照（`knowledgeEnabled`。#17 Phase B）は元のまま。`forkedFromMessageId` に分岐した応答を入れる。
 - 会話・メッセージ・添付画像は 1 回の入れ子の作成（1 トランザクション）で作り、途中で失敗したら何も残さない。
 - user のメッセージは 400。メッセージがその会話に無ければ 404。読んでから作る間に分岐元の応答が消された場合（外部キーの違反 `P2003`）も 404。
 
@@ -911,7 +921,7 @@ RAG のドキュメントの一覧（#17。`docs/28-rag.md`）。名前の順（
 
 **接続先**: `${OLLAMA_BASE_URL}/api/embed`
 
-文の並びの埋め込みを作る（`lib/llm/ollama.ts` の `embed`。#17）。RAG のドキュメントの取り込み・作り直しで、チャンクを 32 件ずつ送る。モデルは `OLLAMA_EMBED_MODEL`（既定 `embeddinggemma:300m`）。返る埋め込みは長さ 1 に正規化されている。
+文の並びの埋め込みを作る（`lib/llm/ollama.ts` の `embed`。#17）。RAG のドキュメントの取り込み・作り直しで、チャンクを 32 件ずつ送る。会話での参照（Phase B）では、`/api/chat` が今回のメッセージ 1 件を `task: search result | query: …` の前置き付きで送る。モデルは `OLLAMA_EMBED_MODEL`（既定 `embeddinggemma:300m`）。返る埋め込みは長さ 1 に正規化されている。
 
 **リクエスト**: `{ "model": "embeddinggemma:300m", "input": ["title: 設計 > 範囲 | text: …", "…"] }`
 
