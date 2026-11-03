@@ -138,3 +138,24 @@ export function updateMessageToolCalls(
       : msg
   );
 }
+
+/**
+ * メッセージの、まだ結果の届いていない最初のツールの呼び出しを返す（下の「実行中」の表示に出すもの。#26）。
+ *
+ * 同じ応答の中で順に実行するツール（サブエージェントへの委譲・ブラウザの操作）は、呼ばれた順に 1 つずつ動く。
+ * 最後に始まったものを出すと、順番を待っているものを実行中と見せてしまうため、最初のものを出す。
+ * 承認待ちのものも含める（承認カードが出ている間は、下の表示の代わりに承認カードが出る）。
+ *
+ * @param messages - メッセージ一覧
+ * @param messageId - 対象のメッセージ ID
+ * @returns 名前と引数。結果の届いていないものが無ければ `null`
+ */
+export function firstPendingToolCall(
+  messages: Message[],
+  messageId: string
+): Pick<ToolCallInfo, 'name' | 'arguments'> | null {
+  const toolCalls =
+    messages.find((msg) => msg.id === messageId)?.metadata?.toolCalls ?? [];
+  const pending = toolCalls.find((call) => call.status !== undefined);
+  return pending ? { name: pending.name, arguments: pending.arguments } : null;
+}

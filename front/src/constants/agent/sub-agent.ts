@@ -3,10 +3,19 @@ import type { SubAgentName } from '@/types/agent/sub-agent';
 /** 委譲のツールの名前（#26。`docs/29-multi-agent.md`「委譲のツール」） */
 export const DELEGATE_TOOL_NAME = 'delegate_to_agent';
 
-/** サブエージェントの表示名。委譲のツールの見出し（「リサーチャーに任せる」）と設定の画面に出す */
+/**
+ * サブエージェントの表示名（任せる仕事の名前）。委譲のツールの見出し（「サブエージェント: Web の調べもの」）に出す。
+ * 役割の名前（リサーチャー）にすると、サブエージェントだと分からず、エージェントのプリセットの「リサーチャー」ともぶつかったため、仕事の名前にした
+ */
 export const SUB_AGENT_LABELS: Record<SubAgentName, string> = {
-  researcher: 'リサーチャー',
-  reader: '手元の読み手',
+  researcher: 'Web の調べもの',
+  reader: '手元の読みもの',
+};
+
+/** サブエージェントに任せている間に出す文（「サブエージェントが Web を調べています」） */
+export const SUB_AGENT_RUNNING_LABELS: Record<SubAgentName, string> = {
+  researcher: 'サブエージェントが Web を調べています',
+  reader: 'サブエージェントが手元を読んでいます',
 };
 
 /**

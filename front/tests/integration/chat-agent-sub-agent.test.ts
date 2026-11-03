@@ -576,8 +576,8 @@ describe('POST /api/chat（サブエージェントに任せる）', () => {
       expect(names).toContain('delegate_to_agent');
       expect(names).not.toContain('search_documents');
       expect(body.subAgents).toEqual([
-        { name: 'researcher', label: 'リサーチャー' },
-        { name: 'reader', label: '手元の読み手' },
+        { name: 'researcher', label: 'Web の調べもの' },
+        { name: 'reader', label: '手元の読みもの' },
       ]);
     });
   });

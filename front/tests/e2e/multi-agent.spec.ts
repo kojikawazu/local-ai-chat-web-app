@@ -141,6 +141,18 @@ async function openSavedDelegation(
 }
 
 /**
+ * 入力欄の横の「サブエージェントに任せる」の切り替え（#26）。
+ *
+ * @param page - 対象のページ
+ * @returns 切り替えのボタン
+ */
+function chatBarToggle(page: Page) {
+  return page
+    .locator('form')
+    .getByRole('button', { name: 'サブエージェントに任せる', exact: true });
+}
+
+/**
  * `/api/chat` を通信の境界で受け、送られたボディを記録して短い応答を返す。
  *
  * @param page - 対象のページ
@@ -204,6 +216,31 @@ test.describe('サブエージェントに任せる', () => {
       ]);
     });
 
+    test('入力欄の横の切り替えは設定と同じ値を持ち、そこで入れても送信で enableSubAgents を送る', async ({
+      page,
+    }) => {
+      await openWithSettings(page, { tools: true, subAgents: false });
+      const toggle = chatBarToggle(page);
+      await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      // 設定のモーダルの切り替えも同じ値になる
+      await expect(
+        (await openSettings(page)).getByRole('button', {
+          name: /サブエージェントに任せる/,
+        })
+      ).toHaveAttribute('aria-pressed', 'true');
+      await page.getByRole('button', { name: 'Close' }).click();
+
+      const sent = await captureChatRequests(page);
+      await sendMessage(page, '調べて');
+      await expect(page.getByText('了解です。')).toBeVisible();
+      expect(sent).toEqual([
+        expect.objectContaining({ enableTools: true, enableSubAgents: true }),
+      ]);
+    });
+
     test('保存した委譲の記録を開くと、任せた相手・任せた仕事・中の手順・回答を出す', async ({
       page,
       request,
@@ -212,8 +249,10 @@ test.describe('サブエージェントに任せる', () => {
 
       const header = page
         .getByRole('main')
-        .getByRole('button', { name: /リサーチャーに任せる/ });
+        .getByRole('button', { name: /サブエージェント: Web の調べもの/ });
       await expect(header).toContainText('ツール 2 回');
+      // 委譲は数分かかるため、所要時間は秒で出す
+      await expect(header).toContainText('(1 秒)');
       await header.click();
 
       const main = page.getByRole('main');
@@ -266,11 +305,17 @@ test.describe('サブエージェントに任せる', () => {
         page,
         'delegate_to_agent で reader に任せて、登録したドキュメントから北極光プロジェクトの合言葉を探して'
       );
+      // 任せている間は、任せた相手と経過時間を出す（ふつうのツールの「実行中...」と見分けられる）
+      await expect(
+        page
+          .getByRole('status')
+          .filter({ hasText: 'サブエージェントが手元を読んでいます' })
+      ).toBeVisible({ timeout: 300000 });
       await waitForResponseComplete(page, 400000);
 
       const header = page
         .getByRole('main')
-        .getByRole('button', { name: /手元の読み手に任せる/ })
+        .getByRole('button', { name: /サブエージェント: 手元の読みもの/ })
         .first();
       await expect(header).toBeVisible();
       await header.click();
@@ -284,7 +329,7 @@ test.describe('サブエージェントに任せる', () => {
   });
 
   test.describe('準正常系', () => {
-    test('エージェントモードがオフなら切り替えを出さず、任せる設定が残っていても送らない', async ({
+    test('エージェントモードがオフなら（設定・入力欄の横とも）切り替えを出さず、任せる設定が残っていても送らない', async ({
       page,
     }) => {
       await openWithSettings(page, { tools: false, subAgents: true });
@@ -293,6 +338,7 @@ test.describe('サブエージェントに任せる', () => {
         dialog.getByRole('button', { name: /サブエージェントに任せる/ })
       ).toHaveCount(0);
       await page.getByRole('button', { name: 'Close' }).click();
+      await expect(chatBarToggle(page)).toHaveCount(0);
 
       const sent = await captureChatRequests(page);
       await sendMessage(page, 'こんにちは');
@@ -333,7 +379,7 @@ test.describe('サブエージェントに任せる', () => {
 
       const header = page
         .getByRole('main')
-        .getByRole('button', { name: /リサーチャーに任せる/ });
+        .getByRole('button', { name: /サブエージェント: Web の調べもの/ });
       await expect(header).toContainText('❌');
       await header.click();
 

@@ -13,7 +13,10 @@ import type { Tool } from '@/lib/agent/tools/types';
 import { notOfferedToolOutput } from '@/lib/agent/agent';
 import { parseMessageMetadata } from '@/lib/chat/message-metadata';
 import {
+  delegationRunningLabel,
   describeToolArguments,
+  formatToolDuration,
+  isDelegation,
   isSubAgentName,
   toolCallLabel,
 } from '@/lib/chat/tool-label';
@@ -170,9 +173,9 @@ describe('サブエージェントの定義と判定', () => {
     it('委譲のツールの見出しは、任せた相手の名前にする', () => {
       expect(
         toolCallLabel('delegate_to_agent', { agent: 'researcher', task: 'x' })
-      ).toBe('リサーチャーに任せる');
+      ).toBe('サブエージェント: Web の調べもの');
       expect(toolCallLabel('delegate_to_agent', { agent: 'reader' })).toBe(
-        '手元の読み手に任せる'
+        'サブエージェント: 手元の読みもの'
       );
       expect(toolCallLabel('web_search', { query: 'x' })).toBe('Web 検索');
     });
@@ -210,6 +213,16 @@ describe('サブエージェントの定義と判定', () => {
         ],
       });
       expect(metadata?.toolCalls?.[0].subAgent).toEqual(subAgent);
+    });
+
+    it('委譲の実行中の文・所要時間は、任せた相手の名前と秒で出す（ほかのツールはミリ秒のまま）', () => {
+      expect(isDelegation('delegate_to_agent')).toBe(true);
+      expect(isDelegation('web_search')).toBe(false);
+      expect(delegationRunningLabel({ agent: 'researcher' })).toBe(
+        'サブエージェントが Web を調べています'
+      );
+      expect(formatToolDuration('delegate_to_agent', 275_400)).toBe('275 秒');
+      expect(formatToolDuration('web_search', 1200)).toBe('1200ms');
     });
 
     it('中の手順の対象は、対象を表す引数から 1 行で表す', () => {
@@ -314,6 +327,11 @@ describe('サブエージェントの定義と判定', () => {
       expect(describeToolArguments({ query: 'あ'.repeat(100) })).toBe(
         `${'あ'.repeat(80)}…`
       );
+      expect(delegationRunningLabel({ agent: 'translator' })).toBe(
+        'サブエージェントが動いています'
+      );
+      expect(formatToolDuration('delegate_to_agent', 0)).toBeNull();
+      expect(formatToolDuration('web_search', 0)).toBeNull();
       expect(isSubAgentName('reader')).toBe(true);
       expect(isSubAgentName('translator')).toBe(false);
     });

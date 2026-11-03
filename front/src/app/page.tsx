@@ -484,6 +484,11 @@ export default function Home() {
             noDocuments: knowledgeAvailability.hasDocuments === false,
             onChange: handleKnowledgeChange,
           }}
+          subAgents={
+            enableTools
+              ? { enabled: enableSubAgents, onChange: changeEnableSubAgents }
+              : undefined
+          }
         />
       }
       footer={<Footer />}

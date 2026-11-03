@@ -1,9 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, Network } from 'lucide-react';
 import type { ToolCallInfo, ToolCallStatus } from '@/types/agent/tool-call';
-import { toolCallLabel } from '@/lib/chat/tool-label';
+import {
+  formatToolDuration,
+  isDelegation,
+  toolCallLabel,
+} from '@/lib/chat/tool-label';
 import { WebSearchResult } from '@/components/features/chat/molecules/WebSearchResult';
 import { SubAgentRunDetails } from '@/components/features/chat/molecules/SubAgentRunDetails';
 import ToolScreenshots from '@/components/features/chat/molecules/ToolScreenshots';
@@ -30,7 +34,8 @@ const STATUS_LABELS: Record<ToolCallStatus, string> = {
  * 結果が届く前（`status` あり）は、成否のアイコンの代わりに実行中のスピナー・承認待ちの ⏳ と状態を出し、
  * 展開しても結果の欄は出さない（#192。許可していないのに ✅ に見えないように）。
  * ブラウザのツールが撮った画面（#200）は、折りたたみの外（見出しの下）に並べ、開かなくても見えるようにする。
- * サブエージェントに任せた委譲のツール（#26）は、見出しを「リサーチャーに任せる」にし、開くと引数の代わりに任せた仕事と
+ * サブエージェントに任せた委譲のツール（#26）は、見出しを「サブエージェント: Web の調べもの」にし（アイコンと色を変え、所要時間は秒で出す）、
+ * 開くと引数の代わりに任せた仕事と
  * サブエージェントの中の手順（{@link SubAgentRunDetails}）、結果の欄に回答を出す。
  *
  * @param props - 表示するツール呼び出し情報を持つ props
@@ -38,8 +43,8 @@ const STATUS_LABELS: Record<ToolCallStatus, string> = {
 export function ToolCallResult({ toolCall }: ToolCallResultProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const label = toolCallLabel(toolCall.name, toolCall.arguments);
-  const durationText =
-    toolCall.durationMs > 0 ? `${toolCall.durationMs}ms` : null;
+  const durationText = formatToolDuration(toolCall.name, toolCall.durationMs);
+  const delegation = isDelegation(toolCall.name);
 
   return (
     <div className="rounded-md border border-[var(--color-nord-3)] bg-[var(--color-nord-1)] text-sm">
@@ -62,9 +67,17 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
         ) : (
           <span className="shrink-0 text-green-400">✅</span>
         )}
-        <span className="shrink-0 font-medium text-[var(--color-nord-8)]">
-          🔧 {label}
-        </span>
+        {delegation ? (
+          // サブエージェントに任せた呼び出しは、ふつうのツール（🔧）と見分けられるようアイコンと色を変える（#26）
+          <span className="flex shrink-0 items-center gap-1 font-medium text-nord-frost-1">
+            <Network size={14} aria-hidden />
+            {label}
+          </span>
+        ) : (
+          <span className="shrink-0 font-medium text-[var(--color-nord-8)]">
+            🔧 {label}
+          </span>
+        )}
         {toolCall.status && (
           <span className="min-w-0 truncate text-xs text-[var(--color-nord-4)]">
             {STATUS_LABELS[toolCall.status]}

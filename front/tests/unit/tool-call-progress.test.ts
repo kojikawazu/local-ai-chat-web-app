@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   finishToolCall,
+  firstPendingToolCall,
   startToolCall,
   updateMessageToolCalls,
   updateToolCallStatus,
@@ -246,6 +247,78 @@ describe('updateMessageToolCalls', () => {
     it('対象のメッセージが無ければ、どのメッセージも変えない', () => {
       const updated = updateMessageToolCalls(messages, 'missing', () => []);
       expect(updated).toEqual(messages);
+    });
+  });
+});
+
+describe('firstPendingToolCall', () => {
+  /**
+   * ツールの記録を持つ応答を 1 つ作る。
+   *
+   * @param toolCalls - 応答のツールの記録
+   * @returns メッセージ一覧
+   */
+  function answer(toolCalls: ToolCallInfo[]): Message[] {
+    return [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        createdAt: new Date(0),
+        metadata: { toolCalls },
+      },
+    ];
+  }
+
+  describe('正常系', () => {
+    it('結果の届いていない最初の呼び出しを返す（順に実行するツールで、順番待ちのものを実行中と見せない。#26）', () => {
+      const calls = started('delegate_to_agent', 'delegate_to_agent');
+      expect(firstPendingToolCall(answer(calls), 'a1')).toEqual({
+        name: 'delegate_to_agent',
+        arguments: { i: 0 },
+      });
+    });
+
+    it('最初の結果が届いたら、次のまだの呼び出しを返す', () => {
+      const calls = finishToolCall(
+        started('delegate_to_agent', 'delegate_to_agent'),
+        'delegate_to_agent',
+        OUTCOME
+      );
+      expect(firstPendingToolCall(answer(calls), 'a1')).toEqual({
+        name: 'delegate_to_agent',
+        arguments: { i: 1 },
+      });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('承認待ちの呼び出しも、まだのものとして返す', () => {
+      const calls = updateToolCallStatus(
+        started('write_file'),
+        'write_file',
+        'running',
+        'awaiting-approval'
+      );
+      expect(firstPendingToolCall(answer(calls), 'a1')?.name).toBe(
+        'write_file'
+      );
+    });
+
+    it('すべて結果が届いていれば null', () => {
+      const calls = finishToolCall(
+        started('web_search'),
+        'web_search',
+        OUTCOME
+      );
+      expect(firstPendingToolCall(answer(calls), 'a1')).toBeNull();
+    });
+  });
+
+  describe('異常系', () => {
+    it('メッセージが無い・記録が無ければ null', () => {
+      expect(firstPendingToolCall(answer([]), 'a1')).toBeNull();
+      expect(firstPendingToolCall([], 'missing')).toBeNull();
     });
   });
 });

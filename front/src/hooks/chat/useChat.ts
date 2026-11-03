@@ -19,6 +19,7 @@ import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { approvalExpiresAt } from '@/lib/chat/approval-countdown';
 import {
   finishToolCall,
+  firstPendingToolCall,
   startToolCall,
   updateMessageToolCalls,
   updateToolCallStatus,
@@ -570,12 +571,19 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_start') {
-                  patchChat(convId, {
-                    activeToolCall: {
-                      name: event.name,
-                      arguments: event.arguments,
-                    },
-                  });
+                  // 下の「実行中」の表示は、まだ結果の届いていない最初の呼び出しを出す（順に実行するツールで、順番待ちのものを
+                  // 実行中と見せないため。#26）。すでに出していれば替えない
+                  updateChatOf(convId, (chat) =>
+                    chat.activeToolCall
+                      ? chat
+                      : {
+                          ...chat,
+                          activeToolCall: {
+                            name: event.name,
+                            arguments: event.arguments,
+                          },
+                        }
+                  );
                   // arguments と本文の位置を pending キューに積む
                   const queue = pendingToolArgs.get(event.name) ?? [];
                   queue.push({
@@ -622,7 +630,6 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_result') {
-                  patchChat(convId, { activeToolCall: null });
                   if (event.name === SAVE_MEMORY_TOOL_NAME && !event.isError) {
                     onMemorySaved?.();
                   }
@@ -684,6 +691,14 @@ export function useChat({
                       ...(event.subAgent && { subAgent: event.subAgent }),
                     })
                   );
+                  // 下の「実行中」の表示を、次のまだ結果の届いていない呼び出しへ移す（無ければ消す。#26）
+                  updateChatOf(convId, (chat) => ({
+                    ...chat,
+                    activeToolCall: firstPendingToolCall(
+                      chat.messages,
+                      aiMessageId
+                    ),
+                  }));
                 } else if (event.type === 'done') {
                   // done イベントで metadata（toolCalls・統計）を最終確定
                   if (event.metadata?.toolCalls) {

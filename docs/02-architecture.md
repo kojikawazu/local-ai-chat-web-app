@@ -163,6 +163,7 @@ front/src/
 │       │   ├── atoms/
 │       │   │   ├── AttachButton.tsx      # 画像を添付するクリップのボタン（隠したファイル選択を開く。#6）
 │       │   │   ├── KnowledgeToggle.tsx   # 会話ごとの「ドキュメントを参照」の本のボタン（aria-pressed・ドキュメントが無いと入れられない。#17 Phase B）
+│       │   │   ├── SubAgentToggle.tsx    # 入力欄の横の「サブエージェントに任せる」の切り替え（設定と同じ値・aria-pressed・エージェントモードのときだけ。#26）
 │       │   │   └── ElementBoxOverlay.tsx # スクリーンショットに、操作する要素を囲む枠を重ねる（SVG。#200）
 │       │   ├── molecules/
 │       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素と操作の前の画面・メモの置き場所と中身とコミットの有無（#236）・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C、#200）
@@ -249,6 +250,7 @@ front/src/
 │   │   ├── useModels.ts       #     利用可能なモデル一覧（画像に対応したモデルを含む）の取得と選択中のモデル
 │   │   ├── useImageAttachments.ts # 送信前の添付画像（追加・前処理・削除・添付できなかった理由。#6）
 │   │   ├── useApprovalCountdown.ts # 承認カードの残り時間を 1 秒ごとに数え直す（#202）
+│   │   ├── useElapsedSeconds.ts #   サブエージェントに任せている間の経過秒数（1 秒ごと。#26）
 │   │   ├── useReportExport.ts #     HTML レポート・PDF・DOCX・HTML スライド・PPTX の書き出し（図を描く・添付画像を読む → 組み立て → 保存 / 印刷。DOCX は docx、PPTX は pptxgenjs をそのときだけ読み込む。#36）
 │   │   ├── useConversationFork.ts # 応答から会話を分岐する（返事を待つ間の二度押しの防止・失敗を分岐元の会話に結びつけて持つ。#29）
 │   │   ├── useMermaidDiagram.ts #   mermaid の読み込み・テーマの色での描画・テーマ切替での描き直し（#169）
@@ -348,8 +350,8 @@ front/src/
 │   │   ├── message-metadata.ts #    メッセージ metadata の組み立て・取得時の実行時検証
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
-│   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）
-│   │   ├── tool-label.ts      #     ツールの見出しの名前（委譲は「リサーチャーに任せる」）・引数の 1 行の要約（#26）
+│   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）・下の「実行中」に出す、まだ結果の届いていない最初の呼び出し（#26）
+│   │   ├── tool-label.ts      #     ツールの見出しの名前（委譲は「サブエージェント: Web の調べもの」）・実行中の文・所要時間（委譲は秒）・引数の 1 行の要約（#26）
 │   │   ├── approval-countdown.ts #  承認カードの残り時間（受け取った待ち時間からの期限・切り上げ・警告・時間切れ。#202）
 │   │   ├── response-metrics.ts #    応答のトークン数の表示の文字列（要約・内訳・速さ。#31）
 │   │   ├── tool-screenshots.ts #    ツールの画面の表示の URL・保存する記録から中身を外す・保存の添付にする・done の記録に中身を戻す（#200）

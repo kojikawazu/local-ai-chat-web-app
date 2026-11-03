@@ -2,6 +2,7 @@ import { TOOL_LABELS } from '@/constants/chat/toolLabels';
 import {
   DELEGATE_TOOL_NAME,
   SUB_AGENT_LABELS,
+  SUB_AGENT_RUNNING_LABELS,
 } from '@/constants/agent/sub-agent';
 import type { SubAgentName } from '@/types/agent/sub-agent';
 import { SUB_AGENT_NAMES } from '@/types/agent/sub-agent';
@@ -32,7 +33,7 @@ export function isSubAgentName(value: unknown): value is SubAgentName {
 /**
  * ツールの呼び出しの見出しに出す名前を決める。
  *
- * 委譲のツール（#26）は、任せた相手の表示名から「リサーチャーに任せる」にする。そのほかは {@link TOOL_LABELS} の
+ * 委譲のツール（#26）は、任せた仕事の名前から「サブエージェント: Web の調べもの」にする（サブエージェントだと分かるように）。そのほかは {@link TOOL_LABELS} の
  * 日本語の名前（無ければツール名のまま）。
  *
  * @param name - ツール名
@@ -44,7 +45,7 @@ export function toolCallLabel(
   args: Record<string, unknown>
 ): string {
   if (name === DELEGATE_TOOL_NAME && isSubAgentName(args.agent)) {
-    return `${SUB_AGENT_LABELS[args.agent]}に任せる`;
+    return `サブエージェント: ${SUB_AGENT_LABELS[args.agent]}`;
   }
   return TOOL_LABELS[name] ?? name;
 }
@@ -82,4 +83,45 @@ function isDescribable(value: unknown): boolean {
     (typeof value === 'string' && value.trim().length > 0) ||
     (typeof value === 'number' && Number.isFinite(value))
   );
+}
+
+/**
+ * 委譲のツール（サブエージェントに任せる。#26）の呼び出しかを判定する。
+ *
+ * @param name - ツール名
+ * @returns 委譲のツールなら true
+ */
+export function isDelegation(name: string): boolean {
+  return name === DELEGATE_TOOL_NAME;
+}
+
+/**
+ * 委譲のツールの実行中に出す文（「サブエージェントが Web を調べています」。#26）。
+ *
+ * @param args - 委譲のツールの引数
+ * @returns 任せた仕事ごとの文。相手が分からなければ「サブエージェントが動いています」
+ */
+export function delegationRunningLabel(args: Record<string, unknown>): string {
+  return isSubAgentName(args.agent)
+    ? SUB_AGENT_RUNNING_LABELS[args.agent]
+    : 'サブエージェントが動いています';
+}
+
+/**
+ * ツールの所要時間を見出しに出す文字にする。
+ *
+ * 委譲のツール（#26）は数分かかるため秒で出す（`275 秒`）。ほかのツールは今までどおりミリ秒（`1200ms`）。
+ *
+ * @param name - ツール名
+ * @param durationMs - 所要時間（ミリ秒）
+ * @returns 見出しに出す文字。0 以下なら `null`（出さない）
+ */
+export function formatToolDuration(
+  name: string,
+  durationMs: number
+): string | null {
+  if (durationMs <= 0) return null;
+  return isDelegation(name)
+    ? `${Math.round(durationMs / 1000)} 秒`
+    : `${durationMs}ms`;
 }
