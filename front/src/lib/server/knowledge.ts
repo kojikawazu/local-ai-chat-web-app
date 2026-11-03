@@ -15,6 +15,10 @@ import {
   getEmbeddingModel,
 } from '@/lib/llm/ollama';
 import { prisma } from '@/lib/server/prisma';
+import {
+  searchableVaultCondition,
+  searchableVaultWhere,
+} from '@/lib/server/knowledge-vault-config';
 import { MAX_KNOWLEDGE_DOCUMENTS } from '@/lib/shared/validation';
 import type {
   KnowledgeDocumentItem,
@@ -124,8 +128,9 @@ function toItem(
 }
 
 /**
- * 取り込んだドキュメントの一覧を名前の昇順で返す（#17）。
+ * 画面から上げたドキュメントの一覧を名前の昇順で返す（#17）。
  *
+ * 保管庫のファイル（#235）は含めない（保管庫ごとにまとめて `listKnowledgeVaults` で返す）。
  * 並びは {@link compareKnowledgeNames}（画面が取り込んだものを足すときと同じ順）。件数は
  * {@link MAX_KNOWLEDGE_DOCUMENTS} 件までなので、全件を読んでから並べる。
  *
@@ -136,6 +141,7 @@ export async function listKnowledgeDocuments(): Promise<
 > {
   const model = getEmbeddingModel();
   const rows = await prisma.knowledgeDocument.findMany({
+    where: { vault: null },
     select: DOCUMENT_SELECT,
   });
   return rows
@@ -225,11 +231,15 @@ async function replaceChunks(
  * 最初の取り込みの日時を保つ。件数の上限は新しく作るときだけ数える（置き換えは件数を増やさない）。
  * 同じ名前を同時に新しく取り込むと、後のほうが一意制約の違反（`P2002`）で失敗する（route が 409 にする）。
  *
- * @param file - 検証を通ったファイル（名前・種類・本文・バイト数）
+ * 保管庫のファイル（#235。`vault` あり）は件数の上限を数えない（保管庫ごとの上限は同期の差分で見る）。
+ *
+ * @param file - 検証を通ったファイル（名前・種類・本文・バイト数・保管庫）
  * @param file.name - ドキュメントの名前
  * @param file.kind - 種類
  * @param file.content - 本文
  * @param file.size - 本文のバイト数
+ * @param file.vault - 保管庫の名前（画面から上げたものは省略）
+ * @param file.sourceHash - 保管庫のファイルの中身の版（画面から上げたものは省略）
  * @returns 取り込んだドキュメントと、新しく作ったか。上限に当たれば理由
  * @throws {EmbeddingModelNotFoundError} 埋め込みのモデルが Ollama に無い場合
  * @throws {EmbeddingUnavailableError} そのほかの理由で埋め込みを作れない場合
@@ -239,6 +249,8 @@ export async function importKnowledgeDocument(file: {
   kind: KnowledgeFileKind;
   content: string;
   size: number;
+  vault?: string;
+  sourceHash?: string;
 }): Promise<KnowledgeWriteResult> {
   const model = getEmbeddingModel();
   const existing = await prisma.knowledgeDocument.findUnique({
@@ -247,7 +259,9 @@ export async function importKnowledgeDocument(file: {
   });
   if (
     !existing &&
-    (await prisma.knowledgeDocument.count()) >= MAX_KNOWLEDGE_DOCUMENTS
+    !file.vault &&
+    (await prisma.knowledgeDocument.count({ where: { vault: null } })) >=
+      MAX_KNOWLEDGE_DOCUMENTS
   ) {
     return { ok: false, reason: 'document_limit' };
   }
@@ -259,6 +273,8 @@ export async function importKnowledgeDocument(file: {
     content: file.content,
     size: file.size,
     embeddingModel: model,
+    vault: file.vault ?? null,
+    sourceHash: file.sourceHash ?? null,
   };
   const id = await prisma.$transaction(
     async (tx) => {
@@ -356,7 +372,8 @@ export async function searchKnowledge(query: string): Promise<KnowledgeHit[]> {
   const model = getEmbeddingModel();
   // 今のモデルのドキュメントが無ければ比べる相手が無い。埋め込みのモデルを読み込ませない
   const count = await prisma.knowledgeDocument.count({
-    where: { embeddingModel: model },
+    // 設定から外した保管庫のファイルは比べない（#235 の C7）
+    where: { embeddingModel: model, ...searchableVaultWhere() },
   });
   if (count === 0) return [];
 
@@ -373,7 +390,7 @@ export async function searchKnowledge(query: string): Promise<KnowledgeHit[]> {
     KnowledgeHit[]
   >`SELECT d."name" AS "documentName", c."heading", c."content", (1 - (c."embedding" <=> ${literal}::vector))::float8 AS "similarity"
     FROM "KnowledgeChunk" c JOIN "KnowledgeDocument" d ON d."id" = c."documentId"
-    WHERE d."embeddingModel" = ${model}
+    WHERE d."embeddingModel" = ${model} AND ${searchableVaultCondition()}
     ORDER BY c."embedding" <=> ${literal}::vector, d."name", c."position"
     LIMIT ${SEARCH_LIMIT}`;
   return rows.filter((row) => row.similarity >= SEARCH_MIN_SIMILARITY);

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { EmbeddingModelNotFoundError } from '@/lib/llm/ollama';
 import { EmbeddingUnavailableError } from '@/lib/server/knowledge';
+import { VaultUnavailableError } from '@/lib/server/knowledge-vault';
 import type { KnowledgeWriteResult } from '@/lib/server/knowledge';
 import { isUniqueConstraintError } from '@/lib/server/prisma-error';
 import { MAX_KNOWLEDGE_DOCUMENTS } from '@/lib/shared/validation';
@@ -27,6 +28,7 @@ export function knowledgeLimitResponse(
  * - 埋め込みのモデルが無い → 502（`ollama pull` を案内する）
  * - 埋め込みを作れない（Ollama に繋がらない等）→ 502
  * - 同じ名前を同時に取り込んだ（一意制約の違反）→ 409
+ * - 保管庫を読めない（フォルダが無い・既定のブランチが無い・git を実行できない。#235）→ 500（理由をそのまま返す）
  * - そのほか（DB の失敗）→ 500
  *
  * @param error - 取り込み・作り直し・検索が投げた例外
@@ -56,6 +58,10 @@ export function knowledgeErrorResponse(
       },
       { status: 502 }
     );
+  }
+  if (error instanceof VaultUnavailableError) {
+    console.error(`Failed to ${action} (vault):`, error.cause ?? error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (isUniqueConstraintError(error)) {
     return NextResponse.json(

@@ -75,13 +75,17 @@ model Bookmark {
 // RAG で参照する、取り込んだドキュメント（#17）。会話とはリレーションを持たない
 model KnowledgeDocument {
   id             String           @id @default(uuid())
-  name           String           @unique // ファイル名（同じ名前で取り込むと置き換える）
+  name           String           @unique // ファイル名（同じ名前で取り込むと置き換える）。保管庫のファイルは「保管庫の名前/パス」（#235）
   content        String // 取り込んだ本文（BOM を外し改行をそろえた後）。作り直しに使う
   size           Int // 本文のバイト数（UTF-8）
   embeddingModel String // チャンクの埋め込みを作ったモデル。今のモデルと違えば検索に使わない
+  vault          String? // 保管庫の名前（#235）。画面から上げたドキュメントは null
+  sourceHash     String? // 取り込んだ中身の版（git の保管庫は blob の ID、フォルダの保管庫は中身の SHA-256。#235）。画面から上げたものは null
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   chunks         KnowledgeChunk[]
+
+  @@index([vault])
 }
 
 // ドキュメントを分けた 1 つと、その埋め込み（#17）。vector の列は Prisma の create で書けないため、

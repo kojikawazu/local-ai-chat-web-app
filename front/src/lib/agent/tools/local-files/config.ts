@@ -44,24 +44,26 @@ export function parseRootList(raw: string | undefined, home: string): RootList {
  * 同じ実体を指すものは 1 つにまとめる。
  *
  * @param candidates - {@link parseRootList} の `paths`
+ * @param envName - 警告に出す環境変数の名前（RAG の保管庫（#235）でも使うため。省略時は `LOCAL_FILE_ROOTS`）
  * @returns 許可するフォルダの実体のパス
  */
-export function resolveRoots(candidates: string[]): string[] {
+export function resolveRoots(
+  candidates: string[],
+  envName = 'LOCAL_FILE_ROOTS'
+): string[] {
   const roots = new Set<string>();
   for (const candidate of candidates) {
     try {
       const real = realpathSync(candidate);
       if (!statSync(real).isDirectory()) {
         console.warn(
-          `LOCAL_FILE_ROOTS の "${candidate}" はフォルダではないため使いません`
+          `${envName} の "${candidate}" はフォルダではないため使いません`
         );
         continue;
       }
       roots.add(real);
     } catch {
-      console.warn(
-        `LOCAL_FILE_ROOTS の "${candidate}" は見つからないため使いません`
-      );
+      console.warn(`${envName} の "${candidate}" は見つからないため使いません`);
     }
   }
   return [...roots];
