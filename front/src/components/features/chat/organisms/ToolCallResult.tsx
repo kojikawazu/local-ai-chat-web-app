@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LoaderCircle, Network } from 'lucide-react';
+import { Clock, LoaderCircle, Network } from 'lucide-react';
 import type { ToolCallInfo, ToolCallStatus } from '@/types/agent/tool-call';
 import {
   formatToolDuration,
@@ -22,6 +22,7 @@ type ToolCallResultProps = {
 const STATUS_LABELS: Record<ToolCallStatus, string> = {
   running: '実行中…',
   'awaiting-approval': '承認待ち',
+  queued: '順番待ち',
 };
 
 /**
@@ -31,7 +32,7 @@ const STATUS_LABELS: Record<ToolCallStatus, string> = {
  * 展開すると引数（JSON）と結果を表示する。アイコンは失敗が ❌、空の結果（検索の 0 件等）が ⚠️、
  * それ以外が ✅。失敗の要約（理由）は赤字の 1 行に収め、全文はツールチップで見せる（#150）。
  * web_search かつ成功時は {@link WebSearchResult} でリンク付き表示に切り替える。
- * 結果が届く前（`status` あり）は、成否のアイコンの代わりに実行中のスピナー・承認待ちの ⏳ と状態を出し、
+ * 結果が届く前（`status` あり）は、成否のアイコンの代わりに実行中のスピナー・承認待ちの ⏳・順番待ちの時計（#26 Phase B）と状態を出し、
  * 展開しても結果の欄は出さない（#192。許可していないのに ✅ に見えないように）。
  * ブラウザのツールが撮った画面（#200）は、折りたたみの外（見出しの下）に並べ、開かなくても見えるようにする。
  * サブエージェントに任せた委譲のツール（#26）は、見出しを「サブエージェント: Web の調べもの」にし（アイコンと色を変え、所要時間は秒で出す）、
@@ -57,6 +58,13 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
             size={16}
             aria-hidden
             className="shrink-0 animate-spin text-[var(--color-nord-8)]"
+          />
+        ) : toolCall.status === 'queued' ? (
+          // 同じ組の前の呼び出しが終わるのを待っている（#26 Phase B。実行中のスピナーと見分ける）
+          <Clock
+            size={16}
+            aria-hidden
+            className="shrink-0 text-[var(--color-nord-4)]"
           />
         ) : toolCall.status === 'awaiting-approval' ? (
           <span className="shrink-0">⏳</span>

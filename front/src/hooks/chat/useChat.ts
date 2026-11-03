@@ -18,8 +18,10 @@ import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { approvalExpiresAt } from '@/lib/chat/approval-countdown';
 import {
+  finishSubAgentStep,
   finishToolCall,
   firstPendingToolCall,
+  startSubAgentStep,
   startToolCall,
   updateMessageToolCalls,
   updateToolCallStatus,
@@ -431,12 +433,18 @@ export function useChat({
       const toolCallRecords: ToolCallInfo[] = [];
       // tool_call_result で届いたスクリーンショットの中身（ID → Base64。#200）。done の記録（中身なし）に戻し、保存で送る
       const screenshotData = new Map<string, string>();
-      // tool_call_start で受け取った arguments と本文の位置（contentOffset。#186）を tool_call_result まで保持する
-      // 同名ツールが複数回呼ばれる場合に備え、FIFO キューで管理
+      // tool_call_start で受け取った arguments と本文の位置（contentOffset。#186）を、呼び出しの ID（#26 Phase B）ごとに
+      // tool_call_result まで保持する
       const pendingToolArgs = new Map<
         string,
-        Array<Pick<ToolCallInfo, 'arguments' | 'contentOffset'>>
+        Pick<ToolCallInfo, 'arguments' | 'contentOffset'>
       >();
+      // 下の「実行中」の表示を、まだ結果の届いていない最初の呼び出し（と、委譲なら中の今の手順）に合わせる（#26・#26 Phase B）
+      const refreshActiveToolCall = () =>
+        updateChatOf(convId, (chat) => ({
+          ...chat,
+          activeToolCall: firstPendingToolCall(chat.messages, aiMessageId),
+        }));
 
       /**
        * 届いた応答を保存し、最初のやり取りならタイトルを生成する。
@@ -571,37 +579,61 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_start') {
-                  // 下の「実行中」の表示は、まだ結果の届いていない最初の呼び出しを出す（順に実行するツールで、順番待ちのものを
-                  // 実行中と見せないため。#26）。すでに出していれば替えない
-                  updateChatOf(convId, (chat) =>
-                    chat.activeToolCall
-                      ? chat
-                      : {
-                          ...chat,
-                          activeToolCall: {
-                            name: event.name,
-                            arguments: event.arguments,
-                          },
-                        }
-                  );
-                  // arguments と本文の位置を pending キューに積む
-                  const queue = pendingToolArgs.get(event.name) ?? [];
-                  queue.push({
+                  pendingToolArgs.set(event.callId, {
                     arguments: event.arguments,
                     contentOffset: event.contentOffset,
                   });
-                  pendingToolArgs.set(event.name, queue);
-                  // ツール実行中を UI に反映（結果が届くまで「実行中」の仮の記録。#192）
+                  // ツール実行中を UI に反映（結果が届くまで「実行中」、順番を待つなら「順番待ち」の仮の記録。#192・#26 Phase B）
                   updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
-                    startToolCall(toolCalls, {
+                    startToolCall(
+                      toolCalls,
+                      {
+                        name: event.name,
+                        arguments: event.arguments,
+                        contentOffset: event.contentOffset,
+                        callId: event.callId,
+                      },
+                      event.queued
+                    )
+                  );
+                  // 下の「実行中」の表示は、まだ結果の届いていない最初の呼び出しを出す（順に実行するツールで、
+                  // 順番待ちのものを実行中と見せないため。#26）
+                  refreshActiveToolCall();
+                } else if (event.type === 'tool_call_begin') {
+                  // 順番待ちだったツールが動き始めた（#26 Phase B）
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    updateToolCallStatus(
+                      toolCalls,
+                      '',
+                      'queued',
+                      'running',
+                      event.callId
+                    )
+                  );
+                } else if (event.type === 'sub_agent_step_start') {
+                  // サブエージェントの中の手順を、委譲の記録に足していく（#26 Phase B）
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    startSubAgentStep(toolCalls, event.callId, {
+                      stepId: event.stepId,
                       name: event.name,
                       arguments: event.arguments,
-                      contentOffset: event.contentOffset,
                     })
                   );
+                  refreshActiveToolCall();
+                } else if (event.type === 'sub_agent_step_result') {
+                  updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
+                    finishSubAgentStep(toolCalls, event.callId, event.stepId, {
+                      result: event.result,
+                      isError: event.isError,
+                      summary: event.summary,
+                      isEmpty: event.isEmpty,
+                      durationMs: event.durationMs,
+                    })
+                  );
+                  refreshActiveToolCall();
                 } else if (event.type === 'tool_approval_request') {
                   // 承認を待つ。承認カードを出し、利用者の許可・拒否は respondToApproval で返す（#148 Phase A2）
-                  const { approvalId, name, preview } = event;
+                  const { approvalId, callId, name, preview } = event;
                   // 期限は受け取った時刻から数える（サーバーとの時計のずれに左右されないように。#202）
                   const expiresAt = approvalExpiresAt(
                     event.timeoutMs,
@@ -613,6 +645,7 @@ export function useChat({
                       ...chat.pendingApprovals,
                       {
                         approvalId,
+                        callId,
                         name,
                         preview,
                         messageId: aiMessageId,
@@ -626,7 +659,8 @@ export function useChat({
                       toolCalls,
                       name,
                       'running',
-                      'awaiting-approval'
+                      'awaiting-approval',
+                      callId
                     )
                   );
                 } else if (event.type === 'tool_call_result') {
@@ -637,7 +671,7 @@ export function useChat({
                     // 時間切れなど、画面から答えずに決着した承認のカードを消す（答えた分は respondToApproval で消してある）
                     updateChatOf(convId, (chat) => {
                       const index = chat.pendingApprovals.findIndex(
-                        (request) => request.name === event.name
+                        (request) => request.callId === event.callId
                       );
                       return index < 0
                         ? chat
@@ -649,14 +683,9 @@ export function useChat({
                           };
                     });
                   }
-                  // pending キューから先頭の arguments と本文の位置を取り出す（FIFO）
-                  const argsQueue = pendingToolArgs.get(event.name) ?? [];
-                  const started = argsQueue.shift();
-                  if (argsQueue.length === 0) {
-                    pendingToolArgs.delete(event.name);
-                  } else {
-                    pendingToolArgs.set(event.name, argsQueue);
-                  }
+                  // 開始で受け取った arguments と本文の位置を、呼び出しの ID で取り出す
+                  const started = pendingToolArgs.get(event.callId);
+                  pendingToolArgs.delete(event.callId);
                   const record: ToolCallInfo = {
                     name: event.name,
                     arguments: started?.arguments ?? {},
@@ -679,26 +708,25 @@ export function useChat({
                   toolCallRecords.push(record);
                   // 仮の記録を結果で置き換え、実行中・承認待ちの表示をやめる（#192）
                   updateToolCallsOf(convId, aiMessageId, (toolCalls) =>
-                    finishToolCall(toolCalls, event.name, {
-                      result: event.result,
-                      isError: event.isError,
-                      summary: event.summary,
-                      isEmpty: event.isEmpty,
-                      approval: event.approval,
-                      ...(event.screenshots && {
-                        screenshots: event.screenshots,
-                      }),
-                      ...(event.subAgent && { subAgent: event.subAgent }),
-                    })
+                    finishToolCall(
+                      toolCalls,
+                      event.name,
+                      {
+                        result: event.result,
+                        isError: event.isError,
+                        summary: event.summary,
+                        isEmpty: event.isEmpty,
+                        approval: event.approval,
+                        ...(event.screenshots && {
+                          screenshots: event.screenshots,
+                        }),
+                        ...(event.subAgent && { subAgent: event.subAgent }),
+                      },
+                      event.callId
+                    )
                   );
                   // 下の「実行中」の表示を、次のまだ結果の届いていない呼び出しへ移す（無ければ消す。#26）
-                  updateChatOf(convId, (chat) => ({
-                    ...chat,
-                    activeToolCall: firstPendingToolCall(
-                      chat.messages,
-                      aiMessageId
-                    ),
-                  }));
+                  refreshActiveToolCall();
                 } else if (event.type === 'done') {
                   // done イベントで metadata（toolCalls・統計）を最終確定
                   if (event.metadata?.toolCalls) {
@@ -1008,7 +1036,8 @@ export function useChat({
                     toolCalls,
                     request.name,
                     'awaiting-approval',
-                    'running'
+                    'running',
+                    request.callId
                   )
               )
             : chat.messages,

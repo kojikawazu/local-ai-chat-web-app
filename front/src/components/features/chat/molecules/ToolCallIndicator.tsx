@@ -3,9 +3,11 @@
 import { Network } from 'lucide-react';
 import {
   delegationRunningLabel,
+  describeToolArguments,
   isDelegation,
   toolCallLabel,
 } from '@/lib/chat/tool-label';
+import type { ActiveToolCall } from '@/lib/chat/chat-state';
 import { useElapsedSeconds } from '@/hooks/chat/useElapsedSeconds';
 
 /** {@link ToolCallIndicator} の props。 */
@@ -14,6 +16,8 @@ interface ToolCallIndicatorProps {
   name: string;
   /** ツールに渡された引数。要約（各値を先頭 40 文字に切り詰め）して表示する。 */
   arguments: Record<string, unknown>;
+  /** サブエージェントに任せている間の、中の今の手順（#26 Phase B）。あれば任せた仕事の代わりに出す */
+  currentStep?: ActiveToolCall['currentStep'];
 }
 
 /** 委譲のツールの実行中に出す、任せた仕事の先頭の文字数（1 行に収める） */
@@ -48,17 +52,33 @@ function Spinner() {
 }
 
 /**
- * サブエージェントに任せている間の表示（#26）。任せた相手・経過時間・任せた仕事の先頭を出す（数分かかるため、動いていることを見せる）。
+ * サブエージェントに任せている間の表示（#26）。任せた仕事・経過時間を出す（数分かかるため、動いていることを見せる）。
+ * 中の手順が届いていれば、任せた仕事の代わりに今の手順（「Web 検索: Next.js 16」）を出す（#26 Phase B）。
  *
- * @param props - 委譲のツールの引数
+ * @param props - 委譲のツールの引数と、中の今の手順
  */
-function DelegationIndicator({ args }: { args: Record<string, unknown> }) {
+function DelegationIndicator({
+  args,
+  step,
+}: {
+  args: Record<string, unknown>;
+  step?: ActiveToolCall['currentStep'];
+}) {
   const elapsed = useElapsedSeconds();
   const task = typeof args.task === 'string' ? args.task : '';
+  const stepText = step
+    ? [
+        toolCallLabel(step.name, step.arguments),
+        describeToolArguments(step.arguments),
+      ]
+        .filter((part) => part.length > 0)
+        .join(': ')
+    : '';
+  const text = stepText || task;
   const preview =
-    Array.from(task).length > TASK_PREVIEW_CHARS
-      ? `${Array.from(task).slice(0, TASK_PREVIEW_CHARS).join('')}…`
-      : task;
+    Array.from(text).length > TASK_PREVIEW_CHARS
+      ? `${Array.from(text).slice(0, TASK_PREVIEW_CHARS).join('')}…`
+      : text;
 
   return (
     <div
@@ -71,7 +91,7 @@ function DelegationIndicator({ args }: { args: Record<string, unknown> }) {
         {delegationRunningLabel(args)}…
       </span>
       {preview && (
-        <span className="min-w-0 truncate opacity-70" title={task}>
+        <span className="min-w-0 truncate opacity-70" title={text}>
           {preview}
         </span>
       )}
@@ -85,15 +105,18 @@ function DelegationIndicator({ args }: { args: Record<string, unknown> }) {
  *
  * ツール名を日本語ラベルに変換し、引数の要約を併記して「実行中...」を表示する。
  * サブエージェントに任せる委譲のツール（#26）は、サブエージェントのアイコンと色で「サブエージェントが Web を調べています…」・
- * 任せた仕事の先頭・経過時間を出す（ふつうのツールと見分けられるように）。
+ * 中の今の手順（まだ無ければ任せた仕事の先頭。#26 Phase B）・経過時間を出す（ふつうのツールと見分けられるように）。
  *
  * @param props - 実行中ツールの名前と引数を持つ props
  */
 export function ToolCallIndicator({
   name,
   arguments: args,
+  currentStep,
 }: ToolCallIndicatorProps) {
-  if (isDelegation(name)) return <DelegationIndicator args={args} />;
+  if (isDelegation(name)) {
+    return <DelegationIndicator args={args} step={currentStep} />;
+  }
 
   const label = toolCallLabel(name, args);
   const argsSummary = Object.entries(args)

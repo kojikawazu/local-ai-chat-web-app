@@ -328,6 +328,45 @@ test.describe('サブエージェントに任せる', () => {
     });
   });
 
+  test.describe('正常系（任せている間。#26 Phase B）', () => {
+    test('大きいモデルに 2 つ任せさせると、2 つ目は順番待ちと出て、1 つ目の行を開くと中の手順が逐次出る', async ({
+      page,
+    }) => {
+      test.skip(IS_LIGHT_MODEL, '軽量モデルはツール呼び出しが不安定なため');
+      // 大きいモデルの読み込み・メインの問い合わせを含めて待つ（結果は待たずに止める）
+      test.setTimeout(420000);
+      await openWithSettings(page, { tools: true, subAgents: true });
+      await sendMessage(
+        page,
+        'Next.js 16 の新機能と React 19 の新機能を、それぞれサブエージェントに任せて調べて比較して'
+      );
+
+      const main = page.getByRole('main');
+      const delegations = main.getByRole('button', {
+        name: /サブエージェント: Web の調べもの/,
+      });
+      await expect(delegations.nth(1)).toContainText('順番待ち', {
+        timeout: 300000,
+      });
+
+      // 1 つ目の行を開くと、届いた中の手順が増えていく（終わるのを待たない）
+      await delegations.first().click();
+      await expect(
+        main
+          .getByRole('list', { name: 'サブエージェントの手順' })
+          .first()
+          .getByRole('listitem')
+          .first()
+      ).toBeVisible({ timeout: 180000 });
+      // 下の「実行中」の表示に、中の今の手順か任せた仕事を出す
+      await expect(
+        page.getByRole('status').filter({ hasText: 'サブエージェントが' })
+      ).toBeVisible();
+
+      await page.getByRole('button', { name: '生成を停止' }).click();
+    });
+  });
+
   test.describe('準正常系', () => {
     test('エージェントモードがオフなら（設定・入力欄の横とも）切り替えを出さず、任せる設定が残っていても送らない', async ({
       page,

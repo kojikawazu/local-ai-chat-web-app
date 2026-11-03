@@ -178,10 +178,25 @@ export async function runSubAgent({
         reply.toolCalls.map((call) =>
           inOrder(getTool(call.function.name)?.exclusive, async () => {
             const { name, arguments: args } = call.function;
-            const outcome = await executeToolCall(name, args, state);
+            // 中の手順の経過を、委譲の呼び出しの経過として画面へ送る（#26 Phase B）
+            const stepId = crypto.randomUUID();
+            context.emit?.({
+              type: 'sub_agent_step_start',
+              stepId,
+              name,
+              arguments: args,
+            });
+            const outcome = await executeToolCall(name, args, state, stepId);
             toolCalls.push({
               name,
               arguments: args,
+              ...outcome.output,
+              durationMs: outcome.durationMs,
+            });
+            context.emit?.({
+              type: 'sub_agent_step_result',
+              stepId,
+              name,
               ...outcome.output,
               durationMs: outcome.durationMs,
             });

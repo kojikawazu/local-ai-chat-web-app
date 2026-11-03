@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  finishSubAgentStep,
   finishToolCall,
   firstPendingToolCall,
+  startSubAgentStep,
   startToolCall,
   updateMessageToolCalls,
   updateToolCallStatus,
@@ -322,3 +324,192 @@ describe('firstPendingToolCall', () => {
     });
   });
 });
+
+describe('呼び出しの ID と順番待ち・サブエージェントの中の手順（#26 Phase B）', () => {
+  /**
+   * 呼び出しの ID 付きで仮の記録を足す。
+   *
+   * @param calls - 名前と ID（順番待ちなら queued）
+   * @returns 仮の記録
+   */
+  function startedWithIds(
+    ...calls: {
+      name: string;
+      callId: string;
+      queued?: boolean;
+      args?: Record<string, unknown>;
+    }[]
+  ): ToolCallInfo[] {
+    return calls.reduce<ToolCallInfo[]>(
+      (acc, call) =>
+        startToolCall(
+          acc,
+          {
+            name: call.name,
+            arguments: call.args ?? {},
+            contentOffset: 0,
+            callId: call.callId,
+          },
+          call.queued
+        ),
+      []
+    );
+  }
+
+  const DELEGATION_ARGS = { agent: 'researcher', task: '調べて' };
+
+  describe('正常系', () => {
+    it('同じ名前のツールでも、呼び出しの ID で結果を当てる（後に呼んだものの結果が先に届いても取り違えない）', () => {
+      const calls = startedWithIds(
+        { name: 'web_search', callId: 'a' },
+        { name: 'web_search', callId: 'b' }
+      );
+      const finished = finishToolCall(calls, 'web_search', OUTCOME, 'b');
+      expect(finished.map((c) => c.status)).toEqual(['running', undefined]);
+      // 結果の届いた記録からは、画面だけの印（状態・ID）を外す
+      expect(finished[1]).not.toHaveProperty('callId');
+    });
+
+    it('順番待ちで足し、動き始めたら実行中にする', () => {
+      const calls = startedWithIds(
+        { name: 'delegate_to_agent', callId: 'a' },
+        { name: 'delegate_to_agent', callId: 'b', queued: true }
+      );
+      expect(calls.map((c) => c.status)).toEqual(['running', 'queued']);
+      const begun = updateToolCallStatus(calls, '', 'queued', 'running', 'b');
+      expect(begun.map((c) => c.status)).toEqual(['running', 'running']);
+    });
+
+    it('委譲の記録に中の手順を足し、結果を入れ、下の表示に今の手順を出す', () => {
+      let calls = startedWithIds({
+        name: 'delegate_to_agent',
+        callId: 'd',
+        args: DELEGATION_ARGS,
+      });
+      calls = startSubAgentStep(calls, 'd', {
+        stepId: 's1',
+        name: 'web_search',
+        arguments: { query: 'Next.js 16' },
+      });
+      expect(calls[0].subAgent).toMatchObject({
+        agent: 'researcher',
+        task: '調べて',
+        toolCalls: [{ name: 'web_search', status: 'running', callId: 's1' }],
+      });
+      expect(firstPendingToolCall(answerOf(calls), 'a1')).toEqual({
+        name: 'delegate_to_agent',
+        arguments: DELEGATION_ARGS,
+        currentStep: { name: 'web_search', arguments: { query: 'Next.js 16' } },
+      });
+
+      calls = finishSubAgentStep(calls, 'd', 's1', {
+        result: '一覧',
+        isError: false,
+        summary: '5 件',
+        durationMs: 300,
+      });
+      expect(calls[0].subAgent?.toolCalls).toEqual([
+        {
+          name: 'web_search',
+          arguments: { query: 'Next.js 16' },
+          result: '一覧',
+          isError: false,
+          summary: '5 件',
+          durationMs: 300,
+        },
+      ]);
+      // 中の手順が終わったら、今の手順は出さない（委譲はまだ実行中）
+      expect(firstPendingToolCall(answerOf(calls), 'a1')).toEqual({
+        name: 'delegate_to_agent',
+        arguments: DELEGATION_ARGS,
+      });
+    });
+  });
+
+  describe('準正常系', () => {
+    it('順番待ちの委譲より前の、実行中の委譲を下の表示に出す', () => {
+      const calls = startedWithIds(
+        {
+          name: 'delegate_to_agent',
+          callId: 'a',
+          args: { agent: 'researcher', task: 'A' },
+        },
+        {
+          name: 'delegate_to_agent',
+          callId: 'b',
+          queued: true,
+          args: { agent: 'researcher', task: 'B' },
+        }
+      );
+      expect(firstPendingToolCall(answerOf(calls), 'a1')?.arguments).toEqual({
+        agent: 'researcher',
+        task: 'A',
+      });
+    });
+
+    it('並べて実行した中の手順は、それぞれの ID で結果を当てる', () => {
+      let calls = startedWithIds({
+        name: 'delegate_to_agent',
+        callId: 'd',
+        args: DELEGATION_ARGS,
+      });
+      for (const stepId of ['s1', 's2']) {
+        calls = startSubAgentStep(calls, 'd', {
+          stepId,
+          name: 'url_fetch',
+          arguments: { url: stepId },
+        });
+      }
+      calls = finishSubAgentStep(calls, 'd', 's2', {
+        result: '本文',
+        isError: false,
+        durationMs: 1,
+      });
+      expect(calls[0].subAgent?.toolCalls.map((t) => t.status)).toEqual([
+        'running',
+        undefined,
+      ]);
+    });
+  });
+
+  describe('異常系', () => {
+    it('知らない呼び出し・中の手順の ID、任せた相手の分からない委譲は、記録を変えない', () => {
+      const calls = startedWithIds({
+        name: 'delegate_to_agent',
+        callId: 'd',
+        args: { agent: 'translator', task: 'x' },
+      });
+      const step = { stepId: 's', name: 'web_search', arguments: {} };
+      expect(startSubAgentStep(calls, 'missing', step)).toBe(calls);
+      expect(startSubAgentStep(calls, 'd', step)).toBe(calls);
+      expect(
+        finishSubAgentStep(calls, 'd', 'missing', {
+          result: '',
+          isError: false,
+          durationMs: 0,
+        })
+      ).toBe(calls);
+      expect(
+        updateToolCallStatus(calls, '', 'queued', 'running', 'missing')
+      ).toBe(calls);
+    });
+  });
+});
+
+/**
+ * ツールの記録を持つ応答を 1 つ作る（呼び出しの ID と順番待ちのテスト用）。
+ *
+ * @param toolCalls - 応答のツールの記録
+ * @returns メッセージ一覧
+ */
+function answerOf(toolCalls: ToolCallInfo[]): Message[] {
+  return [
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      createdAt: new Date(0),
+      metadata: { toolCalls },
+    },
+  ];
+}

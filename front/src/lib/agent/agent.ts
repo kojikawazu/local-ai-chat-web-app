@@ -309,28 +309,50 @@ export function declinedOutput(
       };
 }
 
+/** {@link createInOrderQueue} が返す順番待ち。 */
+export type InOrderQueue = (<T>(
+  key: string | undefined,
+  task: () => Promise<T>
+) => Promise<T>) & {
+  /**
+   * その組に、まだ終わっていない処理があるか（次に入れる処理が順番を待つか。#26 Phase B）
+   *
+   * @param key - 組の名前（無ければ並べて実行するため、常に false）
+   * @returns 終わっていない処理があれば true
+   */
+  isBusy: (key: string | undefined) => boolean;
+};
+
 /**
  * 同じ組のツールを、呼ばれた順に 1 つずつ実行する順番待ちを作る（#149 Phase C。`Tool` の `exclusive`）。
  *
  * 組ごとに、最後に入れた処理の終わりをつなぐ。前の処理が失敗しても、続きの処理は進める。
- * 組の名前が無ければ待たずにすぐ実行する（並べて実行する）。
+ * 組の名前が無ければ待たずにすぐ実行する（並べて実行する）。組ごとに終わっていない処理を数え、順番を待つかを答える（#26 Phase B）。
  *
- * @returns 処理を入れる関数。組の名前と処理を受け取り、処理の結果を返す
+ * @returns 処理を入れる関数（組の名前と処理を受け取り、処理の結果を返す）。`isBusy` で組に終わっていない処理があるかを返す
  */
-export function createInOrderQueue(): <T>(
-  key: string | undefined,
-  task: () => Promise<T>
-) => Promise<T> {
+export function createInOrderQueue(): InOrderQueue {
   const tails = new Map<string, Promise<unknown>>();
-  return (key, task) => {
+  const pending = new Map<string, number>();
+  const enqueue = <T>(
+    key: string | undefined,
+    task: () => Promise<T>
+  ): Promise<T> => {
     if (key === undefined) return task();
-    const next = (tails.get(key) ?? Promise.resolve()).then(task);
+    pending.set(key, (pending.get(key) ?? 0) + 1);
+    const next = (tails.get(key) ?? Promise.resolve())
+      .then(task)
+      .finally(() => pending.set(key, (pending.get(key) ?? 1) - 1));
     tails.set(
       key,
       next.catch(() => {})
     );
     return next;
   };
+  return Object.assign(enqueue, {
+    isBusy: (key: string | undefined) =>
+      key !== undefined && (pending.get(key) ?? 0) > 0,
+  });
 }
 
 /**
@@ -342,6 +364,7 @@ export function createInOrderQueue(): <T>(
  *
  * @param tool - 承認が要るツール（`prepare` を持つ）
  * @param args - LLM から渡された引数
+ * @param callId - 呼び出しの ID（承認の依頼に載せ、画面が承認カードと記録を当てる。#26 Phase B）
  * @param send - イベントを送る関数
  * @param loopSignal - ループ全体の中断の signal
  * @param context - 応答ごとの文脈（準備に渡す。ブラウザの操作が開いたページを使う。#149 Phase C）
@@ -350,6 +373,7 @@ export function createInOrderQueue(): <T>(
 async function runWithApproval(
   tool: Tool & { prepare: NonNullable<Tool['prepare']> },
   args: Record<string, unknown>,
+  callId: string,
   send: (event: AgentStreamEvent) => void,
   loopSignal: AbortSignal,
   context: ToolContext
@@ -376,6 +400,7 @@ async function runWithApproval(
   send({
     type: 'tool_approval_request',
     approvalId,
+    callId,
     name,
     preview: prepared.value.preview,
     timeoutMs: APPROVAL_TIMEOUT_MS,
@@ -474,17 +499,25 @@ export type ToolCallOutcome = {
  * 手元を読んだ後の外部と通信するツール（#148）→ 承認が要るツール（承認の後に実行）→ 実行。
  * 実行の後、接続先ごと使えない失敗（`unavailable`）と、手元の情報を読んだこと（`access: 'local'` の成功・`readLocal`）を `state` に記録する。
  *
+ * イベントを送れるループ（メイン）では、ツールへ渡す文脈に、途中の経過を `callId` 付きで送る `emit` を足す（#26 Phase B）。
+ *
  * @param name - 呼ばれたツール名
  * @param args - LLM から渡された引数
  * @param state - ループの状態（{@link ToolCallState}）
+ * @param callId - 呼び出しの ID（承認の依頼・途中の経過に載せる。#26 Phase B）
  * @returns 結果（{@link ToolCallOutcome}）。失敗も例外にせず `isError` で返す
  */
 export async function executeToolCall(
   name: string,
   args: Record<string, unknown>,
-  state: ToolCallState
+  state: ToolCallState,
+  callId: string
 ): Promise<ToolCallOutcome> {
   const tool = getTool(name);
+  const { send } = state;
+  const context: ToolContext = send
+    ? { ...state.context, emit: (event) => send({ ...event, callId }) }
+    : state.context;
   const skipReason = state.unavailableTools.get(name);
   const access = resolveAccess(tool, args);
   const {
@@ -505,16 +538,17 @@ export async function executeToolCall(
           : shouldBlockTool(access, state.hasReadLocal())
             ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
             : tool?.prepare
-              ? state.send
+              ? send
                 ? await runWithApproval(
                     { ...tool, prepare: tool.prepare },
                     args,
-                    state.send,
+                    callId,
+                    send,
                     state.signal,
-                    state.context
+                    context
                   )
                 : { ...approvalUnavailableOutput(name), durationMs: 0 }
-              : await runTool(name, args, state.signal, state.context);
+              : await runTool(name, args, state.signal, context);
   if (unavailable) {
     state.unavailableTools.set(name, output.summary ?? output.result);
   }
@@ -900,16 +934,22 @@ export function runAgentLoop(
               const name = tc.function.name;
               const args = tc.function.arguments;
 
-              // 実行開始イベント。同じラウンドのツールは同じ位置（その時点の本文の文字数）に並ぶ
+              // 実行開始イベント。同じラウンドのツールは同じ位置（その時点の本文の文字数）に並ぶ。
+              // 呼び出しごとの ID で、画面が結果・承認・途中の経過を当てる（#26 Phase B）
               const contentOffset = sentLength;
+              const callId = crypto.randomUUID();
+              const tool = getTool(name);
+              // 同じ組（exclusive）の前の呼び出しが終わっていなければ順番を待つ。画面に「順番待ち」と出させる（#26 Phase B）
+              const queued = inOrder.isBusy(tool?.exclusive);
               send({
                 type: 'tool_call_start',
+                callId,
                 name,
                 arguments: args,
                 contentOffset,
+                ...(queued && { queued }),
               });
 
-              const tool = getTool(name);
               // 同じ組（exclusive）のツールは、前の呼び出しの結果を送り終えてから始める（#149 Phase C）。
               // 止めるかの判定（使えない・手元を読んだ後）も、前の呼び出しの結果を見てから行う
               return inOrder(tool?.exclusive, async () => {
@@ -917,19 +957,21 @@ export function runAgentLoop(
                 if (loopSignal.aborted) {
                   return { name, result: '', images: undefined };
                 }
+                if (queued) send({ type: 'tool_call_begin', callId });
                 const {
                   output,
                   durationMs,
                   images,
                   screenshots,
                   metrics: toolMetrics,
-                } = await executeToolCall(name, args, toolState);
+                } = await executeToolCall(name, args, toolState, callId);
                 // サブエージェントのトークン数・所要時間も、応答のために使ったため合計に足す（#26）
                 metrics = addMetrics(metrics, toolMetrics);
 
                 // 実行結果イベント
                 send({
                   type: 'tool_call_result',
+                  callId,
                   name,
                   ...output,
                   ...(screenshots && { screenshots }),

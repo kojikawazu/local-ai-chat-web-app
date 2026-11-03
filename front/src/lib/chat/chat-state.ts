@@ -10,7 +10,10 @@ import type { Message } from '@/types/chat/message';
 export const NEW_CONVERSATION_KEY = 'new';
 
 /** 実行中のツール呼び出し（結果が届く前に表示する分）。 */
-export type ActiveToolCall = Pick<ToolCallInfo, 'name' | 'arguments'>;
+export type ActiveToolCall = Pick<ToolCallInfo, 'name' | 'arguments'> & {
+  /** サブエージェントに任せている間の、中の今の手順（#26 Phase B）。中の手順がまだ無ければ持たない */
+  currentStep?: Pick<ToolCallInfo, 'name' | 'arguments'>;
+};
 
 /**
  * 1 つの会話のチャット状態。生成中に会話を切り替えても失われないよう、会話ごとに持つ（#147）。

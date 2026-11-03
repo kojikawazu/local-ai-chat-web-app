@@ -18,6 +18,7 @@ import { findRegenerateTarget } from '@/lib/chat/regenerate';
 import { buildAgentTimeline } from '@/lib/chat/agent-timeline';
 import MarkdownContent from './MarkdownContent';
 import CopyButton from '@/components/common/molecules/CopyButton';
+import type { ActiveToolCall } from '@/lib/chat/chat-state';
 import { ToolCallIndicator } from '@/components/features/chat/molecules/ToolCallIndicator';
 import MessageImages from '@/components/features/chat/molecules/MessageImages';
 import ApprovalCard from '@/components/features/chat/molecules/ApprovalCard';
@@ -35,7 +36,7 @@ type ChatWindowProps = {
   /** 表示する会話メッセージ一覧（時系列順）。空なら空状態のウェルカム画面を表示する。 */
   messages: Message[];
   /** 現在実行中のツール呼び出し。ある場合はスピナー付きインジケーターを表示する。 */
-  activeToolCall?: { name: string; arguments: Record<string, unknown> } | null;
+  activeToolCall?: ActiveToolCall | null;
   /** 応答生成中か。末尾の空 assistant メッセージと組み合わせて「最初のチャンク待ち」演出を出す。 */
   isLoading?: boolean;
   /** 保存に失敗したメッセージの再試行ボタン押下時のコールバック。メッセージ ID を受け取る。 */
@@ -446,6 +447,7 @@ export default function ChatWindow({
                   key={`${activeToolCall.name}:${JSON.stringify(activeToolCall.arguments)}`}
                   name={activeToolCall.name}
                   arguments={activeToolCall.arguments}
+                  currentStep={activeToolCall.currentStep}
                 />
               </div>
             )
