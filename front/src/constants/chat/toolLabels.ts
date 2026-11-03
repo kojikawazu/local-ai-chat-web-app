@@ -24,4 +24,5 @@ export const TOOL_LABELS: Record<string, string> = {
   browser_click: 'クリック',
   browser_type: '入力',
   browser_select: '選択',
+  save_memory: 'メモを保存',
 };

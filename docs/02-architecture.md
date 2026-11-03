@@ -46,6 +46,7 @@ Next.js Route Handlers (API層)
 - フロントエンドからOllamaへ直接通信しない。Route Handlersを経由する。
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
 - RAG の保管庫（#235）は `KNOWLEDGE_VAULTS` の手元のノートのリポジトリ・フォルダ。画面の「同期」で差分を求め、1 ファイルずつ取り込む。git のリポジトリは既定のブランチのコミット済みの中身だけを読み（`git ls-tree`・`git cat-file`。通信しない）、名前を `保管庫の名前/パス` にしたドキュメントとして同じ索引に置く。
+- 会話から覚えさせたメモ（#236）は、エージェントの `save_memory`（実行前に承認）が `KNOWLEDGE_MEMORY_VAULT` の保管庫の `memories/<名前>.md` に書き、git のリポジトリなら main にそのファイルだけをコミットし（`git add`・`git commit --only`。push しない）、保管庫の 1 ファイルの同期と同じ処理で索引に入れる。正本は保管庫のファイル。
 - RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。「ドキュメントを参照」を入れた会話（`Conversation.knowledgeEnabled`。Phase B）では、`/api/chat` が送るたびに今回のメッセージの埋め込みを作って近いチャンクを探し、システムプロンプトに入れ、出典をストリームの最初の `knowledge_sources` で返す。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
@@ -162,7 +163,7 @@ front/src/
 │       │   │   ├── KnowledgeToggle.tsx   # 会話ごとの「ドキュメントを参照」の本のボタン（aria-pressed・ドキュメントが無いと入れられない。#17 Phase B）
 │       │   │   └── ElementBoxOverlay.tsx # スクリーンショットに、操作する要素を囲む枠を重ねる（SVG。#200）
 │       │   ├── molecules/
-│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素と操作の前の画面・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C、#200）
+│       │   │   ├── ApprovalCard.tsx      # ツールの実行前の承認カード（ファイルの差分・コマンドと作業フォルダ・GitHub の送る本文・ブラウザの操作のページと要素と操作の前の画面・メモの置き場所と中身とコミットの有無（#236）・許可 / 拒否。#148 Phase A2・B・C、#149 Phase C、#200）
 │       │   │   ├── AttachmentPreview.tsx # 送信前の添付画像のサムネイル・削除・準備中・添付できなかった理由・非対応モデルの案内（#6）
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
@@ -225,6 +226,9 @@ front/src/
 │   │   └── pptx.ts            #     PPTX のスライドの寸法・行の間隔・セルの余白（割り付けと pptxgenjs の図形で共有。#36）
 │   ├── conversation/
 │   │   └── title.ts           #     タイトル未指定のときの会話タイトル（会話の作成と分岐のタイトルで共有。#29）
+│   ├── knowledge/
+│   │   ├── file.ts            #     取り込めるファイルの拡張子（画面の選択と検証で共有。#17）
+│   │   └── memory.ts          #     メモを書くツールの名前（ツールの定義と、保存の後に読み直す画面で共有。#236）
 │   ├── shortcut/
 │   │   └── shortcuts.ts       #     ページ全体のショートカットの定義（判定とヘルプで共有。#33）
 │   ├── sidebar/
@@ -285,6 +289,8 @@ front/src/
 │   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
 │   │       ├── network-guard.ts #     プライベート・ループバックのアドレスの判定と名前の解決（url_fetch とブラウザのツールで共有。#149）
 │   │       ├── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       ├── memory/        #       会話から覚えさせたことを書くツール（#236。KNOWLEDGE_MEMORY_VAULT があるときだけ登録）
+│   │       │   └── save-memory.ts #     save_memory（実行前に承認・memories/<名前>.md・git なら main にコミット・索引に入れる）
 │   │       ├── browser/       #       ブラウザのツール（#149。BROWSER_ENABLED=true のときだけ登録）
 │   │       │   ├── config.ts  #         BROWSER_ENABLED・BROWSER_LOCAL_ORIGINS の解釈
 │   │       │   ├── url-policy.ts #      開く URL の読み取り・宛先の判定（アプリ自身・許可した開発サーバー・プライベート・手元を読んだ後）
@@ -360,6 +366,7 @@ front/src/
 │   │   ├── chunk.ts           #     チャンクの分け方（見出しの経路・空行で約 600 字・コードブロック・長い段落）
 │   │   ├── embedding-text.ts  #     埋め込みへ渡す文（embeddinggemma の前置き。文書・質問）・pgvector の文字の形
 │   │   ├── prompt.ts          #     見つかったチャンク → システムプロンプトの節・出典（抜き出しの先頭 200 字。#17 Phase B）
+│   │   ├── memory.ts          #     覚えさせるメモの名前・種類・長さの検証・frontmatter の組み立て・鍵らしい文字列の判定（#236）
 │   │   └── vault.ts           #     保管庫の取り込まない規則・パスと名前の検証・差分の計算（#235）
 │   ├── prompt-template/       #   プロンプトテンプレート
 │   │   └── suggest.ts         #     入力欄の `/` の候補を出す条件・絞り込み・選択の移動（#28）
@@ -377,7 +384,8 @@ front/src/
 │   │   ├── chat-images.ts     #     /api/chat で LLM へ渡す画像の選び方・省略の注記（#6）
 │   │   ├── knowledge.ts       #     RAG のドキュメントの DB の処理（取り込み・作り直し・削除・会話での検索。raw SQL。#17）
 │   │   ├── knowledge-response.ts #  取り込み・作り直し・検索・同期の失敗の応答（502 / 409 / 500・上限の 400。#17）
-│   │   ├── knowledge-vault-config.ts # KNOWLEDGE_VAULTS の解決・検索で比べる範囲（設定にある保管庫だけ。#235）
+│   │   ├── knowledge-memory.ts #    メモの保管庫への書き込みの準備（差分）・書き込み・main へのコミット・索引への反映（#236）
+│   │   ├── knowledge-vault-config.ts # KNOWLEDGE_VAULTS・KNOWLEDGE_MEMORY_VAULT の解決・検索で比べる範囲（設定にある保管庫だけ。#235・#236）
 │   │   ├── knowledge-vault.ts #     保管庫を開く（git は既定のブランチを ls-tree・cat-file、フォルダはたどる）・差分・1 ファイルの同期・一覧・索引の削除（#235）
 │   │   └── prisma-error.ts    #     Prisma の一意制約の違反（409。メッセージの id・テンプレートのショートカット・ブックマーク。#28・#30）と外部キーの違反（404。ブックマーク・分岐。#30・#29）の判定
 │   └── shared/                #   サーバー・クライアント共通
@@ -404,6 +412,7 @@ front/src/
     │   └── bookmark.ts        #     Bookmark・BookmarkListItem（ブックマークと一覧の 1 件。#30）
     ├── knowledge/
     │   ├── document.ts        #     KnowledgeDocumentItem（RAG のドキュメントの一覧の 1 件。#17）・KnowledgeHit・KnowledgeSource（会話で見つかったチャンクと出典。#17 Phase B）
+    │   ├── memory.ts          #     MEMORY_TYPES・MemoryInput（会話から覚えさせるメモ。#236）
     │   └── vault.ts           #     KnowledgeVaultItem・VaultSyncPlan・VaultSyncProgress・取り込まない理由（保管庫。#235）
     ├── shortcut/
     │   └── shortcut.ts        #     ShortcutId・ShortcutBinding・ShortcutDefinition（#33）
@@ -466,6 +475,7 @@ front/tests/
     ├── knowledge.spec.ts          # RAG のドキュメント（ファイルを選んで取り込む・一覧の大きさとチャンクの数・同じ名前の置き換え・2 段階の削除・取り込めない拡張子・テキストでない中身・取り込みの通信の失敗）
     ├── knowledge-chat.spec.ts     # 会話でのドキュメントの参照（切り替えて送ると出典が出て再読み込みの後も残る（CI はスキップ）・出典の要約と一覧（文字のまま）・開いている会話での切り替えの保存・見つからなかった応答・ドキュメントが無いと入れられない・参照しなかった応答・切り替えの保存・ドキュメントを探すことの失敗）
     ├── knowledge-vault.spec.ts    # RAG の保管庫（同期で取り込み件数と取り込まなかった理由を出す・もう一度押すと変わらない・書き換えと削除の反映・同期したノートが出典に出る（CI はスキップ）・未設定の案内・設定に無い保管庫の 2 段階の削除・読めない保管庫・同期の途中の 502）
+    ├── knowledge-memory.spec.ts   # 会話から覚えさせる（save_memory がツールの一覧に出る・メモの保管庫に書いたメモが同期の後の出典に出る（CI はスキップ）・ダイアログにメモの保管庫が出る・承認カードの置き場所と中身・許可で書く・拒否で書かない・鍵らしい文字列は承認を求めずに断る（ツール呼び出しは軽量モデルでスキップ））
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）
@@ -743,6 +753,7 @@ model KnowledgeChunk {
 | `OLLAMA_MODEL` | 使用するモデル名 | `qwen3.8:27b` |
 | `OLLAMA_EMBED_MODEL` | RAG のドキュメントの埋め込みのモデル（変えたら取り込んだドキュメントの作り直しが要る） | `embeddinggemma:300m` |
 | `KNOWLEDGE_VAULTS` | RAG の保管庫にする手元のノートのリポジトリ・フォルダの絶対パス（カンマ区切り・`~` 可。ドキュメントのダイアログの「同期」で取り込む。git のリポジトリは既定のブランチ（main）のコミット済みの中身だけを読む。#235） | 未設定（保管庫を使わない） |
+| `KNOWLEDGE_MEMORY_VAULT` | 会話から覚えさせたことをエージェントが書く保管庫の名前（`KNOWLEDGE_VAULTS` の保管庫のフォルダ名。`save_memory` のツールで `memories/<名前>.md` に書き、実行前に承認が要る。git のリポジトリなら main にコミットする（push しない）。#236） | 未設定（メモを書くツールを使わない） |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |

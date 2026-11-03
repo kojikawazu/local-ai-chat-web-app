@@ -11,6 +11,7 @@ import type {
   GitHubCommentApprovalPreview,
   GitHubCreatePrApprovalPreview,
   GitHubVisibility,
+  MemoryApprovalPreview,
   ToolApprovalRequest,
 } from '@/types/agent/tool-call';
 import Button from '@/components/common/atoms/Button';
@@ -22,9 +23,9 @@ import ToolScreenshots from './ToolScreenshots';
 /** 差分を表示する最大の行数。超えた分は「ほか N 行」と書く（承認は全体に対して行う） */
 const MAX_DIFF_LINES = 400;
 
-/** 何をするかの見出し（ブラウザの操作は {@link BROWSER_TITLES}） */
+/** 何をするかの見出し（ブラウザの操作は {@link BROWSER_TITLES}、メモは {@link MEMORY_TITLES}） */
 const ACTION_TITLES: Record<
-  Exclude<ApprovalPreview['action'], 'browser-action'>,
+  Exclude<ApprovalPreview['action'], 'browser-action' | 'save-memory'>,
   string
 > = {
   create: 'ファイルを作成します',
@@ -42,6 +43,12 @@ const BROWSER_TITLES: Record<BrowserOperation, string> = {
   select: 'ブラウザで選択します',
 };
 
+/** メモの保存の見出し（新規か上書きか。#236） */
+const MEMORY_TITLES: Record<MemoryApprovalPreview['mode'], string> = {
+  create: 'メモを保存します',
+  overwrite: 'メモを更新します',
+};
+
 /**
  * 承認カードの見出しを決める。
  *
@@ -49,9 +56,11 @@ const BROWSER_TITLES: Record<BrowserOperation, string> = {
  * @returns 何をするかの見出し
  */
 function titleOf(preview: ApprovalPreview): string {
-  return preview.action === 'browser-action'
-    ? BROWSER_TITLES[preview.operation]
-    : ACTION_TITLES[preview.action];
+  if (preview.action === 'browser-action') {
+    return BROWSER_TITLES[preview.operation];
+  }
+  if (preview.action === 'save-memory') return MEMORY_TITLES[preview.mode];
+  return ACTION_TITLES[preview.action];
 }
 
 /** 残り時間の色（残り 1 分を切ったら黄、時間切れは赤。#202） */
@@ -87,20 +96,33 @@ function diffLineClass(line: string): string {
 }
 
 /**
- * ファイルの書き込みの、対象のパスと差分（追加は緑・削除は赤）。
+ * 書き込みの、対象のパスと差分（追加は緑・削除は赤）。ファイルの書き込みとメモの保存（#236）で使う。
  * 差分は {@link MAX_DIFF_LINES} 行まで出し、超えた分は行数だけを書く。
  *
- * @param props - 承認で見せる内容を持つ props
- * @param props.preview - ファイルの書き込みの内容
+ * @param props - 見せるパスと差分を持つ props
+ * @param props.path - 書くファイル（ファイルの書き込みは実体のパス、メモは `保管庫/memories/<名前>.md`）
+ * @param props.diff - 差分（unified diff）
+ * @param props.added - 追加する行数
+ * @param props.removed - 削除する行数
  */
-function FilePreview({ preview }: { preview: FileApprovalPreview }) {
-  const lines = preview.diff.split('\n');
+function DiffPreview({
+  path,
+  diff,
+  added,
+  removed,
+}: {
+  path: string;
+  diff: string;
+  added: number;
+  removed: number;
+}) {
+  const lines = diff.split('\n');
   const shown = lines.slice(0, MAX_DIFF_LINES);
   const hidden = lines.length - shown.length;
   return (
     <>
       <p className="text-xs text-nord-4/80 break-all font-mono">
-        {preview.path}（+{preview.added} −{preview.removed}）
+        {path}（+{added} −{removed}）
       </p>
       <pre
         aria-label="変更の差分"
@@ -115,6 +137,49 @@ function FilePreview({ preview }: { preview: FileApprovalPreview }) {
           <div className="text-nord-4/60">（ほか {hidden} 行）</div>
         )}
       </pre>
+    </>
+  );
+}
+
+/**
+ * ファイルの書き込みの、対象のパスと差分。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - ファイルの書き込みの内容
+ */
+function FilePreview({ preview }: { preview: FileApprovalPreview }) {
+  return (
+    <DiffPreview
+      path={preview.path}
+      diff={preview.diff}
+      added={preview.added}
+      removed={preview.removed}
+    />
+  );
+}
+
+/**
+ * メモの保存の、置き場所・中身（上書きなら差分）と、書いた後にコミットするか（#236。`docs/28-rag.md` の D7）。
+ *
+ * 会話の内容がファイルと git の履歴に残るため、何が残るかとコミットの有無を書く前に見せる。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - メモの保存の内容
+ */
+function MemoryPreview({ preview }: { preview: MemoryApprovalPreview }) {
+  return (
+    <>
+      <DiffPreview
+        path={`${preview.vault}/${preview.path}`}
+        diff={preview.diff}
+        added={preview.added}
+        removed={preview.removed}
+      />
+      <p className="text-xs text-nord-4/80">
+        {preview.branch
+          ? `書いた後に ${preview.branch} へコミットします（push はしません）。索引にも入れ、次の会話から引けるようにします`
+          : '保管庫のフォルダに書きます（git ではないためコミットしません）。索引にも入れ、次の会話から引けるようにします'}
+      </p>
     </>
   );
 }
@@ -345,6 +410,8 @@ function PreviewBody({ preview }: { preview: ApprovalPreview }) {
       return <GitHubCreatePrPreview preview={preview} />;
     case 'browser-action':
       return <BrowserActionPreview preview={preview} />;
+    case 'save-memory':
+      return <MemoryPreview preview={preview} />;
     default:
       return <FilePreview preview={preview} />;
   }
@@ -355,7 +422,7 @@ function PreviewBody({ preview }: { preview: ApprovalPreview }) {
  * `docs/17-github-tools.md`・`docs/18-browser-tools.md`）。
  *
  * 何をするかの見出しと、その中身（ファイルの書き込みなら差分、コマンドの実行ならコマンドと作業フォルダ、
- * GitHub への書き込みならリポジトリと送る本文、ブラウザの操作ならページと要素）、
+ * GitHub への書き込みならリポジトリと送る本文、ブラウザの操作ならページと要素、メモの保存（#236）なら置き場所・中身とコミットの有無）、
  * 「許可」「拒否」のボタンを出す。
  * 見出しの横に承認の残り時間を出し（残り 1 分を切ったら黄）、時間切れになったらボタンを押せなくする（#202。
  * 決着はサーバーが時間切れとして送る `tool_call_result` で届き、カードはそこで消える）。

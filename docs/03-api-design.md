@@ -448,7 +448,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も、KNOWLEDGE_MEMORY_VAULT が保管庫の名前なら save_memory（#236）も）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
   }[];

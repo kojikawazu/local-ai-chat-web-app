@@ -581,6 +581,8 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
   - **画像のツール**: `requiresVision` のツール（`browser_screenshot`）は、ループの最初にモデルの対応機能（`supportsVision`）を確かめ、画像を読めなければツールの一覧から外す（呼ばれても実行しない）。結果の `images` は `role: 'tool'` のメッセージの `images` に入れ、画面・DB へは送らない。画像を渡せないのに「撮った」とだけ返すと、モデルは見たふりをして答えるため（`docs/18-browser-tools.md`「前提の調査」）。
   - **利用者へ見せる画面（#200）**: 結果の `screenshots`（`images` とは別。モデルへは渡さない）は、ループが `tool_call_result` に中身付きで載せ、記録（`done`・DB の `toolCalls`）には中身を外して入れる。`prepare` の結果の `screenshots`（操作の前の画面）は、承認の結果にかかわらず結果に入れる。画面（`useChat`）は中身を ID ごとに持ち、応答の保存で assistant の添付画像として送る。撮るのは操作の前（要素の位置付き）・操作の後・`browser_navigate` の後・`browser_screenshot`（モデルへ渡した PNG）で、1 回の応答で 20 枚まで（`browser/capture.ts`。`docs/18-browser-tools.md`「画面をチャットに出す」）。
 
+- 会話から覚えさせたことを書く `save_memory` は RAG の Phase D（#236。[28-rag.md](./28-rag.md)「会話から覚えさせる（Phase D）」）。`KNOWLEDGE_MEMORY_VAULT` が `KNOWLEDGE_VAULTS` の保管庫の名前のときだけ登録する（`lib/agent/tools/memory/`）。`prepare` で名前・種類・長さ・鍵らしい文字列を確かめ、置き場所と差分を承認カードに出す。`run` は `memories/<名前>.md` に書き、git なら main にコミットし、そのファイルだけを索引へ入れる（埋め込みのモデルの読み込みに備えて `runTimeoutMs` は 120 秒）。`access` は `local`（外部と通信しない）。利用者が頼んだときだけ使うようツールの説明で指示する
+
 ---
 
 ## API 設計変更

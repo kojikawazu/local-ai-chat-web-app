@@ -89,3 +89,24 @@ export function searchableVaultWhere(): Prisma.KnowledgeDocumentWhereInput {
   const names = getKnowledgeVaults().map((vault) => vault.name);
   return { OR: [{ vault: null }, { vault: { in: names } }] };
 }
+
+/**
+ * 会話から覚えさせたメモを書く保管庫を、環境変数 `KNOWLEDGE_MEMORY_VAULT`（保管庫の名前）から決める
+ * （#236。`docs/28-rag.md` の D1）。
+ *
+ * `KNOWLEDGE_VAULTS` にある保管庫の名前だけを使う。無い名前なら `console.warn` で知らせて使わない
+ * （メモを書いても検索・同期の対象にならないため）。`process.env.KNOWLEDGE_MEMORY_VAULT` を読むのはこの関数だけ。
+ *
+ * @returns メモの保管庫。未設定・保管庫に無い名前なら `undefined`
+ */
+export function getMemoryVault(): VaultRoot | undefined {
+  const name = process.env.KNOWLEDGE_MEMORY_VAULT?.trim();
+  if (!name) return undefined;
+  const vault = findKnowledgeVault(name);
+  if (!vault) {
+    console.warn(
+      `KNOWLEDGE_MEMORY_VAULT の "${name}" は KNOWLEDGE_VAULTS の保管庫に無いため、メモを書くツール（save_memory）を使いません`
+    );
+  }
+  return vault;
+}

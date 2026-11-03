@@ -75,7 +75,7 @@ globs: "front/tests/**"
 - **呼び出し**: handler を関数として import し、`NextRequest` を組んで直接実行（ブラウザ・Next サーバー起動なし）。
 - **隔離**: 各テスト `beforeEach` で会話を全削除（Message は cascade）。`fileParallelism: false` で DB 競合を回避。
 - **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker と Chromium（ブラウザのツールの IT。#149。`pnpm exec playwright install chromium`）が必要、Ollama 不要）。
-- **保管庫（#235）**: 保管庫の IT は、テストの中で一時フォルダに本物の git のリポジトリ（`git init`・コミット・別のブランチ）とふつうのフォルダを作り、`KNOWLEDGE_VAULTS` に渡す。git は手元で動かす実依存で、差し替えない（main だけを読むことを確かめるため）。
+- **保管庫（#235）**: 保管庫の IT は、テストの中で一時フォルダに本物の git のリポジトリ（`git init`・コミット・別のブランチ）とふつうのフォルダを作り、`KNOWLEDGE_VAULTS` に渡す。git は手元で動かす実依存で、差し替えない（main だけを読むことを確かめるため）。会話から覚えさせるメモ（#236）の IT も同じく一時フォルダの本物の git のリポジトリに書いてコミットさせる。作者・署名・フックの場所はリポジトリの設定で決める（ツールの git は `HOME` を引き継ぎ、手元の `~/.gitconfig` も読むため）。
 - **ブラウザ（#149）**: ブラウザのツールの IT は、実際の Chromium で、テストの中で起こした HTTP サーバー（`127.0.0.1` の空きポート）を開く。ブラウザは手元で動かす実依存で、差し替えない。公開の Web には触れない。
 - **設定**: `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup でコンテナ起動、setup-env で接続 URL を注入）。
 - **前提**: 生成クライアント（`src/generated/prisma/`）は gitignore のため、実行前に `pnpm prisma generate` が必要。
@@ -86,7 +86,7 @@ globs: "front/tests/**"
 - **モデル**: `E2E_OLLAMA_MODEL`（既定 `qwen2.5:0.5b`。ローカル・CI 共通）を `webServer.env` で dev サーバーの `OLLAMA_MODEL` として渡す。定義は `tests/e2e/helpers/model.ts` のみ。
   - 理由: アプリ既定の大モデル（読み込み時約 58GB）を E2E で読み込むと、64GB の Mac でメモリが逼迫する（#110）。
   - **埋め込みのモデル**（RAG。#17）は、アプリの既定と同じ `embeddinggemma:300m`（`E2E_EMBED_MODEL`）を `OLLAMA_EMBED_MODEL` として渡す（類似度のしきい値はこのモデルで測った値のため、小さい別のモデルにしない）。`globalSetup` が取得済みか・再利用した dev サーバーのモデルが同じかを確かめる。
-  - **開発の DB の RAG のドキュメント**: 一覧の API は本文を返さず控えて戻せないため、`knowledge.spec.ts`・`knowledge-chat.spec.ts` は名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントに触らない）。会話での参照（#17 Phase B）の E2E は、開発の DB にほかのドキュメントがあっても通るよう、出典に自分のドキュメントが含まれることだけを見る。ドキュメントの有無で変わる切り替えの表示は、一覧の API を `page.route` で決める。保管庫（#235）は `webServer.env` の `KNOWLEDGE_VAULTS` に OS の一時フォルダ（`E2E_VAULT_DIR`。定義は `tests/e2e/helpers/knowledge-vault.ts`）を渡し、開発者の `.env.local` の保管庫（自分のノート）を E2E に読ませない。`knowledge-vault.spec.ts` は後片付けでノートを消してから同期し、索引を空にする。
+  - **開発の DB の RAG のドキュメント**: 一覧の API は本文を返さず控えて戻せないため、`knowledge.spec.ts`・`knowledge-chat.spec.ts` は名前が `e2e-knowledge-` で始まるドキュメントだけを作って消す（利用者のドキュメントに触らない）。会話での参照（#17 Phase B）の E2E は、開発の DB にほかのドキュメントがあっても通るよう、出典に自分のドキュメントが含まれることだけを見る。ドキュメントの有無で変わる切り替えの表示は、一覧の API を `page.route` で決める。保管庫（#235）は `webServer.env` の `KNOWLEDGE_VAULTS` に OS の一時フォルダ（`E2E_VAULT_DIR`。定義は `tests/e2e/helpers/knowledge-vault.ts`）を渡し、開発者の `.env.local` の保管庫（自分のノート）を E2E に読ませない。`knowledge-vault.spec.ts` は後片付けでノートを消してから同期し、索引を空にする。メモの保管庫（#236）は別の一時フォルダ（`E2E_MEMORY_DIR`。git でない）を `KNOWLEDGE_VAULTS` と `KNOWLEDGE_MEMORY_VAULT` に渡す（同期の E2E がノートを置き直すたびに保管庫のフォルダを消すため）。
   - 大モデルで回す場合は `E2E_OLLAMA_MODEL=<model> pnpm test:e2e`。
   - **ツール呼び出しに依存するテストは `IS_LIGHT_MODEL` でスキップする**（`process.env.CI` ではなくモデルの能力で判定する）。
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。

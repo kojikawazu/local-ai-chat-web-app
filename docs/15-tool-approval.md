@@ -1,6 +1,6 @@
 # ツールの承認とファイルの書き込み 設計書
 
-> 最終更新: 2026-10-31
+> 最終更新: 2026-11-03
 
 エージェントがファイルを作成・編集する前に、利用者の承認を挟むための設計（#148 の Phase A2）。承認の仕組みは、この後のコマンドの実行（Phase B）・ブラウザの操作（#149）でも使い回す前提で作る（Phase B では見せる内容の `ApprovalPreview` を `action` の union にし、`run` を足した。[16-command-execution.md](./16-command-execution.md)。Phase C で GitHub への書き込みの `github-comment`・`github-create-pr` を足した。[17-github-tools.md](./17-github-tools.md)。#149 Phase C でブラウザの操作の `browser-action` を足し、`prepare` に応答ごとの文脈を渡すようにした。[18-browser-tools.md](./18-browser-tools.md)）。読み取りのツール（Phase A）は [14-local-file-tools.md](./14-local-file-tools.md)。
 
@@ -134,6 +134,7 @@ type PreparedAction =
   - 本文: 差分（追加の行は緑、削除の行は赤。等幅）
   - ボタン: 「許可」（主な操作）・「拒否」
 - 同じラウンドで複数の承認が来たら、1 枚ずつ順に出す（待っている数を書く）。
+- 後から足した承認の形（コマンド・GitHub・ブラウザの操作）と同じく、メモの保存（`save_memory`。#236）は見出し「メモを保存します」「メモを更新します」で、置き場所（`保管庫/memories/<名前>.md`）・差分と、書いた後にコミットするか（`main へコミット（push しない）` / git でなければコミットしない）を出す（`MemoryApprovalPreview`。`docs/28-rag.md` の D7）。
 - 承認待ちは会話ごとの状態（`chat-state`）に持つ。別の会話を開いている間も待ち続け、戻ると承認カードが出る（サイドバーの生成中の印も出たまま）。
 - 押したらカードを消し、結果はツールの結果の欄に出る（✅ / ❌）。
 - 承認を待つ間、ツールの結果の欄は ✅ ではなく ⏳「承認待ち」、答えた後に結果が届くまではスピナー「実行中…」を出す（#192）。

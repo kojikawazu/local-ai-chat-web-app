@@ -46,6 +46,7 @@ import {
   retainChats,
   updateChat,
 } from '@/lib/chat/chat-state';
+import { SAVE_MEMORY_TOOL_NAME } from '@/constants/knowledge/memory';
 
 /** {@link useChat} の設定オプション。 */
 interface UseChatOptions {
@@ -71,6 +72,11 @@ interface UseChatOptions {
   onConversationCreated?: (id: string) => void;
   /** 初回応答後にタイトル自動生成が完了したときのコールバック。 */
   onTitleGenerated?: () => void;
+  /**
+   * エージェントが会話から覚えさせたメモ（`save_memory`。#236）を保存できたときのコールバック。
+   * ドキュメントが無かった状態から、入力欄の「ドキュメントを参照」を入れられるようにする（読み直す）ために使う。
+   */
+  onMemorySaved?: () => void;
 }
 
 /** 保存に失敗したメッセージの再試行に必要な情報。失敗時と同じ内容を再送する。 */
@@ -184,6 +190,7 @@ export function useChat({
   knowledgeEnabled = false,
   onConversationCreated,
   onTitleGenerated,
+  onMemorySaved,
 }: UseChatOptions) {
   const [chats, setChats] = useState<ChatStates>({});
   const currentKey = chatKey(conversationId);
@@ -612,6 +619,9 @@ export function useChat({
                   );
                 } else if (event.type === 'tool_call_result') {
                   patchChat(convId, { activeToolCall: null });
+                  if (event.name === SAVE_MEMORY_TOOL_NAME && !event.isError) {
+                    onMemorySaved?.();
+                  }
                   if (event.approval) {
                     // 時間切れなど、画面から答えずに決着した承認のカードを消す（答えた分は respondToApproval で消してある）
                     updateChatOf(convId, (chat) => {
@@ -784,6 +794,7 @@ export function useChat({
       updateChatOf,
       setMessagesOf,
       updateToolCallsOf,
+      onMemorySaved,
     ]
   );
 

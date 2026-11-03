@@ -1309,3 +1309,15 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 画面（ドキュメントのダイアログの「保管庫」・`KnowledgeVaultItem`・`useKnowledgeVaults`（1 ファイルずつ・止める・失敗のファイル）・入力欄の切り替えは保管庫のファイルも「ある」に数える）
 - [x] UT（`knowledge-vault.test.ts` 52 件）・IT（`knowledge-vaults.test.ts` 26 件。一時フォルダの本物の git のリポジトリ）・E2E（`knowledge-vault.spec.ts` 7 件。OS の一時フォルダの保管庫）。手元の 3 つで差分を確かめ、`my-lessons-learned` を画面から同期して出典に出ることを確かめた
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`28`、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,database,security,testing}.md`）
+
+## フェーズ64: RAG — 会話から覚えさせたことをメモの保管庫に書く（#17 Phase D）
+
+会話で「これ覚えておいて」と頼んだことを、エージェントがメモの保管庫（Phase C の保管庫の 1 つ）に 1 件 1 ファイルで書き（実行前に承認）、main にコミットして索引に入れる。次の会話から「ドキュメントを参照」で引ける。設計は [28-rag.md](./28-rag.md)「会話から覚えさせる（Phase D）」。 — #17・サブ issue #236（2026-11-03 着手）
+
+- [x] 設計（`docs/28-rag.md` に Phase D を足す。手元に書き込み先に向くリポジトリが無いこと・Phase C が main のコミット済みだけを読むためコミットまでが要ることを確かめた）・レビュー（書き込み先は新しい非公開のリポジトリ `my-chat-memory`（手元と GitHub に作成済み）。ほかは推奨どおり）
+- [x] メモの形と検証（`lib/knowledge/memory.ts`・`types/knowledge/memory.ts`。名前・種類・長さ・frontmatter（説明は JSON の文字列で引用）・作った日の読み取り・鍵らしい文字列の判定）
+- [x] 書き込み・コミット・索引への反映（`lib/server/knowledge-memory.ts`。main 以外なら書かない・承認の間の変更を確かめる・`git add` → `git commit --only`・コミットできなければ索引に入れない）と `save_memory`（承認付き・`runTimeoutMs` 120 秒。`KNOWLEDGE_MEMORY_VAULT` は `knowledge-vault-config.ts` の `getMemoryVault`）
+- [x] 承認カード（`MemoryApprovalPreview`。「メモを保存します / 更新します」・置き場所・差分・コミットの 1 行。差分の表示を `DiffPreview` にまとめた）
+- [x] 一時フォルダに複製したメモの保管庫で、大きいモデルに自然な言い方で覚えさせて確かめた（ツールの説明で文章の確認をさせない・保存の後に「ドキュメントを参照」を入れられるよう読み直す（`useChat` の `onMemorySaved`）を直した）
+- [x] UT（`knowledge-memory.test.ts` 50 件）・IT（`knowledge-memory.test.ts` 16 件。一時フォルダの本物の git のリポジトリ・`/api/chat` の許可と拒否・フックでのコミットの失敗）・E2E（`knowledge-memory.spec.ts` 6 件。ツール呼び出しの 3 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`15`・`28`、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,security,testing}.md`）
