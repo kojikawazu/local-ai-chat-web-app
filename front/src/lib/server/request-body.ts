@@ -1,5 +1,6 @@
 import type { Prisma } from '@/generated/prisma/client';
 import { DEFAULT_CONVERSATION_TITLE } from '@/constants/conversation/title';
+import { normalizeVaultPath } from '@/lib/knowledge/vault';
 import type { AttachmentMimeType } from '@/lib/server/attachment';
 import {
   base64DecodedLength,
@@ -599,6 +600,27 @@ export function parseUpdateConversationBody(
     value.knowledgeEnabled = body.knowledgeEnabled;
   }
   return { ok: true, value };
+}
+
+/** `POST /api/knowledge/vaults/[name]/sync` の検証済みボディ（#235）。 */
+export type VaultSyncBody = {
+  /** 保管庫の中の相対パス（`/` 区切り） */
+  path: string;
+};
+
+/**
+ * `POST /api/knowledge/vaults/[name]/sync` のボディを検証する（#235）。
+ *
+ * パスの形は `normalizeVaultPath`（絶対パス・`..`・NUL 等を断る）で見る。取り込まない規則はサーバーが読む前に当て直す。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`path` が保管庫の中の相対パスでなければ失敗
+ */
+export function parseVaultSyncBody(body: unknown): ParseResult<VaultSyncBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  const parsed = normalizeVaultPath(body.path);
+  if (!parsed.ok) return parsed;
+  return { ok: true, value: { path: parsed.path } };
 }
 
 /** `POST /api/agent/approvals/[id]` の検証済みボディ。 */

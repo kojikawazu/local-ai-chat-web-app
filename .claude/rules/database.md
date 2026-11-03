@@ -92,9 +92,13 @@ model KnowledgeDocument {
   content        String // 取り込んだ本文（BOM を外し改行をそろえた後）。作り直しに使う
   size           Int // 本文のバイト数（UTF-8）
   embeddingModel String // チャンクの埋め込みを作ったモデル。今のモデルと違えば検索に使わない
+  vault          String? // 保管庫の名前（#235）。画面から上げたドキュメントは null
+  sourceHash     String? // 取り込んだ中身の版（git の保管庫は blob の ID、フォルダの保管庫は中身の SHA-256）
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   chunks         KnowledgeChunk[]
+
+  @@index([vault])
 }
 
 // ドキュメントを分けた 1 つと、その埋め込み（#17）。id はアプリで作り $executeRaw で入れる
@@ -116,6 +120,7 @@ model KnowledgeChunk {
 - ブックマーク（#30）は user のメッセージに付けさせない（`role` は文字列の列で DB の制約にしにくいため、API で検証する）。会話の削除で Conversation → Message → Bookmark とカスケード削除され、再生成の置き換え（`PUT .../messages/[messageId]`）は同じトランザクションでその応答のブックマークを消す。
 - 分岐した会話（#29）は、分岐元の応答への外部キー（`forkedFromMessageId`）を `onDelete: SetNull` で持つ。分岐元の会話を消すと Conversation → Message のカスケードで応答が消え、分岐した会話の参照だけが `null` になる（分岐した会話は残る）。コピーしたメッセージ・添付画像は分岐した会話のもので、元とは共有しない（添付画像は新しい ID でコピーし、metadata の中のツールの画面の ID も書き換える）。
 - ドキュメントの参照（`Conversation.knowledgeEnabled`。#17 Phase B）は会話ごとの真偽値。分岐した会話は引き継ぐ。応答の出典は Message の `metadata.knowledgeSources` に写し（名前・見出し・抜き出しの先頭・類似度）を持つため、ドキュメントを消しても過去の応答の出典は残る（チャンクへの外部キーは持たない）。
+- RAG の保管庫（#235）のファイルは、名前を `保管庫の名前/保管庫の中のパス` にする（画面から上げる名前は `/` を含められないため、名前の一意制約のままでぶつからない）。同期の差分は `sourceHash` と `embeddingModel` で決める。保管庫のファイルは画面から上げる件数の上限（200）に数えない。
 
 ## Prisma クライアント
 

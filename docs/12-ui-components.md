@@ -194,7 +194,7 @@ src/
 | `bookmark` | organisms | `BookmarkDialog`（#30 で追加。ブックマークの一覧・検索・さらに表示。一覧のフック `useBookmarks` を呼ぶ。行を押すと `onOpenBookmark`、外すと `onRemoved` で page に伝える） | — |
 | `bookmark` | molecules | `BookmarkListItem`（#30 で追加。1 件の表示・メモの編集・2 段階の外す） | — |
 | `knowledge` | organisms | `KnowledgeDialog`（#17 で追加。RAG のドキュメントの取り込み（ファイルの選択・ドロップ）・取り込み中と失敗のファイル・一覧。フック `useKnowledgeDocuments` を呼ぶ） | — |
-| `knowledge` | molecules | `KnowledgeDocumentItem`（#17 で追加。1 件の表示・作り直しが要る印と「作り直す」・2 段階の削除） | — |
+| `knowledge` | molecules | `KnowledgeDocumentItem`（#17 で追加。1 件の表示・作り直しが要る印と「作り直す」・2 段階の削除）・`KnowledgeVaultItem`（#235 で追加。保管庫の 1 行・同期と進み具合・設定に無い保管庫の索引の削除） | — |
 | `shortcut` | organisms | `ShortcutHelpDialog`（#33 で追加。ショートカットの一覧。定義（`constants/shortcut/shortcuts.ts`）から作り、開いている端末の表記で `<kbd>` に出す） | — |
 
 切り出した molecules の props:
@@ -213,6 +213,7 @@ src/
 | `ImageZoomDialog`（#6） | `image`・`alt`（見出しにも使う）・`onClose`。共通の `Modal`（`wide`・背景のクリックで閉じる）に、収まる大きさで画像を出す。添付画像は縮小済みのため倍率の切り替えは置かない |
 | `BookmarkListItem`（#30） | `bookmark`（一覧の 1 件）・`terms`（強調するキーワード）・`isEditing`（メモの入力欄を開いているか。同時に 1 件だけなので呼び出し側が持つ）・`onStartEdit`・`onEndEdit`・`onSaveNote`・`onRemove`（失敗したら例外を投げる。行の下に出し、入力を残す）・`onOpen`（元の応答へ移る）。メモの入力中の値と、外す 2 段階（「外す」→「はい、外す / やめる」）は UI の状態として持つ |
 | `KnowledgeDocumentItem`（#17） | `document`（一覧の 1 件）・`isBusy`（作り直し・削除の途中。ボタンを押せなくし「処理中…」を出す）・`error`（作り直し・削除の失敗の理由）・`onRebuild`・`onDelete`（2 段階で確かめた後に呼ぶ）。削除の 2 段階（「削除」→「削除する / やめる」）は UI の状態として持つ |
+| `KnowledgeVaultItem`（#235） | `vault`（一覧の 1 件）・`progress`（同期の進み具合。まだなら `undefined`）・`isSyncing`（この保管庫を同期中。「止める」を出す）・`isBlocked`（ほかを同期中・削除の途中。「同期」を押せなくする）・`error`（索引の削除の失敗）・`onSync`・`onStop`・`onDelete`（2 段階で確かめた後に呼ぶ。設定に無い保管庫だけ）。読んだ版（`main @ a1b2c3d`・「フォルダ」）・取り込まなかった理由ごとの数・取り込めなかったファイルを出す。読めない保管庫は理由を出し、「同期」を押せなくする |
 | `PromptTemplateSuggestions`（#28） | `listId`（入力欄の `aria-controls`・`aria-activedescendant` と揃える）・`matches`（絞り込んだ候補）・`hasTemplates`（無ければ「例を追加」、あれば「一致するものが無い」）・`activeIndex`・`onSelect`・`onManage`・`onAddExamples`。キー操作は `ChatBar` が受け、ここは描画と押したときの処理だけ。押しても入力欄のフォーカスを外さないよう `mousedown` の既定の動作を止める。テンプレートの型（`types/`）だけを受け取り、管理画面（`prompt-template` の部品）は import しない |
 | `KnowledgeSources`（#17 Phase B） | `sources`（出典の配列）。1 件以上なら「参照したドキュメント（件数）」のボタン（`aria-expanded`）と、押して開く一覧（名前・見出し・抜き出し・類似度。文字のまま）。空なら「参照できるドキュメントが見つかりませんでした」。`ResponseMetrics` と同じく折り返す横並びの中に置き、一覧は `basis-full` で次の行に出す |
 

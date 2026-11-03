@@ -1298,3 +1298,14 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 画面（入力欄の左の `KnowledgeToggle`・ドキュメントが無いと入れられない（`useKnowledgeAvailability`）・会話を作る前の下書き・切り替えの失敗のお知らせ・応答の下の `KnowledgeSources`・メタデータの `knowledgeSources`（空の配列は「見つからなかった」）・管理画面の説明の文）
 - [x] UT（`knowledge.test.ts` に prompt の 9 件・`message-metadata.test.ts` に 6 件・`request-body.test.ts` に knowledgeEnabled と会話の変更の項目）・IT（`chat-knowledge.test.ts` 15 件・会話の作成 / 変更 / 分岐の knowledgeEnabled）・E2E（`knowledge-chat.spec.ts` 8 件。実際に探して答えるものは CI でスキップ）。全体の E2E で、入れられない理由を名前に混ぜた切り替えが「サイドバー」のボタンの部分一致に当たると分かり、理由を `title` へ移した
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`28`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,database,security,testing}.md`）
+
+## フェーズ63: RAG — ノートのリポジトリを保管庫として同期する（#17 Phase C）
+
+手元にクローンしたノートのリポジトリ（フォルダ）を RAG の保管庫として取り込み、変わった分だけを反映する。正本はリポジトリ、このアプリの DB は探すための索引（作り直せる派生物）。設計は [28-rag.md](./28-rag.md)「保管庫の同期（Phase C）」。 — #17・サブ issue #235（2026-11-03 着手）
+
+- [x] 設計（`docs/28-rag.md` に Phase C を足す。手元の 3 つ（`my-knowledge-notes`・`my-idea-notes`・`my-lessons-learned`）でファイル・チャンク・同じ名前の重なり・`.venv` の混入を測った）・レビュー（取り込むのは既定のブランチ（main）のコミット済みの中身だけ。ほかは推奨どおり）
+- [x] 保管庫の設定（`KNOWLEDGE_VAULTS`・`knowledge-vault-config.ts`）・パスでの見分け（名前を `保管庫の名前/パス`。マイグレーションで `vault`・`sourceHash`）
+- [x] 同期（`knowledge-vault.ts`。git は `ls-tree`・`cat-file` で既定のブランチだけ、フォルダはたどる。差分は blob の ID / SHA-256 とモデルで決める）と API（一覧・差分・1 ファイルの同期・設定に無い保管庫の索引の削除）。検索は設定にある保管庫だけ。画面から上げる件数の上限（200）に保管庫のファイルを数えない
+- [x] 画面（ドキュメントのダイアログの「保管庫」・`KnowledgeVaultItem`・`useKnowledgeVaults`（1 ファイルずつ・止める・失敗のファイル）・入力欄の切り替えは保管庫のファイルも「ある」に数える）
+- [x] UT（`knowledge-vault.test.ts` 52 件）・IT（`knowledge-vaults.test.ts` 26 件。一時フォルダの本物の git のリポジトリ）・E2E（`knowledge-vault.spec.ts` 7 件。OS の一時フォルダの保管庫）。手元の 3 つで差分を確かめ、`my-lessons-learned` を画面から同期して出典に出ることを確かめた
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`10`・`12`・`28`、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,database,security,testing}.md`）

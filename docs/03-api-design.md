@@ -34,6 +34,10 @@
   - [POST /api/knowledge/documents](#post-apiknowledgedocuments)
   - [DELETE /api/knowledge/documents/[id]](#delete-apiknowledgedocumentsid)
   - [POST /api/knowledge/documents/[id]/rebuild](#post-apiknowledgedocumentsidrebuild)
+  - [GET /api/knowledge/vaults](#get-apiknowledgevaults)
+  - [POST /api/knowledge/vaults/[name]/plan](#post-apiknowledgevaultsnameplan)
+  - [POST /api/knowledge/vaults/[name]/sync](#post-apiknowledgevaultsnamesync)
+  - [DELETE /api/knowledge/vaults/[name]](#delete-apiknowledgevaultsname)
 - [外部API（Ollama）](#外部apiollama)
   - [POST /api/chat（Ollama側）](#post-apichatollama側)
   - [GET /api/tags（Ollama側）](#get-apitagsollama側)
@@ -779,7 +783,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 
 ### GET /api/knowledge/documents
 
-RAG のドキュメントの一覧（#17。`docs/28-rag.md`）。名前の順（ロケールに依らない符号の順。画面が取り込んだものを足すときと同じ）。本文・埋め込みは含めない。
+RAG のドキュメントの一覧（#17。`docs/28-rag.md`）。画面から上げたものだけを返す（保管庫のファイル（#235）は [保管庫の一覧](#get-apiknowledgevaults) に保管庫ごとにまとめる）。名前の順（ロケールに依らない符号の順。画面が取り込んだものを足すときと同じ）。本文・埋め込みは含めない。
 
 **レスポンス**
 
@@ -852,6 +856,122 @@ RAG のドキュメントの一覧（#17。`docs/28-rag.md`）。名前の順（
 | 404 | ドキュメントが見つからない |
 | 502 | 埋め込みを作れない（取り込みと同じ） |
 | 500 | サーバー内部エラー |
+
+---
+
+### GET /api/knowledge/vaults
+
+RAG の保管庫の一覧（#235。`docs/28-rag.md`「保管庫の同期（Phase C）」）。`KNOWLEDGE_VAULTS` にある保管庫を設定の順に、その後に索引だけ残っている（設定から外した）保管庫を名前の順に返す。設定にある保管庫は、その場で開いて読む版を確かめる。
+
+**レスポンス**
+
+```typescript
+{
+  vaults: {
+    name: string;              // 保管庫の名前（フォルダ名）
+    root: string | null;       // フォルダの実体のパス。設定に無い保管庫は null
+    configured: boolean;       // KNOWLEDGE_VAULTS にあるか（無ければ検索に使わない）
+    source:                    // 読む版。設定に無い・読めないときは null
+      | { kind: 'git'; branch: string; commit: string }  // 既定のブランチと短いコミット ID
+      | { kind: 'folder' }                                // git でないフォルダ（今の中身）
+      | null;
+    error: string | null;      // 読めない理由（フォルダが無い・既定のブランチが無い・git を実行できない）
+    documentCount: number;     // 索引にあるファイルの数
+    chunkCount: number;
+    needsRebuildCount: number; // 今の埋め込みのモデルと違うモデルで作ったファイルの数
+    lastUpdatedAt: string | null; // 最後に中身が変わった日時（ドキュメントの updatedAt の最大）
+  }[];
+  embeddingModel: string;
+}
+```
+
+| ステータス | 説明 |
+|---|---|
+| 200 | 成功（読めない保管庫も `error` 付きで返す） |
+| 500 | DB の失敗 |
+
+---
+
+### POST /api/knowledge/vaults/[name]/plan
+
+保管庫の同期の差分を求める（#235）。DB・保管庫は変えない。画面はこの差分の `add`・`update`・`rebuild`・`remove` のパスを、1 つずつ [同期の API](#post-apiknowledgevaultsnamesync) に渡す。
+
+- git のリポジトリ（最上位に `.git`）は、手元の既定のブランチ（`origin/HEAD` が指す名前の手元のブランチ。無ければ `main`、`master`）のコミット済みの中身だけを見る（`git ls-tree -r -l`）。作業ツリー・別のブランチ・コミットしていないファイルは見ない。`git fetch` はしない。変わったかは blob の ID で比べる（中身を読まない）
+- git でないフォルダは今の中身をたどる（`.` で始まるフォルダ・`node_modules` 等には入らない。シンボリックリンクはたどらない）。変わったかは中身の SHA-256 で比べる
+- 取り込まないもの: `.md`・`.markdown`・`.txt` 以外・`.` で始まるフォルダの中・`CLAUDE.md`・`AGENTS.md`・秘匿ファイルの名前・1 MB 超・ふつうのファイルでないもの（理由ごとの数を `excluded` で返す）
+
+**レスポンス**
+
+```typescript
+{
+  add: string[];      // 索引に無いパス（保管庫の中の相対パス。符号の順）
+  update: string[];   // 中身の版が変わったパス
+  rebuild: string[];  // 版は同じだが、今の埋め込みのモデルと違うパス
+  remove: string[];   // 保管庫から消えたパス
+  unchanged: number;  // 何もしないファイルの数
+  source: { kind: 'git'; branch: string; commit: string } | { kind: 'folder' };
+  excluded: { reason: 'not_text' | 'hidden' | 'agent_config' | 'secret' | 'too_large' | 'not_file'; count: number }[];
+}
+```
+
+| ステータス | 説明 |
+|---|---|
+| 200 | 成功 |
+| 400 | 保管庫の名前の形が不正・取り込むファイルが 2,000（`MAX_KNOWLEDGE_VAULT_FILES`）を超える |
+| 404 | 設定に無い保管庫 |
+| 500 | 保管庫を読めない（理由をそのまま返す）・DB の失敗 |
+
+---
+
+### POST /api/knowledge/vaults/[name]/sync
+
+保管庫の 1 ファイルを同期する（#235）。サーバーがその場で取り込まない規則を当て直して読む（差分の結果を信用しない）。同じパスを何度呼んでも結果は同じ。
+
+**リクエスト**
+
+```typescript
+{
+  path: string;  // 保管庫の中の相対パス（/ 区切り）。絶対パス・..・.・空の区切り・\・制御文字は 400
+}
+```
+
+**レスポンス**
+
+```typescript
+{
+  status: 'imported' | 'unchanged' | 'removed' | 'rejected';
+  error?: string;  // rejected のときだけ（「UTF-8 のテキストのファイルではありません」等）
+}
+```
+
+| status | 意味 |
+|---|---|
+| `imported` | 取り込んだ（版かモデルが違った。ドキュメントの名前は `保管庫の名前/パス`） |
+| `unchanged` | 版とモデルが同じで、何もしなかった |
+| `removed` | ファイルが無い・取り込まないファイルだった。索引にあれば消した |
+| `rejected` | 中身を取り込めなかった（テキストでない・空・チャンクが多すぎる）。索引からも消した。そのファイルの同期の結果で、API の失敗ではないため 200 |
+
+| ステータス | 説明 |
+|---|---|
+| 200 | 同期した（上の `status`） |
+| 400 | 保管庫の名前・ボディの不正 |
+| 404 | 設定に無い保管庫 |
+| 502 | 埋め込みを作れない（モデルが無いときは `ollama pull` を案内） |
+| 500 | 保管庫を読めない（理由をそのまま返す）・保存の失敗 |
+
+---
+
+### DELETE /api/knowledge/vaults/[name]
+
+設定に無い保管庫の索引（その保管庫から取り込んだドキュメントとチャンク）を消す（#235）。設定にある保管庫は消さない（次の同期で戻るため。設定から外してから消す）。
+
+| ステータス | 説明 |
+|---|---|
+| 200 | 削除成功（`{ success: true }`） |
+| 400 | 保管庫の名前の形が不正 |
+| 404 | 索引に無い保管庫 |
+| 409 | 設定（`KNOWLEDGE_VAULTS`）にある保管庫 |
+| 500 | 削除の失敗 |
 
 ---
 

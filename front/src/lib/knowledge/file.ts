@@ -83,6 +83,38 @@ export function parseKnowledgeFile(
   if (!kind) {
     return { ok: false, error: unsupportedExtensionError() };
   }
+  const decoded = decodeKnowledgeText(bytes);
+  if (!decoded.ok) return decoded;
+  return { ok: true, name: trimmedName, kind, ...decoded.value };
+}
+
+/** {@link decodeKnowledgeText} の結果。 */
+export type DecodedKnowledgeText =
+  | {
+      ok: true;
+      value: {
+        /** 本文（BOM を外し、改行を `\n` にそろえた後） */
+        content: string;
+        /** 本文のバイト数（UTF-8） */
+        size: number;
+      };
+    }
+  | {
+      ok: false;
+      /** 利用者へ見せる理由 */
+      error: string;
+    };
+
+/**
+ * ファイルの中身を、取り込める本文にする（#17。画面から上げたファイルと保管庫のファイル（#235）で共通）。
+ *
+ * 中身で判定する（クライアントが申告する MIME タイプは使わない）。大きすぎるもの・UTF-8 として読めないもの・
+ * NUL を含むもの・空白しかないものは取り込まない。先頭の BOM を外し、改行（`\r\n`・`\r`）を `\n` にそろえる。
+ *
+ * @param bytes - ファイルの中身
+ * @returns 本文とバイト数。取り込めなければ理由
+ */
+export function decodeKnowledgeText(bytes: Uint8Array): DecodedKnowledgeText {
   if (bytes.byteLength > MAX_KNOWLEDGE_FILE_BYTES) {
     return { ok: false, error: tooLargeError() };
   }
@@ -106,10 +138,7 @@ export function parseKnowledgeFile(
 
   return {
     ok: true,
-    name: trimmedName,
-    kind,
-    content,
-    size: new TextEncoder().encode(content).byteLength,
+    value: { content, size: new TextEncoder().encode(content).byteLength },
   };
 }
 

@@ -102,6 +102,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | `OLLAMA_BASE_URL` | Ollama API接続先 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | 使用モデル | `qwen3.8:27b` |
 | `OLLAMA_EMBED_MODEL` | RAG のドキュメントの埋め込みのモデル（変えたら取り込んだドキュメントの作り直しが要る） | `embeddinggemma:300m` |
+| `KNOWLEDGE_VAULTS` | RAG の保管庫にする手元のノートのリポジトリ・フォルダの絶対パス（カンマ区切り・`~` 可。ドキュメントのダイアログの「同期」で取り込む。git のリポジトリは既定のブランチ（main）のコミット済みの中身だけを読む。#235） | 未設定（保管庫を使わない） |
 | `DATABASE_URL` | PostgreSQL接続文字列 | `postgresql://postgres:postgres@localhost:5499/chat_db` |
 | `AGENT_MAX_TOOL_ROUNDS` | エージェントループの最大ラウンド数 | `10` |
 | `AGENT_TOOL_TIMEOUT_MS` | ツール実行タイムアウト（ms） | `30000` |
@@ -130,13 +131,14 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
                                                                           → Chromium（ブラウザのツール。アプリの中のプロキシで宛先を判定）
                                   → Prisma ORM → PostgreSQL + pgvector (Docker)
                                   → Ollama の埋め込み（/api/embed。RAG のドキュメントの取り込み）
+                                  → git（RAG の保管庫。既定のブランチを読むだけ）・手元のノートのフォルダ（KNOWLEDGE_VAULTS）
                                   → PlantUML サーバー (Docker・図の描画)
 ```
 
 - フロントエンドからOllamaへの直接通信はしない。Route Handlersを経由する。
 - ストリーミングは `ReadableStream` を使用しリアルタイム中継。
 - 状態管理はReact `useState`。グローバルstate管理ライブラリは使わない。
-- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。RAG のドキュメント（KnowledgeDocument → KnowledgeChunk。#17）は会話とリレーションを持たず、チャンクの埋め込みは pgvector の `vector` の列に置く。会話ごとの参照の切り替えは `Conversation.knowledgeEnabled`、応答の出典は Message の metadata（`knowledgeSources`）に写しを持つ（#17 Phase B）。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
+- 会話履歴はPostgreSQLに永続化。Conversation → Message → Attachment（user の添付画像・assistant のブラウザのツールの画面）のリレーション（カスケード削除）。プロンプトテンプレート（PromptTemplate。#28）も PostgreSQL に置く（会話とはリレーションを持たない）。応答のブックマーク（Bookmark。#30）は Message に 1 対 1 で付き、Message の削除でカスケード削除される。RAG のドキュメント（KnowledgeDocument → KnowledgeChunk。#17）は会話とリレーションを持たず、チャンクの埋め込みは pgvector の `vector` の列に置く。保管庫（#235）のファイルは `vault`（保管庫の名前）と `sourceHash`（中身の版）を持ち、名前は `保管庫の名前/パス`。会話ごとの参照の切り替えは `Conversation.knowledgeEnabled`、応答の出典は Message の metadata（`knowledgeSources`）に写しを持つ（#17 Phase B）。分岐した会話（#29）は `Conversation.forkedFromMessageId` で分岐元の応答を参照し、分岐元が消えると `null` になる（会話は残る）。
 - パスエイリアス: `@/*` → `./src/*`（tsconfig.json）
 - Prismaクライアントは `src/generated/prisma/` に生成。インポートは `@/generated/prisma/client`（`database.md` 参照）
 
@@ -169,10 +171,14 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 | POST | `/api/bookmarks` | 応答にブックマークを付ける（`messageId`。user のメッセージは 400・もう付いていれば 409） |
 | PATCH | `/api/bookmarks/[id]` | ブックマークのメモの書き換え（`note`。null・空白だけで消す。500 文字まで） |
 | DELETE | `/api/bookmarks/[id]` | ブックマークを外す |
-| GET | `/api/knowledge/documents` | RAG のドキュメントの一覧（名前の順。本文・埋め込みは含めない。今の埋め込みのモデルと、違うモデルで作ったものの `needsRebuild` 付き。#17） |
+| GET | `/api/knowledge/documents` | RAG のドキュメントの一覧（画面から上げたものだけ。保管庫のファイルは含めない。名前の順。本文・埋め込みは含めない。今の埋め込みのモデルと、違うモデルで作ったものの `needsRebuild` 付き。#17） |
 | POST | `/api/knowledge/documents` | ドキュメントの取り込み（`multipart/form-data` の `file`。`.md`・`.markdown`・`.txt`・1 MB まで。応答の中で埋め込みまで作る。同じ名前は置き換え。大きすぎれば 413） |
 | DELETE | `/api/knowledge/documents/[id]` | ドキュメントの削除（チャンクもカスケードで消える） |
 | POST | `/api/knowledge/documents/[id]/rebuild` | 保存した本文から、今の埋め込みのモデルでチャンクを作り直す |
+| GET | `/api/knowledge/vaults` | RAG の保管庫の一覧（`KNOWLEDGE_VAULTS` の順 + 索引だけ残っているもの。読む版（git は既定のブランチとコミット）・索引の数・読めない理由。#235） |
+| POST | `/api/knowledge/vaults/[name]/plan` | 保管庫の同期の差分（足す・変わった・作り直し・消えたパスと、取り込まなかった理由ごとの数。ファイルが 2,000 を超えれば 400） |
+| POST | `/api/knowledge/vaults/[name]/sync` | 保管庫の 1 ファイルを同期する（`path`。サーバーが規則を当て直して読む。`imported` / `unchanged` / `removed` / `rejected`） |
+| DELETE | `/api/knowledge/vaults/[name]` | 設定に無い保管庫の索引を消す（設定にある保管庫は 409） |
 
 詳細は `docs/03-api-design.md`・`.claude/rules/api.md` を参照。
 
@@ -205,6 +211,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `api/prompt-templates/` — プロンプトテンプレートの CRUD（`[id]/`）・例の作成（`examples/`）
   - `api/bookmarks/` — 応答のブックマークの一覧・付ける・メモの書き換え・外す（`[id]/`）
   - `api/knowledge/documents/` — RAG のドキュメントの一覧・取り込み・削除（`[id]/`）・作り直し（`[id]/rebuild/`）（#17）
+  - `api/knowledge/vaults/` — RAG の保管庫の一覧・差分（`[name]/plan/`）・1 ファイルの同期（`[name]/sync/`）・索引の削除（`[name]/`）（#235）
 - **`hooks/`・`lib/`・`types/`・`constants/` の中は機能ごとのディレクトリに分ける**（`src/<層>/<機能>/`。直下にファイルを置かない。#160）
 - **UI コンポーネントは Atomic Design**（#163・`docs/12-ui-components.md`）: 共通の部品は `components/common/{atoms,molecules,templates}/`、機能の部品は `components/features/<機能>/{atoms,molecules,organisms}/`。page（`app/page.tsx`）はフックを呼び、organisms を組み立てて template へ渡すだけ
 - **`components/`** — UIコンポーネント（Atomic Design）
@@ -217,10 +224,10 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
   - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
   - `features/shortcut/` — ショートカットキー（organisms: ShortcutHelpDialog）
-  - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem / organisms: KnowledgeDialog。#17）
+  - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem, KnowledgeVaultItem / organisms: KnowledgeDialog。#17・#235）
 - **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`knowledge/file.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
-- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
+- **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability,useKnowledgeVaults}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
   - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
@@ -233,12 +240,12 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
-  - `lib/knowledge/` — RAG のドキュメント（file.ts: ファイルの検証、chunk.ts: チャンクの分け方、embedding-text.ts: 埋め込みへ渡す文。#17。prompt.ts: 見つかったチャンク → システムプロンプトの節・出典。#17 Phase B）
+  - `lib/knowledge/` — RAG のドキュメント（file.ts: ファイルの検証、chunk.ts: チャンクの分け方、embedding-text.ts: 埋め込みへ渡す文。#17。prompt.ts: 見つかったチャンク → システムプロンプトの節・出典。#17 Phase B。vault.ts: 保管庫の取り込まない規則・パスの検証・差分の計算。#235）
   - `lib/shortcut/` — ショートカットキー（match.ts）
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
-  - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts）
+  - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts, knowledge-vault-config.ts（`KNOWLEDGE_VAULTS`・検索で比べる範囲）, knowledge-vault.ts（保管庫の列挙（git / フォルダ）・同期））
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、knowledge/vault.ts: KnowledgeVaultItem/VaultSyncPlan/VaultSyncProgress、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
