@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import type { ToolCallInfo, ToolCallStatus } from '@/types/agent/tool-call';
-import { TOOL_LABELS } from '@/constants/chat/toolLabels';
+import { toolCallLabel } from '@/lib/chat/tool-label';
 import { WebSearchResult } from '@/components/features/chat/molecules/WebSearchResult';
+import { SubAgentRunDetails } from '@/components/features/chat/molecules/SubAgentRunDetails';
 import ToolScreenshots from '@/components/features/chat/molecules/ToolScreenshots';
 
 /** {@link ToolCallResult} の props。 */
@@ -29,12 +30,14 @@ const STATUS_LABELS: Record<ToolCallStatus, string> = {
  * 結果が届く前（`status` あり）は、成否のアイコンの代わりに実行中のスピナー・承認待ちの ⏳ と状態を出し、
  * 展開しても結果の欄は出さない（#192。許可していないのに ✅ に見えないように）。
  * ブラウザのツールが撮った画面（#200）は、折りたたみの外（見出しの下）に並べ、開かなくても見えるようにする。
+ * サブエージェントに任せた委譲のツール（#26）は、見出しを「リサーチャーに任せる」にし、開くと引数の代わりに任せた仕事と
+ * サブエージェントの中の手順（{@link SubAgentRunDetails}）、結果の欄に回答を出す。
  *
  * @param props - 表示するツール呼び出し情報を持つ props
  */
 export function ToolCallResult({ toolCall }: ToolCallResultProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const label = TOOL_LABELS[toolCall.name] ?? toolCall.name;
+  const label = toolCallLabel(toolCall.name, toolCall.arguments);
   const durationText =
     toolCall.durationMs > 0 ? `${toolCall.durationMs}ms` : null;
 
@@ -95,20 +98,24 @@ export function ToolCallResult({ toolCall }: ToolCallResultProps) {
 
       {isExpanded && (
         <div className="border-t border-[var(--color-nord-3)] px-3 py-2 space-y-2">
-          {Object.keys(toolCall.arguments).length > 0 && (
-            <div>
-              <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">
-                引数
-              </p>
-              <pre className="text-xs text-[var(--color-nord-4)] whitespace-pre-wrap break-all">
-                {JSON.stringify(toolCall.arguments, null, 2)}
-              </pre>
-            </div>
+          {toolCall.subAgent ? (
+            <SubAgentRunDetails run={toolCall.subAgent} />
+          ) : (
+            Object.keys(toolCall.arguments).length > 0 && (
+              <div>
+                <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">
+                  引数
+                </p>
+                <pre className="text-xs text-[var(--color-nord-4)] whitespace-pre-wrap break-all">
+                  {JSON.stringify(toolCall.arguments, null, 2)}
+                </pre>
+              </div>
+            )
           )}
           {!toolCall.status && (
             <div>
               <p className="text-xs text-[var(--color-nord-4)] opacity-60 mb-1">
-                結果
+                {toolCall.subAgent ? '回答' : '結果'}
               </p>
               {toolCall.name === 'web_search' && !toolCall.isError ? (
                 <WebSearchResult text={toolCall.result} />

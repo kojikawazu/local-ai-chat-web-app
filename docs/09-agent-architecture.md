@@ -583,6 +583,11 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
 
 - 会話から覚えさせたことを書く `save_memory` は RAG の Phase D（#236。[28-rag.md](./28-rag.md)「会話から覚えさせる（Phase D）」）。`KNOWLEDGE_MEMORY_VAULT` が `KNOWLEDGE_VAULTS` の保管庫の名前のときだけ登録する（`lib/agent/tools/memory/`）。`prepare` で名前・種類・長さ・鍵らしい文字列を確かめ、置き場所と差分を承認カードに出す。`run` は `memories/<名前>.md` に書き、git なら main にコミットし、そのファイルだけを索引へ入れる（埋め込みのモデルの読み込みに備えて `runTimeoutMs` は 120 秒）。`access` は `local`（外部と通信しない）。利用者が頼んだときだけ使うようツールの説明で指示する
 
+- 調べもの・読みものをサブエージェントに任せる `delegate_to_agent` はマルチエージェントの Phase A（#26。[29-multi-agent.md](./29-multi-agent.md)）。使えるサブエージェント（`researcher`: `web_search`・`url_fetch`、`reader`: 登録したドキュメント・ファイル・GitHub を読むツール）が 1 つ以上あれば最後に登録し、モデルへ渡すのは `/api/chat` の `enableSubAgents`（設定の「サブエージェントに任せる」）が真の応答だけ（`lib/agent/tools/sub-agent/`）。
+  - **ツールの実行の共通化**: 1 回のツールの呼び出しの判定と実行（使えない → 画像 → **モデルへ渡していない** → 手元を読んだ後 → 承認 → 実行）を `agent.ts` の `executeToolCall` に切り出し、メインのループとサブエージェントのループ（`sub-agent-loop.ts` の `runSubAgent`）で共有する。「渡していないツールは実行しない」は #26 で足した判定で、設定で有効にしていない委譲のツールと、サブエージェントだけのツール（`subAgentOnly`。`search_documents`）をメインが呼んでも実行しない。
+  - **サブエージェントのループ**: サブエージェントのシステムプロンプト（後ろに現在の日時）と任された仕事だけで始め、本文はストリームに流さずに集め、最後のラウンドの本文を回答にする。上限は 6 ラウンド。150 秒を過ぎたら途中の問い合わせ・中のツールも止め、超えたときと同じくツールを渡さず思考させずに最終回答を作らせる。最終回答も 300 秒で止め、調べた分の記録と理由を返す。承認の要求を送る相手がいないため、承認が要るツールは実行しない（渡してもいない）。
+  - **委譲のツール**: `access` は任せる相手で決まる（`researcher` は `network`、`reader` は `local`）。`exclusive: 'sub-agent'` で 1 つずつ実行し、実行の時間の上限はツールの `timeoutMs`（保険の 330 秒。サブエージェントが 300 秒で自分で止める。#26 で `Tool` に足した、承認の要らない実行の上限）。1 回の応答で 4 回まで（`ToolContext.scope` で数える）。結果はサブエージェントの回答（8,000 字まで）と記録（`subAgent`: 任せた相手・仕事・中のツールの呼び出し・ラウンド数・トークン数）で、トークン数はループが応答の合計（#31）に足す（`ToolExecution.metrics`）。
+
 ---
 
 ## API 設計変更
@@ -614,6 +619,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
   - 節の中身: 日付・曜日・時刻・タイムゾーン（サーバーのもの。localhost で使うためブラウザと同じ）・UTC との差と、「最新」「今年」「現在」をこの日時で解釈する指示。エージェントモードでは「検索語の年はこの年を使う」「知識と検索結果が食い違えば新しい検索結果を優先する」、通常モードでは「検索できないため、この日時の時点の情報として断定せず、学習時点の知識だと前置きする」を足す
   - 別の system メッセージにせず、先頭の 1 つにまとめる（会話の途中の system はテンプレートによって無視・破損されるため。最大ラウンド到達時の指示を user で足すのと同じ理由）
   - `get_current_datetime` は残す（長い会話で時刻が要る場合や、別のタイムゾーンの時刻を聞かれた場合のため）
+- **追記（#26）**: `enableSubAgents`（真偽値・任意）を足した。`enableTools` が真のときだけ効き、委譲のツール `delegate_to_agent` をモデルへ渡す。委譲の記録は `tool_call_result`・`done` の `toolCalls[].subAgent` で返す（[29-multi-agent.md](./29-multi-agent.md)）
 
 ### GET /api/tools（新規 — Phase A）
 
@@ -627,8 +633,12 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
     description: string;
     enabled: boolean;
   }[];
+  // 使えるサブエージェント（#26）。委譲のツールの相手
+  subAgents: { name: 'researcher' | 'reader'; label: string }[];
 }
 ```
+
+サブエージェントだけのツール（`subAgentOnly`。#26 の `search_documents`）は `tools` に含めない。
 
 ---
 

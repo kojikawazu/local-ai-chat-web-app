@@ -134,6 +134,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
                                   → Ollama の埋め込み（/api/embed。RAG のドキュメントの取り込み）
                                   → git（RAG の保管庫。既定のブランチを読むだけ）・手元のノートのフォルダ（KNOWLEDGE_VAULTS）
                                   → Agent Loop → save_memory（承認の後にメモの保管庫へ書き、git なら main にコミット。KNOWLEDGE_MEMORY_VAULT）
+                                  → Agent Loop → delegate_to_agent → サブエージェントのループ（リサーチャー・手元の読み手。同じモデル・読むツールだけ・まとめた回答だけを返す。#26）
                                   → PlantUML サーバー (Docker・図の描画)
 ```
 
@@ -148,9 +149,9 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/enableSubAgents/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。enableSubAgents（エージェントモードのとき）なら調べもの・読みものをサブエージェントに任せる委譲のツールを渡し、委譲の記録を `tool_call_result` の `subAgent` で送る（#26）。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
-| GET | `/api/tools` | エージェントの利用可能ツール一覧取得 |
+| GET | `/api/tools` | エージェントの利用可能ツール一覧取得（サブエージェントだけのツールは含めない。使えるサブエージェントの `subAgents` 付き。#26） |
 | GET | `/api/conversations` | 会話一覧取得（分岐元の `forkedFrom` 付き。#29） |
 | GET | `/api/conversations/search` | 会話のキーワード検索（タイトル・本文。空白区切りの AND、20 件ずつ） |
 | POST | `/api/conversations` | 新規会話作成（会話の役割 `systemPrompt`・ドキュメントの参照 `knowledgeEnabled` を指定可） |
@@ -220,26 +221,28 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `common/atoms/` — Button, IconButton, ToggleChip, Switch, TextInput, TextArea, Select, Mark, StatusDot, LoadingDots
   - `common/molecules/` — Modal, SearchBox, CopyButton, CodeBlockFrame, HighlightedText
   - `common/templates/` — ChatLayout（画面の枠）
-  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay, KnowledgeToggle / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, KnowledgeSources, PromptTemplateSuggestions / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
+  - `features/chat/` — チャット（atoms: AttachButton, ElementBoxOverlay, KnowledgeToggle / molecules: ToolCallIndicator, WebSearchResult, DiagramView, DiagramZoomDialog, AttachmentPreview, MessageImages, ImageZoomDialog, ApprovalCard, ToolScreenshots, ResponseMetrics, KnowledgeSources, PromptTemplateSuggestions, SubAgentRunDetails / organisms: ChatWindow, ChatBar, Header, Footer, MarkdownContent, RoleDialog, ExportDialog, ToolCallResult, AgentThinking, AgentSteps）
   - `features/sidebar/` — サイドバー（molecules: ConversationListItem, SearchResultItem / organisms: Sidebar, SidebarDrawer, SidebarContent, ConversationSearch）
   - `features/settings/` — 設定（organisms: SettingsModal）
   - `features/prompt-template/` — プロンプトテンプレート（organisms: PromptTemplateDialog）
   - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
   - `features/shortcut/` — ショートカットキー（organisms: ShortcutHelpDialog）
   - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem, KnowledgeVaultItem / organisms: KnowledgeDialog。#17・#235）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`knowledge/file.ts`・`knowledge/memory.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`agent/sub-agent.ts`・`knowledge/file.ts`・`knowledge/memory.ts`・`knowledge/search-documents.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/useAgentSettings`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability,useKnowledgeVaults}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携
-  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts）
+  - `lib/agent/` — エージェント（agent.ts, agent-config.ts, agent-prompts.ts, approvals.ts。サブエージェント（#26）は sub-agents.ts（定義・使えるものの判定・委譲の結果）と sub-agent-loop.ts（本文を集めるループ。ツールの実行は agent.ts の executeToolCall を共有））
     - `lib/agent/tools/` — ツール実装（types.ts, index.ts, output.ts, registry.ts, get-current-datetime.ts, calculate.ts, web-search.ts, url-fetch.ts, read-body.ts）
       - `lib/agent/tools/local-files/` — ローカルのファイルのツール（config.ts, path-guard.ts, text.ts, list-directory.ts, search-files.ts, read-file.ts。`LOCAL_FILE_ROOTS` があるときだけ登録。#148。書き込みは write-guard.ts, diff.ts, write-file.ts, edit-file.ts。`LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認。#148 Phase A2）
       - `lib/agent/tools/local-commands/` — コマンドの実行のツール（config.ts, parse.ts, resolve.ts, process.ts, run-command.ts。`LOCAL_COMMANDS` と `LOCAL_FILE_WRITE_ROOTS` があるときだけ登録・実行前に承認・シェルを介さない。#148 Phase B）
       - `lib/agent/tools/github/` — GitHub のツール（config.ts, args.ts, gh.ts, format.ts, list.ts, view.ts, pr-diff.ts, comment.ts, create-pr.ts。`GITHUB_REPOS` があるときだけ登録・`gh` の引数はアプリが組み立てる・コメントと PR の作成は実行前に承認。#148 Phase C）
       - `lib/agent/tools/browser/` — ブラウザのツール（config.ts, url-policy.ts, proxy.ts, browser.ts, session.ts, snapshot.ts, navigate.ts, read-snapshot.ts, screenshot.ts。操作は element.ts, action.ts, click.ts, type.ts, select.ts で、実行前に承認・同じ応答の中では順に実行（`exclusive`）。#149 Phase C。利用者へ見せる画面（操作の前・後、開いた後）は capture.ts で撮り、応答の保存で assistant の添付画像にする。#200。`BROWSER_ENABLED=true` のときだけ登録・応答ごとのセッション・通信はアプリの中のプロキシで宛先を判定・手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` だけ。#149。プライベートのアドレスの判定は `tools/network-guard.ts` で `url-fetch.ts` と共有）
+      - `lib/agent/tools/sub-agent/` — 調べもの・読みものをサブエージェントに任せるツール（delegate.ts の `delegate_to_agent`。使えるサブエージェントがあれば登録し、モデルへ渡すのは設定の「サブエージェントに任せる」のときだけ・1 つずつ実行・1 応答 4 回まで・サブエージェントは 150 秒でまとめ始め 300 秒で止める。#26）
+      - `lib/agent/tools/knowledge/` — 登録したドキュメントを探すツール（search-documents.ts の `search_documents`。サブエージェントの手元の読み手だけが使う（`subAgentOnly`）。#26）
       - `lib/agent/tools/memory/` — 会話から覚えさせたことを書くツール（save-memory.ts。`KNOWLEDGE_MEMORY_VAULT` が `KNOWLEDGE_VAULTS` の保管庫のときだけ登録・実行前に承認・`memories/<名前>.md` に書き、git なら main にコミットして索引に入れる。#236）
   - `lib/llm/` — LLM との通信（ollama.ts（埋め込みの `embed` も。#17）, current-date.ts, metrics.ts）
-  - `lib/chat/` — チャット（chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts, document-model.ts, report-docx.ts, pptx-layout.ts, report-pptx.ts, report-assets.ts, slides.ts, report-slides.ts, slides-style.ts）
+  - `lib/chat/` — チャット（tool-label.ts（ツールの見出しの名前・引数の要約。#26）, chat-state.ts, conversation-history.ts, message-metadata.ts, regenerate.ts, agent-timeline.ts, tool-call-progress.ts, tool-screenshots.ts, approval-countdown.ts, response-metrics.ts, system-prompt.ts, code-block.ts, diagram.ts, image-attachment.ts, export.ts, report-html.ts, report-style.ts, document-model.ts, report-docx.ts, pptx-layout.ts, report-pptx.ts, report-assets.ts, slides.ts, report-slides.ts, slides-style.ts）
   - `lib/conversation/` — 会話（search.ts, fork.ts）
   - `lib/prompt-template/` — プロンプトテンプレート（suggest.ts）
   - `lib/bookmark/` — ブックマーク（snippet.ts）
@@ -248,7 +251,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `lib/sidebar/` — サイドバー（visibility.ts, list-navigation.ts）
   - `lib/server/` — サーバー専用（prisma.ts, prisma-error.ts, request-body.ts, conversation.ts, plantuml.ts, attachment.ts, chat-images.ts, knowledge.ts（ドキュメントの DB の処理・raw SQL）, knowledge-response.ts, knowledge-vault-config.ts（`KNOWLEDGE_VAULTS`・検索で比べる範囲）, knowledge-vault.ts（保管庫の列挙（git / フォルダ）・同期）, knowledge-memory.ts（メモの書き込み・main へのコミット・索引への反映。#236））
   - `lib/shared/` — サーバー・クライアント共通（validation.ts, class-names.ts, clipboard.ts, download.ts, print.ts, image.ts）
-- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、knowledge/vault.ts: KnowledgeVaultItem/VaultSyncPlan/VaultSyncProgress、knowledge/memory.ts: MEMORY_TYPES/MemoryInput、theme/theme.ts: THEMES/ThemeId）
+- **`types/`** — 機能をまたぐ共通型（agent/tool-call.ts: ToolCallInfo/SubAgentRun、agent/sub-agent.ts: SUB_AGENT_NAMES/SubAgentName、chat/message.ts: Message/MessageImage/HistoryEntry、chat/attachment.ts: PreparedImage、chat/agent-timeline.ts: AgentTimeline/AgentTimelineStep、chat/metrics.ts: ResponseMetrics、chat/diagram.ts: DiagramKind/DiagramState、conversation/conversation.ts: Conversation/ConversationForkSource/ConversationSearchResult、prompt-template/prompt-template.ts: PromptTemplate、bookmark/bookmark.ts: Bookmark/BookmarkListItem、shortcut/shortcut.ts: ShortcutId/ShortcutDefinition、knowledge/document.ts: KnowledgeDocumentItem/KnowledgeHit/KnowledgeSource、knowledge/vault.ts: KnowledgeVaultItem/VaultSyncPlan/VaultSyncProgress、knowledge/memory.ts: MEMORY_TYPES/MemoryInput、theme/theme.ts: THEMES/ThemeId）
 
 ### デザインリファレンス（base/ — 読み取り専用）
 
@@ -304,10 +307,11 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/26-html-slides-export.md` | HTML スライドの書き出し 設計書 |
 | `docs/27-pptx-export.md` | PPTX の書き出し 設計書 |
 | `docs/28-rag.md` | RAG（手元のドキュメントで答える） 設計書 |
+| `docs/29-multi-agent.md` | マルチエージェント（サブエージェントに任せる） 設計書 |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`29-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`30-`〜）を付与する。
 
 ## Instruction Shortcuts
 

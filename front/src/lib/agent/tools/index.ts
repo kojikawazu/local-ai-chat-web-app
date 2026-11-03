@@ -27,24 +27,57 @@ export function getTool(name: string): Tool | undefined {
 }
 
 /**
- * 登録済み全ツールの定義を Ollama API 向け形式に変換して返す。
+ * ツールを Ollama API 向けの定義の形にする。
  *
- * @param options - `excludeVision` が true なら、結果を画像で渡すツール（`requiresVision`。#149）を除く
+ * @param tool - 登録済みのツール
+ * @returns Ollama の function calling に渡せるツール定義
+ */
+function toOllamaDefinition(tool: Tool): OllamaToolDefinition {
+  return {
+    type: 'function',
+    function: {
+      name: tool.definition.name,
+      description: tool.definition.description,
+      parameters: tool.definition.parameters,
+    },
+  };
+}
+
+/**
+ * 登録済みのツールのうち、メインのモデルへ渡すものの定義を Ollama API 向け形式に変換して返す。
+ *
+ * サブエージェントだけのツール（`subAgentOnly`。#26）は含めない。
+ *
+ * @param options - `excludeVision` が true なら、結果を画像で渡すツール（`requiresVision`。#149）を除く。
+ *   `excludeNames` に書いた名前のツールも除く（設定で有効にしていない委譲のツール。#26）
  * @returns Ollama の function calling に渡せるツール定義の配列
  */
 export function getAllToolDefinitions(
-  options: { excludeVision?: boolean } = {}
+  options: { excludeVision?: boolean; excludeNames?: readonly string[] } = {}
 ): OllamaToolDefinition[] {
   return Array.from(toolRegistry.values())
-    .filter((tool) => !(options.excludeVision && tool.requiresVision))
-    .map((tool) => ({
-      type: 'function' as const,
-      function: {
-        name: tool.definition.name,
-        description: tool.definition.description,
-        parameters: tool.definition.parameters,
-      },
-    }));
+    .filter(
+      (tool) =>
+        !tool.subAgentOnly &&
+        !(options.excludeVision && tool.requiresVision) &&
+        !options.excludeNames?.includes(tool.definition.name)
+    )
+    .map(toOllamaDefinition);
+}
+
+/**
+ * 名前を並べたツールのうち、登録されているものの定義を Ollama API 向け形式に変換して返す（サブエージェント。#26）。
+ *
+ * @param names - ツール名（この順に並べる）
+ * @returns 登録されているツールの定義。登録されていない名前は飛ばす
+ */
+export function getToolDefinitionsByName(
+  names: readonly string[]
+): OllamaToolDefinition[] {
+  return names.flatMap((name) => {
+    const tool = toolRegistry.get(name);
+    return tool ? [toOllamaDefinition(tool)] : [];
+  });
 }
 
 /**

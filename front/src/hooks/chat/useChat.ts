@@ -63,6 +63,8 @@ interface UseChatOptions {
   systemPrompt?: string;
   /** エージェントモードのプリセットの本文。役割の後ろに連結して送る。通常モードでは空にする。省略時は空。 */
   agentPrompt?: string;
+  /** 調べもの・読みものをサブエージェントに任せるか（#26。エージェントモードのときだけ効く）。省略時は任せない。 */
+  enableSubAgents?: boolean;
   /**
    * 登録したドキュメントを参照するか（#17 Phase B）。新規会話の作成時は会話に保存し、送信・再生成のたびに API へ送る。
    * 省略時は参照しない。
@@ -187,6 +189,7 @@ export function useChat({
   enableTools = false,
   systemPrompt = '',
   agentPrompt = '',
+  enableSubAgents = false,
   knowledgeEnabled = false,
   onConversationCreated,
   onTitleGenerated,
@@ -484,6 +487,7 @@ export function useChat({
             conversationHistory,
             model,
             enableTools,
+            enableSubAgents,
             // 役割は送信のたびに今の値を送る。途中で変えた役割は以降の送信から効く
             systemPrompt:
               buildSystemPrompt(systemPrompt, agentPrompt) || undefined,
@@ -659,6 +663,8 @@ export function useChat({
                     ...(event.screenshots && {
                       screenshots: event.screenshots,
                     }),
+                    // サブエージェントに任せた記録（#26）。結果のパネルで中の手順を見せる
+                    ...(event.subAgent && { subAgent: event.subAgent }),
                   };
                   for (const shot of event.screenshots ?? []) {
                     if (shot.data) screenshotData.set(shot.id, shot.data);
@@ -675,6 +681,7 @@ export function useChat({
                       ...(event.screenshots && {
                         screenshots: event.screenshots,
                       }),
+                      ...(event.subAgent && { subAgent: event.subAgent }),
                     })
                   );
                 } else if (event.type === 'done') {
@@ -785,6 +792,7 @@ export function useChat({
     [
       model,
       enableTools,
+      enableSubAgents,
       systemPrompt,
       agentPrompt,
       knowledgeEnabled,

@@ -31,7 +31,7 @@ Your conversation data never leaves your machine — **everything runs locally (
 - **Model selection**: switch between installed Ollama models on the fly
 - **Markdown rendering**: code blocks, tables, lists, etc. in AI responses
 - **Image attachments**: attach images with the paperclip button, drag & drop or paste, and ask a vision-capable model (e.g. the default `qwen3.8:27b`); images are downscaled to 1,280px on the long edge in the browser before sending
-- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders, create / edit files after you approve the diff) with visible reasoning and system-prompt presets
+- **Agent mode**: tool calling (datetime / calculator / web search / URL fetch / list, search and read files in allowed folders, create / edit files after you approve the diff) with visible reasoning and system-prompt presets. With "Delegate to sub-agents" turned on in Settings, the agent can hand web research and local reading to dedicated sub-agents and answer from their summaries (#26)
 - **Prompt templates**: save frequently used prompts and insert them by typing `/` at the start of the input (e.g. `/translate`); manage them from Settings
 - **Response bookmarks**: bookmark answers and jump back to them from a cross-conversation list with keyword search and notes
 - **Conversation forks**: "Fork from here" on an answer copies the exchange up to that point into a new conversation so you can take it in a different direction (with a link back to the source)

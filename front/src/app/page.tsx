@@ -105,8 +105,10 @@ export default function Home() {
   const {
     enableTools,
     agentPromptPresetId,
+    enableSubAgents,
     changeEnableTools,
     changeAgentPromptPresetId,
+    changeEnableSubAgents,
   } = useAgentSettings();
   const { theme, setTheme } = useTheme();
 
@@ -199,6 +201,7 @@ export default function Home() {
     agentPrompt: enableTools
       ? (getPresetById(agentPromptPresetId)?.prompt ?? '')
       : '',
+    enableSubAgents: enableTools && enableSubAgents,
     knowledgeEnabled,
     onConversationCreated: handleConversationCreated,
     onTitleGenerated: refreshConversations,
@@ -554,6 +557,8 @@ export default function Home() {
             onEnableToolsChange={changeEnableTools}
             agentPromptPresetId={agentPromptPresetId}
             onAgentPromptPresetChange={changeAgentPromptPresetId}
+            enableSubAgents={enableSubAgents}
+            onEnableSubAgentsChange={changeEnableSubAgents}
             onOpenPromptTemplates={handleOpenTemplateDialog}
             onOpenShortcuts={handleOpenShortcuts}
           />

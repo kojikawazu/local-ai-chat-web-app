@@ -40,6 +40,7 @@ Next.js Route Handlers (API層)
     ├──→ web_search ツール ──→ SearXNG (Docker・127.0.0.1:8888) ──→ Google / DuckDuckGo / Brave …
     ├──→ GitHub のツール ──→ gh (GitHub CLI。アプリが組み立てた引数) ──→ GitHub（GITHUB_REPOS のリポジトリだけ）
     ├──→ ブラウザのツール ──→ Chromium（ヘッドレス）──→ アプリの中のプロキシ（宛先を判定）──→ 公開の Web / BROWSER_LOCAL_ORIGINS の開発サーバー
+    ├──→ 委譲のツール（delegate_to_agent。#26）──→ サブエージェントのループ（同じモデル・読むツールだけ）──→ Ollama / 上の読むツール
     └──→ /api/diagrams/plantuml ──→ PlantUML サーバー (Docker・127.0.0.1:8889。SANDBOX)
 ```
 
@@ -47,6 +48,7 @@ Next.js Route Handlers (API層)
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
 - RAG の保管庫（#235）は `KNOWLEDGE_VAULTS` の手元のノートのリポジトリ・フォルダ。画面の「同期」で差分を求め、1 ファイルずつ取り込む。git のリポジトリは既定のブランチのコミット済みの中身だけを読み（`git ls-tree`・`git cat-file`。通信しない）、名前を `保管庫の名前/パス` にしたドキュメントとして同じ索引に置く。
 - 会話から覚えさせたメモ（#236）は、エージェントの `save_memory`（実行前に承認）が `KNOWLEDGE_MEMORY_VAULT` の保管庫の `memories/<名前>.md` に書き、git のリポジトリなら main にそのファイルだけをコミットし（`git add`・`git commit --only`。push しない）、保管庫の 1 ファイルの同期と同じ処理で索引に入れる。正本は保管庫のファイル。
+- マルチエージェント（#26。`docs/29-multi-agent.md`）は、設定の「サブエージェントに任せる」を入れたエージェントモードの応答で、委譲のツール `delegate_to_agent` をモデルへ渡す。モデルが委譲すると、サブエージェント（Web の調べものの `researcher`・手元の読みものの `reader`）が自分のシステムプロンプトと任された仕事だけで同じモデルのループを回し（読むツールだけ・1 段だけ・1 つずつ）、まとめた回答だけをメインへ返す。中のツールの呼び出しは委譲の記録（`subAgent`）としてメッセージの metadata に残す。
 - RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。「ドキュメントを参照」を入れた会話（`Conversation.knowledgeEnabled`。Phase B）では、`/api/chat` が送るたびに今回のメッセージの埋め込みを作って近いチャンクを探し、システムプロンプトに入れ、出典をストリームの最初の `knowledge_sources` で返す。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
 - Web検索は、ローカルの SearXNG（メタ検索エンジン）の JSON API を経由する。SearXNG が複数の検索エンジンに問い合わせるため、1 つがブロックされても結果を返せる（#151）。
@@ -168,6 +170,7 @@ front/src/
 │       │   │   ├── MessageImages.tsx     # メッセージの中の添付画像のサムネイル（押すと拡大。#6）
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
 │       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
+│       │   │   ├── SubAgentRunDetails.tsx # サブエージェントに任せた仕事と中の手順（1 行ずつ・開くとそのツールの結果。#26）
 │       │   │   ├── ResponseMetrics.tsx   # 応答のトークン数・生成の速さの要約と、押して開く内訳（#31）
 │       │   │   ├── KnowledgeSources.tsx  # 応答の出典（参照したドキュメント）の要約と、押して開く一覧・見つからなかったときの文（#17 Phase B）
 │       │   │   ├── PromptTemplateSuggestions.tsx # 入力欄の上に重ねるプロンプトテンプレートの候補（例を追加・管理の入口。#28）
@@ -214,11 +217,12 @@ front/src/
 │       │       └── ShortcutHelpDialog.tsx # ショートカットの一覧のダイアログ（定義から作り、開いている端末の表記で <kbd> に出す。#33）
 │       └── settings/
 │           └── organisms/
-│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・テンプレートの管理とショートカットの一覧の入口・テーマ切替）
+│               └── SettingsModal.tsx # 設定モーダル（モデル選択・ツール・エージェントのプリセット・サブエージェントに任せるか（#26）・テンプレートの管理とショートカットの一覧の入口・テーマ切替）
 ├── constants/                 # 定数（機能ごとのディレクトリ）
 │   ├── agent/
 │   │   ├── approval.ts        #     承認の待ち時間の上限（5 分。エージェントループと承認待ちで共有。#202）
-│   │   └── github.ts          #     GitHub のツールで共通の引数の定義（kind・number）・一覧の件数の上限（#148 Phase C）
+│   │   ├── github.ts          #     GitHub のツールで共通の引数の定義（kind・number）・一覧の件数の上限（#148 Phase C）
+│   │   └── sub-agent.ts       #     委譲のツールの名前・サブエージェントの表示名・ラウンド・時間・回数・長さの上限（#26）
 │   ├── chat/
 │   │   ├── toolLabels.ts      #     ツール名→表示ラベルのマッピング
 │   │   ├── imageAttachment.ts #     添付を受け付ける画像の形式（#6）
@@ -228,7 +232,8 @@ front/src/
 │   │   └── title.ts           #     タイトル未指定のときの会話タイトル（会話の作成と分岐のタイトルで共有。#29）
 │   ├── knowledge/
 │   │   ├── file.ts            #     取り込めるファイルの拡張子（画面の選択と検証で共有。#17）
-│   │   └── memory.ts          #     メモを書くツールの名前（ツールの定義と、保存の後に読み直す画面で共有。#236）
+│   │   ├── memory.ts          #     メモを書くツールの名前（ツールの定義と、保存の後に読み直す画面で共有。#236）
+│   │   └── search-documents.ts #    登録したドキュメントを探すツールの名前・語句の上限（#26）
 │   ├── shortcut/
 │   │   └── shortcuts.ts       #     ページ全体のショートカットの定義（判定とヘルプで共有。#33）
 │   ├── sidebar/
@@ -260,7 +265,7 @@ front/src/
 │   │   ├── useKnowledgeAvailability.ts # 取り込んだドキュメント（保管庫の同期したファイルを含む）があるか（入力欄の切り替えを入れられるか。管理画面を閉じたら読み直す。#17 Phase B）
 │   │   └── useKnowledgeVaults.ts # 保管庫の一覧・差分を求めて 1 ファイルずつ同期・止める・索引の削除（#235）
 │   ├── settings/
-│   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット（localStorage永続化）
+│   │   └── useAgentSettings.ts #    ツール使用の有効状態・エージェントのプリセット・サブエージェントに任せるか（#26）（localStorage永続化）
 │   ├── shortcut/
 │   │   ├── useKeyboardShortcuts.ts # ページ全体のショートカットを受け、操作ごとの関数を呼ぶ（モーダル・ドロワー・IME の間は受けない。#33）
 │   │   └── useIsMac.ts        #     開いている端末が Mac か（⌘ と Ctrl の出し分け。#33）
@@ -274,7 +279,9 @@ front/src/
 │       └── useTheme.ts        #     テーマ切替フック（localStorage永続化）
 ├── lib/                       # ユーティリティ・外部連携（機能ごとのディレクトリ）
 │   ├── agent/                 #   エージェント
-│   │   ├── agent.ts           #     エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）
+│   │   ├── agent.ts           #     エージェントループ（ツール呼び出し制御・最大ラウンド到達時の最終回答）。1 回のツールの呼び出しの判定と実行（executeToolCall）はサブエージェントと共有（#26）
+│   │   ├── sub-agents.ts      #     サブエージェントの定義（researcher・reader）・使えるものの判定・委譲の引数の検証・委譲の結果（#26）
+│   │   ├── sub-agent-loop.ts  #     サブエージェントのループ（任せた仕事だけで始め、本文を集めて最終回答を返す。150 秒でまとめ始め 300 秒で止める。#26）
 │   │   ├── agent-config.ts    #     エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   │   ├── agent-prompts.ts   #     エージェントモードのシステムプロンプトプリセット定義
 │   │   ├── approvals.ts       #     ツールの実行前の承認待ち（globalThis の Map・5 分で時間切れ・停止で取り消し。#148 Phase A2）
@@ -289,6 +296,10 @@ front/src/
 │   │       ├── url-fetch.ts   #       URL取得ツール（SSRF防止）
 │   │       ├── network-guard.ts #     プライベート・ループバックのアドレスの判定と名前の解決（url_fetch とブラウザのツールで共有。#149）
 │   │       ├── read-body.ts   #       本文のバイト上限付きストリーム読み取り（外部取得の共通処理）
+│   │       ├── sub-agent/     #       サブエージェントに任せるツール（#26。使えるサブエージェントがあれば登録・渡すのは設定で有効にした応答だけ）
+│   │       │   └── delegate.ts #        delegate_to_agent（1 つずつ実行・1 応答 4 回まで・保険の 330 秒）
+│   │       ├── knowledge/     #       登録したドキュメントを探すツール（#26）
+│   │       │   └── search-documents.ts # search_documents（サブエージェントだけ。subAgentOnly）
 │   │       ├── memory/        #       会話から覚えさせたことを書くツール（#236。KNOWLEDGE_MEMORY_VAULT があるときだけ登録）
 │   │       │   └── save-memory.ts #     save_memory（実行前に承認・memories/<名前>.md・git なら main にコミット・索引に入れる）
 │   │       ├── browser/       #       ブラウザのツール（#149。BROWSER_ENABLED=true のときだけ登録）
@@ -338,6 +349,7 @@ front/src/
 │   │   ├── regenerate.ts      #     再生成できる応答の判定と、送り直す質問・履歴の組み立て
 │   │   ├── agent-timeline.ts  #     エージェントの応答を本文の位置（contentOffset）で区切り、説明 → ツール → 回答に並べる（#186）
 │   │   ├── tool-call-progress.ts #  結果が届く前のツールの記録の状態（実行中・承認待ち）の更新（#192）
+│   │   ├── tool-label.ts      #     ツールの見出しの名前（委譲は「リサーチャーに任せる」）・引数の 1 行の要約（#26）
 │   │   ├── approval-countdown.ts #  承認カードの残り時間（受け取った待ち時間からの期限・切り上げ・警告・時間切れ。#202）
 │   │   ├── response-metrics.ts #    応答のトークン数の表示の文字列（要約・内訳・速さ。#31）
 │   │   ├── tool-screenshots.ts #    ツールの画面の表示の URL・保存する記録から中身を外す・保存の添付にする・done の記録に中身を戻す（#200）
@@ -397,7 +409,8 @@ front/src/
 │       └── image.ts           #     SVG の画像を <canvas> で PNG にする（図の保存。#176）
 └── types/                     # 機能をまたぐ共通型（機能ごとのディレクトリ）
     ├── agent/
-    │   └── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）
+    │   ├── tool-call.ts       #     ToolCallInfo（ツール呼び出しの記録）・SubAgentRun（サブエージェントに任せた記録。#26）
+    │   └── sub-agent.ts       #     SUB_AGENT_NAMES・SubAgentName・SubAgentSummary（#26）
     ├── chat/
     │   ├── message.ts         #     Message・MessageImage・MessageSaveState・HistoryEntry
     │   ├── attachment.ts      #     PreparedImage（送信前の添付画像。#6）
@@ -476,6 +489,7 @@ front/tests/
     ├── knowledge-chat.spec.ts     # 会話でのドキュメントの参照（切り替えて送ると出典が出て再読み込みの後も残る（CI はスキップ）・出典の要約と一覧（文字のまま）・開いている会話での切り替えの保存・見つからなかった応答・ドキュメントが無いと入れられない・参照しなかった応答・切り替えの保存・ドキュメントを探すことの失敗）
     ├── knowledge-vault.spec.ts    # RAG の保管庫（同期で取り込み件数と取り込まなかった理由を出す・もう一度押すと変わらない・書き換えと削除の反映・同期したノートが出典に出る（CI はスキップ）・未設定の案内・設定に無い保管庫の 2 段階の削除・読めない保管庫・同期の途中の 502）
     ├── knowledge-memory.spec.ts   # 会話から覚えさせる（save_memory がツールの一覧に出る・メモの保管庫に書いたメモが同期の後の出典に出る（CI はスキップ）・ダイアログにメモの保管庫が出る・承認カードの置き場所と中身・許可で書く・拒否で書かない・鍵らしい文字列は承認を求めずに断る（ツール呼び出しは軽量モデルでスキップ））
+    ├── multi-agent.spec.ts        # サブエージェントに任せる（設定の切り替えの保存・enableSubAgents を送る・保存した委譲の記録の表示（任せた仕事・中の手順・回答）・エージェントモードがオフなら出さない・失敗した記録・大きいモデルで手元の読み手に任せる（軽量モデルでスキップ））
     ├── bookmarks.spec.ts          # 応答のブックマーク（ボタンで付け外し・読み直しても残る・一覧の並びと検索の強調・メモ・別の会話の応答へ移る・2 段階で外す・保存に失敗した応答（CI はスキップ）・付ける / 一覧の API の失敗）
     ├── conversation-fork.spec.ts  # 会話の分岐（応答から分岐して新しい会話が開く・サイドバーの印・分岐元のリンクで元の応答へ移る・分岐元の削除でリンクが消える・user のメッセージにボタンを出さない・続けて質問すると分岐した応答までを履歴に送る（CI はスキップ）・API の失敗のお知らせ）
     ├── keyboard-shortcuts.spec.ts # ショートカットキー（新しい会話・検索欄・サイドバーの開閉・入力欄・前後の会話（端で止まる）・ヘルプ（⌘/・?・設定から）・サイドバーの一覧の ↑↓・Home・End・入力欄の ? は文字・モーダルの間は効かない）

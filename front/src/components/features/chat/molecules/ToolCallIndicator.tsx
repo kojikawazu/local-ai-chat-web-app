@@ -2,13 +2,13 @@
 
 /** {@link ToolCallIndicator} の props。 */
 interface ToolCallIndicatorProps {
-  /** 実行中のツール名。{@link TOOL_LABELS} で日本語ラベルに変換して表示する。 */
+  /** 実行中のツール名。{@link toolCallLabel} で日本語ラベルに変換して表示する（委譲のツールは任せた相手の名前。#26）。 */
   name: string;
   /** ツールに渡された引数。要約（各値を先頭 40 文字に切り詰め）して表示する。 */
   arguments: Record<string, unknown>;
 }
 
-import { TOOL_LABELS } from '@/constants/chat/toolLabels';
+import { toolCallLabel } from '@/lib/chat/tool-label';
 
 /**
  * 実行中のツール呼び出しを示すインジケーター（スピナー付き）。
@@ -21,7 +21,7 @@ export function ToolCallIndicator({
   name,
   arguments: args,
 }: ToolCallIndicatorProps) {
-  const label = TOOL_LABELS[name] ?? name;
+  const label = toolCallLabel(name, args);
   const argsSummary = Object.entries(args)
     .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)
     .join(', ');

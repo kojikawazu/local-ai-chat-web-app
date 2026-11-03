@@ -4,7 +4,7 @@
  * /api/chat と /api/tools の両方からこのモジュールを import することで
  * 重複登録を防ぐ（Map.set は冪等だが、管理ポイントを1箇所に集約する）。
  */
-import { registerTool } from './index';
+import { getTool, registerTool } from './index';
 import { getCurrentDatetimeTool } from './get-current-datetime';
 import { calculateTool } from './calculate';
 import { webSearchTool } from './web-search';
@@ -35,6 +35,9 @@ import { createBrowserTypeTool } from './browser/type';
 import { createBrowserSelectTool } from './browser/select';
 import { createSaveMemoryTool } from './memory/save-memory';
 import { getMemoryVault } from '@/lib/server/knowledge-vault-config';
+import { searchDocumentsTool } from './knowledge/search-documents';
+import { createDelegateTool } from './sub-agent/delegate';
+import { availableSubAgents } from '../sub-agents';
 
 let initialized = false;
 
@@ -53,6 +56,10 @@ let initialized = false;
  * 手元の開発サーバーは `BROWSER_LOCAL_ORIGINS` に書いたものだけを開ける（無ければ公開の Web だけ）。
  * 会話から覚えさせたことをメモの保管庫に書く `save_memory`（実行前に承認が要る。#236）は、`KNOWLEDGE_MEMORY_VAULT` が
  * `KNOWLEDGE_VAULTS` の保管庫の名前のときだけ登録する。
+ * 登録したドキュメントを探す `search_documents`（#26）は常に登録するが、サブエージェントだけのツール（`subAgentOnly`）のため
+ * メインのモデルへは渡さない。調べもの・読みものをサブエージェントに任せる `delegate_to_agent`（#26）は、ほかのツールを
+ * 登録した後に、使えるサブエージェント（中で使うツールが登録されているもの）が 1 つ以上あれば登録する。モデルへ渡すのは
+ * 設定の「サブエージェントに任せる」を有効にした応答だけ（`runAgentLoop` の `enableSubAgents`）。
  * 2 回目以降の呼び出しは何もしない（`initialized` フラグで冪等性を保証）。
  * `/api/chat` と `/api/tools` の両方から呼ばれても登録は 1 回だけ行われる。
  */
@@ -115,4 +122,10 @@ export function initializeTools(): void {
 
   const memoryVault = getMemoryVault();
   if (memoryVault) registerTool(createSaveMemoryTool(memoryVault));
+
+  registerTool(searchDocumentsTool);
+
+  // 使えるサブエージェントは登録したツールで決まるため、最後に登録する
+  const subAgents = availableSubAgents(getTool);
+  if (subAgents.length > 0) registerTool(createDelegateTool(subAgents));
 }

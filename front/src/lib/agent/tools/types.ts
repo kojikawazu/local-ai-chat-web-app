@@ -67,7 +67,7 @@ export interface OllamaToolCall {
  */
 export type ToolOutput = Pick<
   ToolCallInfo,
-  'result' | 'isError' | 'summary' | 'isEmpty'
+  'result' | 'isError' | 'summary' | 'isEmpty' | 'subAgent'
 >;
 
 /**
@@ -97,6 +97,11 @@ export type ToolExecution = ToolOutput & {
    * 記録（`done`・DB）には中身を外して入れる。モデルへは渡さない（モデルへ渡す画像は `images`）
    */
   screenshots?: ToolScreenshot[];
+  /**
+   * ツールの中で Ollama に問い合わせたときのトークン数・所要時間（サブエージェント。#26）。ループが応答の合計（#31）に足す。
+   * 画面・DB へは送らない（サブエージェントの分は `subAgent` の記録に入る）
+   */
+  metrics?: ResponseMetrics;
 };
 
 /**
@@ -107,6 +112,8 @@ export type ToolExecution = ToolOutput & {
 export type ToolContext = {
   /** このアプリ自身のオリジン（`/api/chat` のリクエストのオリジン）。分からなければ `undefined` */
   appOrigin?: string;
+  /** この応答のモデル（未指定なら既定のモデル）。サブエージェント（#26）が同じモデルで問い合わせるのに使う */
+  model?: string;
   /** 応答ごとに 1 つ作るものを置く場所（キーはツールの側で決める） */
   scope: Map<string, unknown>;
   /**
@@ -265,6 +272,16 @@ export type Tool = {
    * 自分で止める時間より少し長くして、止まらなかったときの保険にする
    */
   runTimeoutMs?: number;
+  /**
+   * 承認の要らない実行（`execute`）に掛ける時間の上限（ミリ秒。#26）。省略時はツール全般の上限（`AGENT_TOOL_TIMEOUT_MS`）。
+   * 中で Ollama に何度も問い合わせる委譲のツールのように、30 秒で終わらないツールが持つ
+   */
+  timeoutMs?: number;
+  /**
+   * サブエージェントだけが使うツールなら true（#26。登録したドキュメントを探す `search_documents`）。
+   * メインのモデルへ渡す一覧（`getAllToolDefinitions`）と `/api/tools` には出さない
+   */
+  subAgentOnly?: boolean;
   /**
    * 順に実行する組の名前（#149 Phase C）。同じ組のツールは、同じ応答の中で 1 つずつ、呼ばれた順に実行する
    * （前の呼び出しの準備・承認・実行が終わってから次に入る）。1 つのページを共有するブラウザのツールが、

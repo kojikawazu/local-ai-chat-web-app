@@ -63,6 +63,8 @@ export type ChatBody = {
   model?: string;
   /** エージェントモードで実行するか（未指定は false） */
   enableTools: boolean;
+  /** エージェントモードで、調べもの・読みものをサブエージェントに任せられるようにするか（#26。未指定は false。`enableTools` が偽なら効かない） */
+  enableSubAgents: boolean;
   /** 先頭に付けるシステムプロンプト（会話の役割と、エージェントモードならそのプリセットを連結したもの） */
   systemPrompt?: string;
   /** 登録したドキュメントから質問に近い部分を探して渡すか（RAG。#17 Phase B。未指定は false） */
@@ -468,6 +470,12 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
   const enableTools = parseOptionalBoolean(body.enableTools, 'enableTools');
   if (!enableTools.ok) return enableTools;
 
+  const enableSubAgents = parseOptionalBoolean(
+    body.enableSubAgents,
+    'enableSubAgents'
+  );
+  if (!enableSubAgents.ok) return enableSubAgents;
+
   const knowledgeEnabled = parseOptionalBoolean(
     body.knowledgeEnabled,
     'knowledgeEnabled'
@@ -494,6 +502,7 @@ export function parseChatBody(body: unknown): ParseResult<ChatBody> {
       conversationHistory: history.value,
       model: model.value,
       enableTools: enableTools.value ?? false,
+      enableSubAgents: enableSubAgents.value ?? false,
       systemPrompt: systemPrompt.value,
       knowledgeEnabled: knowledgeEnabled.value ?? false,
     },

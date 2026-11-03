@@ -1,8 +1,10 @@
 import type {
   ScreenshotBox,
+  SubAgentRun,
   ToolCallInfo,
   ToolScreenshot,
 } from '@/types/agent/tool-call';
+import { isSubAgentName } from '@/lib/chat/tool-label';
 import type { Message } from '@/types/chat/message';
 import type { ResponseMetrics } from '@/types/chat/metrics';
 import type { KnowledgeSource } from '@/types/knowledge/document';
@@ -161,11 +163,14 @@ function parseKnowledgeSource(value: unknown): KnowledgeSource | null {
  * 要約（`summary`）と空の結果（`isEmpty`）は型が合うときだけ含める（#150 より前のデータは持たない）。
  * 本文の位置（`contentOffset`）も 0 以上の整数のときだけ含める（#186 より前のデータは持たない）。
  * スクリーンショット（`screenshots`。#200）は 1 枚ずつ検証し、形の合わないものを捨てる。
+ * サブエージェントに任せた記録（`subAgent`。#26）は {@link parseSubAgentRun} で検証し、形が合わなければ捨てる
+ * （中のツールの呼び出しの中の `subAgent` は見ない。サブエージェントは委譲しないため入れ子にならない）。
  *
  * @param value - 保存済みのツール呼び出し（外部入力）
+ * @param nested - サブエージェントの中のツールの呼び出しなら true（`subAgent` を読まない）
  * @returns 復元したツール呼び出し。名前か結果が文字列でなければ `null`
  */
-function parseToolCall(value: unknown): ToolCallInfo | null {
+function parseToolCall(value: unknown, nested = false): ToolCallInfo | null {
   if (!isRecord(value)) return null;
   const {
     name,
@@ -177,8 +182,10 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
     durationMs,
     contentOffset,
     screenshots,
+    subAgent,
   } = value;
   if (typeof name !== 'string' || typeof result !== 'string') return null;
+  const parsedSubAgent = nested ? undefined : parseSubAgentRun(subAgent);
   const parsedScreenshots = Array.isArray(screenshots)
     ? screenshots
         .map(parseScreenshot)
@@ -195,6 +202,38 @@ function parseToolCall(value: unknown): ToolCallInfo | null {
     ...(Number.isSafeInteger(contentOffset) &&
       isNonNegativeNumber(contentOffset) && { contentOffset }),
     ...(parsedScreenshots.length > 0 && { screenshots: parsedScreenshots }),
+    ...(parsedSubAgent && { subAgent: parsedSubAgent }),
+  };
+}
+
+/**
+ * 保存済みの、サブエージェントに任せた記録を検証する（#26）。
+ *
+ * 任せた相手が知っているサブエージェントの名前・任せた仕事が文字列・中のツールの呼び出しが配列なら有効とする。
+ * 中のツールの呼び出しは 1 件ずつ検証し、形の合わないものを捨てる。問い合わせの回数・トークン数は形が合うときだけ使う。
+ *
+ * @param value - 保存済みの記録（外部入力）
+ * @returns 復元した記録。形が合わなければ `undefined`
+ */
+function parseSubAgentRun(value: unknown): SubAgentRun | undefined {
+  if (!isRecord(value)) return undefined;
+  const { agent, task, toolCalls, rounds, metrics } = value;
+  if (
+    !isSubAgentName(agent) ||
+    typeof task !== 'string' ||
+    !Array.isArray(toolCalls)
+  ) {
+    return undefined;
+  }
+  const parsedMetrics = parseMetrics(metrics);
+  return {
+    agent,
+    task,
+    toolCalls: toolCalls
+      .map((call) => parseToolCall(call, true))
+      .filter((call): call is ToolCallInfo => call !== null),
+    rounds: isPositiveInteger(rounds) ? rounds : 0,
+    ...(parsedMetrics && { metrics: parsedMetrics }),
   };
 }
 
@@ -254,7 +293,7 @@ export function parseMessageMetadata(value: unknown): MessageMetadata | null {
   return buildMessageMetadata({
     toolCalls: Array.isArray(toolCalls)
       ? toolCalls
-          .map(parseToolCall)
+          .map((call) => parseToolCall(call))
           .filter((tc): tc is ToolCallInfo => tc !== null)
       : undefined,
     thinkingText: typeof thinkingText === 'string' ? thinkingText : undefined,
