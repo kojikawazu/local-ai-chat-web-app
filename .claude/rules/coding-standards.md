@@ -7,6 +7,7 @@ globs:
 
 - **言語**: TypeScript strict モード（`strict: true`）
 - **パッケージマネージャ**: pnpm を使用（npm / yarn は使用しない）
+- **推移的な依存の脆弱性**: 親が修正された版を求めるまで待てないときは `front/package.json` の `pnpm.overrides` で脆弱な範囲だけを上げ、理由と外す条件を、その依存を使う機能の設計書に残す（`docs/04-development-rules.md`「技術規約」。#231）
 - **Linter / Formatter**: ESLint 9 + Prettier でコード品質を担保
 - **CI で機械強制**: `quality` ジョブが `pnpm lint` / `pnpm format:check` / `pnpm typecheck` を実行する。ローカル実行に依存しない
 - **Prettier の対象は `front/` 配下全体**（`prettier --write .`）。除外は `front/.prettierignore` で管理する（生成物・テスト成果物・ロックファイル）

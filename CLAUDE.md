@@ -27,7 +27,7 @@ Nordic Frostデザインシステムによるチャットインターフェー�
 | Markdown表示 | react-markdown + remark-gfm + rehype-highlight（コードブロックのシンタックスハイライト）+ mermaid（Mermaid の図。使うときだけ読み込む） |
 | HTML レポート | unified + remark-parse + remark-rehype + hast-util-to-html（応答・会話の HTML / PDF と、応答の HTML スライドの書き出し。画面と同じ remark-gfm・rehype-highlight を使う） |
 | DOCX | docx（応答・会話の Word の書き出し。書き出すときだけ読み込む。テストは jszip で中身を読む） |
-| PPTX | pptxgenjs（応答の PowerPoint の書き出し。書き出すときだけ読み込む。テストは jszip で中身を読む） |
+| PPTX | pptxgenjs（応答の PowerPoint の書き出し。書き出すときだけ読み込む。テストは jszip で中身を読む。依存の `image-size` は `pnpm.overrides` で 2.x に上げている。#231） |
 | 差分 | diff（jsdiff。ファイルの書き込みの承認カードの unified diff） |
 | パッケージマネージャー | pnpm |
 | LLM | Ollama — デフォルト `qwen3.8:27b`（動的にモデル切替可能） |
@@ -335,7 +335,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 
 | ファイル | スコープ | 内容 |
 |---------|---------|------|
-| `coding-standards.md` | 全体 | TypeScript strict / pnpm / ESLint+Prettier / シークレット禁止 |
+| `coding-standards.md` | 全体 | TypeScript strict / pnpm（推移的な依存の脆弱性は `pnpm.overrides`）/ ESLint+Prettier / シークレット禁止 |
 | `typescript.md` | `front/src/**` | TypeScript 固有規約・type/interface の使い分け・型/定数の配置・any 禁止・enum 回避・`import type` |
 | `jsdoc.md` | `front/src/**` | JSDoc（TSDoc）規約・公開シンボルに必須・型ブレース禁止・キャスト/回避策に "why" |
 | `error-handling.md` | 全体 | バリデーション・HTTP ステータス・統一エラーレスポンス方針 |

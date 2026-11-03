@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-11-02
+> 最終更新: 2026-11-03
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1277,3 +1277,11 @@ Prisma の CLI（`pnpm prisma migrate dev` 等）が `front/.env` だけを読�
 - [x] `front/prisma.config.ts` で `.env.local` を先に、無い値だけを `.env` から読む（Next.js と同じ優先。すでに環境変数にある値は上書きしない。パスは設定のファイルの隣）
 - [x] 確認（`.env.local` だけで開発の DB（5499）に繋がる・別のフォルダから実行しても同じ・環境変数の `DATABASE_URL` が優先される・IT（`prisma migrate deploy`）が通る）。設定のファイルのため UT は対象なし
 - [x] ドキュメント（`docs/02`・`07`、`CLAUDE.md`、`manuals/setup-guide-macos.md`）
+
+## フェーズ61: `image-size` の脆弱性の警告の解消（#231）
+
+Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解析の無限ループ。GHSA-w3rx-r6r6-pgpr・GHSA-5p2g-fcmc-qvqq）を解消する。`image-size` 1.2.1 は `pptxgenjs` 4.0.1 の依存としてだけ入り、配布のコードからは読み込まれない。 — #231（2026-11-03 着手）
+
+- [x] `front/package.json` の `pnpm.overrides` で 2.0.3 より古い `image-size` を `^2.0.4` に（`pnpm why image-size` が 2.0.4 だけ。1.x の依存の `queue` も消えた）
+- [x] 確認（UT の `report-pptx`・`pptx-layout`・E2E の `report-export.spec.ts`・`pnpm build`）
+- [x] ドキュメント（`docs/04`・`07`・`27`、`CLAUDE.md`、`.claude/rules/coding-standards.md`）

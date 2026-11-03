@@ -60,6 +60,9 @@
     "vitest": "^4.1.12"
   },
   "pnpm": {
+    "overrides": {
+      "image-size@<2.0.3": "^2.0.4"
+    },
     "onlyBuiltDependencies": [
       "@prisma/engines",
       "prisma"
