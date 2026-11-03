@@ -1334,3 +1334,15 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 画面を触って、サブエージェントを使っているかが分からなかったため、入力欄の横に切り替え（`SubAgentToggle`）を出し、委譲の見出し・実行中の表示をサブエージェントのアイコンと色にした（実行中は任せた相手・仕事・経過時間）。下の「実行中」が順番待ちの委譲を出していたのを、まだ結果の届いていない最初の呼び出しにした。見出しをサブエージェントだと分かる仕事の名前（「サブエージェント: Web の調べもの」）にした（役割の名前はプリセットの「リサーチャー」とぶつかった）
 - [x] UT（`sub-agent.test.ts` 27 件・`tool-call-progress.test.ts` に `firstPendingToolCall`・`request-body.test.ts` に `enableSubAgents`）・IT（`chat-agent-sub-agent.test.ts` 16 件・`chat-agent-sub-agent-time.test.ts` 3 件）・E2E（`multi-agent.spec.ts` 6 件。実際に任せる 1 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`12`・`28`・`29`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,documentation}.md`）
+
+## フェーズ66: マルチエージェント — 任せている間の中の手順と順番待ちを出す（#26 Phase B）
+
+サブエージェントに任せている間に、中の手順（検索・読んだページ）を逐次出し、同じ応答で順に実行するツールの「順番待ち」を「実行中」と見分けて出す。呼び出しごとの ID で、画面がツールの結果・承認を当てるようにする。設計は [29-multi-agent.md](./29-multi-agent.md)「任せている間の表示（Phase B）」。 — #26・サブ issue #242（2026-11-03 着手）
+
+- [x] 設計（Phase A を使って分かったこと: 中の手順が終わるまで見えない・順番待ちも「実行中」・名前の順で結果を当てている）・レビュー（Phase B を先に入れ #241 は別の PR・下の表示に今の手順を出す。ほかも推奨どおり）
+- [x] 呼び出しの ID（`callId`。開始・結果・承認の依頼）と、ID での記録の更新・承認カードの決着（`useChat` の名前ごとの FIFO をやめた）
+- [x] 中の手順のイベント（`ToolContext.emit`・`sub_agent_step_*`）と実行中の表示（委譲の行を開くと中の手順が増える・下の表示に今の手順）
+- [x] 順番待ち（`createInOrderQueue` の `isBusy`・`queued`・`tool_call_begin`・時計のアイコンの「順番待ち」）
+- [x] UT（`tool-call-progress.test.ts` に呼び出しの ID・順番待ち・中の手順、`sub-agent.test.ts` に `isBusy`）・IT（`chat-agent-sub-agent.test.ts` に中の手順の経過・順番待ち・並べて実行するツール、`chat-agent-approval.test.ts` に承認の依頼の ID）・E2E（`multi-agent.spec.ts` に 2 つ任せたときの順番待ちと中の手順。軽量モデルでスキップし、`qwen3.8:27b` で 7 件すべて通した）
+- [x] ドキュメント（`docs/02`・`03`・`06`・`07`・`09`・`12`・`29`、`CLAUDE.md`）
+

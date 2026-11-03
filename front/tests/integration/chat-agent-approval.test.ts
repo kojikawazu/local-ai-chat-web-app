@@ -173,6 +173,12 @@ describe('POST /api/chat（ツールの承認）', () => {
         approval: 'approved',
         summary: 'notes.md を編集（+1 −1）',
       });
+      // 開始・承認の依頼・結果は同じ呼び出しの ID を持つ（画面が承認カードと記録を ID で当てる。#26 Phase B）
+      const start = events.find((e) => e.type === 'tool_call_start');
+      const callId = start?.type === 'tool_call_start' ? start.callId : '';
+      expect(callId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(request).toMatchObject({ callId });
+      expect(editResult(events)).toMatchObject({ callId });
       const done = events.at(-1);
       expect(
         done?.type === 'done' && done.metadata?.toolCalls?.[0]

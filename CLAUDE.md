@@ -149,7 +149,7 @@ cd front && pnpm prisma generate        # Prismaクライアント再生成
 
 | メソッド | パス | 用途 |
 |---------|------|------|
-| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/enableSubAgents/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。enableSubAgents（エージェントモードのとき）なら調べもの・読みものをサブエージェントに任せる委譲のツールを渡し、委譲の記録を `tool_call_result` の `subAgent` で送る（#26）。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
+| POST | `/api/chat` | Ollamaにメッセージ送信（NDJSON のストリーミング応答。終わりの `done` にトークン数・所要時間、model/enableTools/enableSubAgents/systemPrompt/imageIds/knowledgeEnabled指定可。knowledgeEnabled なら登録したドキュメントから今回のメッセージに近い部分を探してシステムプロンプトに入れ、出典を最初の `knowledge_sources` で送る（#17 Phase B）。エージェントの書き込みのツールは `tool_approval_request` を送って承認を待つ。enableSubAgents（エージェントモードのとき）なら調べもの・読みものをサブエージェントに任せる委譲のツールを渡し、委譲の記録を `tool_call_result` の `subAgent` で送る（#26）。ツールの呼び出しのイベントは呼び出しの ID（`callId`）を持ち、順番待ち（`queued`・`tool_call_begin`）とサブエージェントの中の手順（`sub_agent_step_*`）も送る（#26 Phase B）。systemPrompt は通常・エージェントとも先頭の system メッセージになり、後ろに現在の日時が付く。imageIds の添付画像は DB から読んで Ollama の `images` へ渡す） |
 | GET | `/api/models` | Ollamaの利用可能モデル一覧取得（画像に対応したモデルの `visionModels` 付き） |
 | GET | `/api/tools` | エージェントの利用可能ツール一覧取得（サブエージェントだけのツールは含めない。使えるサブエージェントの `subAgents` 付き。#26） |
 | GET | `/api/conversations` | 会話一覧取得（分岐元の `forkedFrom` 付き。#29） |

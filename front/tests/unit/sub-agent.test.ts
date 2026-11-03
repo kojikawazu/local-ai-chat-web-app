@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   SUB_AGENTS,
   availableSubAgents,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/agent/sub-agents';
 import type { SubAgentResult } from '@/lib/agent/sub-agents';
 import type { Tool } from '@/lib/agent/tools/types';
-import { notOfferedToolOutput } from '@/lib/agent/agent';
+import { createInOrderQueue, notOfferedToolOutput } from '@/lib/agent/agent';
 import { parseMessageMetadata } from '@/lib/chat/message-metadata';
 import {
   delegationRunningLabel,
@@ -387,6 +387,28 @@ describe('サブエージェントの定義と判定', () => {
           },
         ],
       });
+    });
+
+    it('順番待ちの判定: 同じ組に終わっていない処理があれば待つ・組が無ければ待たない（#26 Phase B）', async () => {
+      const inOrder = createInOrderQueue();
+      let release!: () => void;
+      const first = inOrder(
+        'sub-agent',
+        () => new Promise<void>((resolve) => (release = resolve))
+      );
+      expect(inOrder.isBusy('sub-agent')).toBe(true);
+      expect(inOrder.isBusy('browser')).toBe(false);
+      expect(inOrder.isBusy(undefined)).toBe(false);
+      // 処理は次のマイクロタスクで始まる（前の処理の終わりにつなぐため）。始まってから終わらせる
+      await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+      release();
+      await first;
+      expect(inOrder.isBusy('sub-agent')).toBe(false);
+      // 失敗した処理も終わったものとして数える
+      await inOrder('sub-agent', () => Promise.reject(new Error('x'))).catch(
+        () => {}
+      );
+      expect(inOrder.isBusy('sub-agent')).toBe(false);
     });
 
     it('渡していないツールを呼ばれたら、理由を返して実行しない', () => {

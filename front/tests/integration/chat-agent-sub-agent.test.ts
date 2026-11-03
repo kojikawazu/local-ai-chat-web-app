@@ -372,6 +372,89 @@ describe('POST /api/chat（サブエージェントに任せる）', () => {
       ]);
     });
 
+    it('委譲の中の手順の経過を、委譲の呼び出しの ID 付きで、開始と結果の間に送る（#26 Phase B）', async () => {
+      stubOllama({
+        main: [
+          () => toolCalls([delegate('researcher', '調べて')]),
+          () => ollamaStreamResponse(['完了']),
+        ],
+        researcher: [
+          () => toolCalls([{ name: 'web_search', arguments: { query: 'q' } }]),
+          () => ollamaStreamResponse(['回答']),
+        ],
+      });
+
+      const events = await run();
+
+      const progress = events.filter((e) =>
+        [
+          'tool_call_start',
+          'sub_agent_step_start',
+          'sub_agent_step_result',
+          'tool_call_result',
+        ].includes(e.type)
+      );
+      expect(progress.map((e) => e.type)).toEqual([
+        'tool_call_start',
+        'sub_agent_step_start',
+        'sub_agent_step_result',
+        'tool_call_result',
+      ]);
+      const [start, stepStart, stepResult, result] = progress;
+      const callId = start.type === 'tool_call_start' ? start.callId : '';
+      expect(stepStart).toMatchObject({
+        callId,
+        name: 'web_search',
+        arguments: { query: 'q' },
+      });
+      expect(stepResult).toMatchObject({
+        callId,
+        name: 'web_search',
+        isError: false,
+        summary: '1 件',
+        stepId:
+          stepStart.type === 'sub_agent_step_start' ? stepStart.stepId : '',
+      });
+      expect(result).toMatchObject({ callId, name: 'delegate_to_agent' });
+    });
+
+    it('2 つの委譲の 2 つ目は順番待ちで始まり、1 つ目の結果の後に動き始めを送る（#26 Phase B）', async () => {
+      stubOllama({
+        main: [
+          () =>
+            toolCalls([
+              delegate('researcher', '仕事 A'),
+              delegate('researcher', '仕事 B'),
+            ]),
+          () => ollamaStreamResponse(['完了']),
+        ],
+        researcher: [
+          () => ollamaStreamResponse(['A の回答']),
+          () => ollamaStreamResponse(['B の回答']),
+        ],
+      });
+
+      const events = await run();
+
+      const starts = events.filter(
+        (e): e is Extract<AgentStreamEvent, { type: 'tool_call_start' }> =>
+          e.type === 'tool_call_start'
+      );
+      expect(starts.map((e) => e.queued)).toEqual([undefined, true]);
+      const types = events
+        .filter((e) => ['tool_call_begin', 'tool_call_result'].includes(e.type))
+        .map((e) =>
+          e.type === 'tool_call_begin' || e.type === 'tool_call_result'
+            ? `${e.type}:${e.callId === starts[0].callId ? 'A' : 'B'}`
+            : ''
+        );
+      expect(types).toEqual([
+        'tool_call_result:A',
+        'tool_call_begin:B',
+        'tool_call_result:B',
+      ]);
+    });
+
     it('手元の読み手は、登録したドキュメントを search_documents で探して読む', async () => {
       stubOllama({
         main: [
@@ -423,6 +506,34 @@ describe('POST /api/chat（サブエージェントに任せる）', () => {
         summary: 'delegate_to_agent はこの応答では使えません',
       });
       expect(requests.map((r) => r.caller)).toEqual(['main', 'main']);
+    });
+
+    it('並べて実行するツールには順番待ちを付けず、同じ名前でも呼び出しの ID で結果を分ける（#26 Phase B）', async () => {
+      stubOllama({
+        main: [
+          () =>
+            toolCalls([
+              { name: 'web_search', arguments: { query: 'a' } },
+              { name: 'web_search', arguments: { query: 'b' } },
+            ]),
+          () => ollamaStreamResponse(['完了']),
+        ],
+      });
+
+      const events = await run();
+
+      const starts = events.filter(
+        (e): e is Extract<AgentStreamEvent, { type: 'tool_call_start' }> =>
+          e.type === 'tool_call_start'
+      );
+      expect(starts.map((e) => e.queued)).toEqual([undefined, undefined]);
+      expect(new Set(starts.map((e) => e.callId)).size).toBe(2);
+      expect(
+        resultsOf(events, 'web_search')
+          .map((e) => e.callId)
+          .sort()
+      ).toEqual(starts.map((e) => e.callId).sort());
+      expect(events.some((e) => e.type === 'tool_call_begin')).toBe(false);
     });
 
     it('メインは search_documents を呼べない（サブエージェントだけのツール）', async () => {

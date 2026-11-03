@@ -6,8 +6,9 @@ import type { SubAgentName } from '@/types/agent/sub-agent';
  *
  * - `running`: 実行中（承認が要るツールは、許可・拒否を返した後）
  * - `awaiting-approval`: 承認カードを出して、利用者の許可を待っている
+ * - `queued`: 同じ組の前の呼び出しが終わるのを待っている（#26 Phase B。動き始めたら `running`）
  */
-export type ToolCallStatus = 'running' | 'awaiting-approval';
+export type ToolCallStatus = 'running' | 'awaiting-approval' | 'queued';
 
 /**
  * 実行前に承認を求めたツールの、承認の結果（#148 Phase A2）。`expired` は待ち時間の上限に達した。
@@ -216,6 +217,8 @@ export type ApprovalPreview =
 export type ToolApprovalRequest = {
   /** 承認 ID（承認の API に渡す） */
   approvalId: string;
+  /** 承認を求めた呼び出しの ID（#26 Phase B。承認カードと記録を当てる） */
+  callId: string;
   /** ツール名 */
   name: string;
   /** 利用者へ見せる内容 */
@@ -270,6 +273,11 @@ export type ToolCallInfo = {
    * 保存する記録（サーバーから届いた結果）は持たない
    */
   status?: ToolCallStatus;
+  /**
+   * 呼び出しの ID（#26 Phase B。サーバーが採番してイベントに載せる。サブエージェントの中の手順は手順の ID）。
+   * 生成中の画面の記録だけが持ち、結果・承認・途中の経過を当てるのに使う。保存する記録は持たない
+   */
+  callId?: string;
 };
 
 /**

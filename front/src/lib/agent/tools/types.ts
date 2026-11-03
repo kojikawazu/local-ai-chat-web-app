@@ -128,7 +128,35 @@ export type ToolContext = {
    * @returns 読んでいれば true
    */
   hasReadLocal: () => boolean;
+  /**
+   * ツールの途中の経過を画面へ送る（#26 Phase B。委譲のツールがサブエージェントの中の手順を送る）。
+   * ループが呼び出しごとに、その呼び出しの ID（`callId`）を付けて送る。経過を送れない場所（サブエージェントの中のツール・
+   * ループの外のテスト）では無い
+   *
+   * @param event - 送る経過（`callId` はループが付ける）
+   */
+  emit?: (event: ToolProgressEvent) => void;
 };
+
+/**
+ * ツールの途中の経過（#26 Phase B）。{@link ToolContext} の `emit` で送り、ループが `callId` を付けて {@link AgentStreamEvent} にする。
+ *
+ * - `sub_agent_step_start`: サブエージェントの中のツールの開始（`stepId` は中の手順ごとの ID）
+ * - `sub_agent_step_result`: サブエージェントの中のツールの結果（同じ `stepId`）
+ */
+export type ToolProgressEvent =
+  | {
+      type: 'sub_agent_step_start';
+      stepId: string;
+      name: string;
+      arguments: Record<string, unknown>;
+    }
+  | ({
+      type: 'sub_agent_step_result';
+      stepId: string;
+      name: string;
+      durationMs: number;
+    } & ToolOutput);
 
 /**
  * エージェント実行中にサーバーからクライアントへ送るストリーミングイベント（NDJSON 1 行 = 1 イベント）。
@@ -146,17 +174,27 @@ export type ToolContext = {
  *   待ち時間の上限（`timeoutMs`）を載せ、画面は受け取った時刻から残り時間を数える（#202。時計のずれに左右されないよう、絶対時刻は送らない）。
  * - `knowledge_sources`: ドキュメントを参照する会話（#17 Phase B）で、探した結果の出典。ストリームの最初に 1 回だけ送る
  *   （通常・エージェントの両方）。空の配列は「探したが見つからなかった」。画面は応答のメタデータに写して保存する。
+ * - `tool_call_begin`: 順番待ち（`tool_call_start` の `queued`）だったツールが動き始めた（#26 Phase B）。
+ * - `sub_agent_step_start`・`sub_agent_step_result`: 委譲のツールの途中の経過（{@link ToolProgressEvent}。#26 Phase B）。
+ *
+ * ツールの呼び出しのイベント（開始・動き始め・結果・承認の依頼・途中の経過）は、サーバーが呼び出しごとに採番した `callId` を持つ
+ * （#26 Phase B）。画面は名前ではなく ID で記録を当てる。
  */
 export type AgentStreamEvent =
   | { type: 'text_delta'; content: string }
   | {
       type: 'tool_call_start';
+      callId: string;
       name: string;
       arguments: Record<string, unknown>;
       contentOffset: number;
+      /** 同じ組（`exclusive`）の前の呼び出しが動いていて、順番を待つなら true（動き始めたら `tool_call_begin`） */
+      queued?: boolean;
     }
-  | ({ type: 'tool_call_result'; name: string } & ToolOutput &
+  | { type: 'tool_call_begin'; callId: string }
+  | ({ type: 'tool_call_result'; callId: string; name: string } & ToolOutput &
       Pick<ToolCallInfo, 'approval' | 'screenshots'>)
+  | (ToolProgressEvent & { callId: string })
   | {
       type: 'done';
       metadata?: {
@@ -172,6 +210,7 @@ export type AgentStreamEvent =
   | {
       type: 'tool_approval_request';
       approvalId: string;
+      callId: string;
       name: string;
       preview: ApprovalPreview;
       timeoutMs: number;
