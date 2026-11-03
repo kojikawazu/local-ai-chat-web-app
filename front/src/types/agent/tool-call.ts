@@ -1,3 +1,6 @@
+import type { ResponseMetrics } from '@/types/chat/metrics';
+import type { SubAgentName } from '@/types/agent/sub-agent';
+
 /**
  * 結果が届く前のツール呼び出しの状態（#192）。画面だけが持ち、サーバーは付けず、保存もしない。
  *
@@ -260,9 +263,30 @@ export type ToolCallInfo = {
   approval?: ToolApproval;
   /** ブラウザのツールが撮った画面（#200）。撮っていないツールは持たない */
   screenshots?: ToolScreenshot[];
+  /** サブエージェントに任せた委譲のツール（`delegate_to_agent`。#26）なら、その記録。ほかのツールは持たない */
+  subAgent?: SubAgentRun;
   /**
    * 結果が届く前なら、その状態（{@link ToolCallStatus}）。生成中の画面の仮の記録だけが持ち、結果が届いたら消す。
    * 保存する記録（サーバーから届いた結果）は持たない
    */
   status?: ToolCallStatus;
+};
+
+/**
+ * サブエージェントに任せた 1 回の記録（#26。`docs/29-multi-agent.md`「記録と画面」）。
+ *
+ * 委譲のツールの記録（{@link ToolCallInfo}）に入れ、メッセージの `metadata.toolCalls` にそのまま保存する。
+ * サブエージェントの回答は、委譲のツールの記録の `result`（メインへ返した文章）にある。
+ */
+export type SubAgentRun = {
+  /** 任せたサブエージェント */
+  agent: SubAgentName;
+  /** 任せた仕事（メインのモデルが書いた `task`） */
+  task: string;
+  /** サブエージェントの中のツールの呼び出し（呼ばれた順。サブエージェントは委譲しないため入れ子にならない） */
+  toolCalls: ToolCallInfo[];
+  /** サブエージェントの Ollama への問い合わせの回数（最終回答の問い合わせを含む） */
+  rounds: number;
+  /** サブエージェントのトークン数・所要時間（#31）。Ollama が返さなければ持たない */
+  metrics?: ResponseMetrics;
 };

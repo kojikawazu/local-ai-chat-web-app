@@ -134,7 +134,8 @@ async function buildMessages(body: ChatBody): Promise<BuildResult> {
  * 応答は `AgentStreamEvent` の NDJSON（`application/x-ndjson`）で逐次返す。
  * 通常モードは本文の `text_delta` と、終わりにトークン数・所要時間（`metrics`。#31）付きの `done` を送る。
  * `enableTools` が真の場合はエージェントループを起動し、ツール呼び出し・思考過程・
- * 最終応答のイベントを送る。
+ * 最終応答のイベントを送る。`enableSubAgents`（#26）も真なら、調べもの・読みものをサブエージェントに任せる
+ * 委譲のツール（`delegate_to_agent`）をモデルへ渡す。
  *
  * ボディは {@link parseChatBody} で検証し、不正なら Ollama を呼ばずに 400 を返す。
  * 添付画像の ID（`imageIds`・履歴の各要素の `imageIds`。#6）は DB から読んで Ollama の `images` へ渡す
@@ -146,7 +147,7 @@ async function buildMessages(body: ChatBody): Promise<BuildResult> {
  * ブラウザが停止・切断した場合（`request.signal` の abort・応答ストリームの cancel）は、
  * Ollama への接続を切って生成を止める。
  *
- * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`systemPrompt`・`knowledgeEnabled` を含む JSON ボディを持つリクエスト
+ * @param request - `message`（必須・最大 `MAX_MESSAGE_LENGTH` 文字）・`imageIds`・`conversationHistory`・`model`・`enableTools`・`enableSubAgents`・`systemPrompt`・`knowledgeEnabled` を含む JSON ボディを持つリクエスト
  * @returns 成功時はストリーミング `Response`（NDJSON）。JSON 構文・形・型・上限の検証失敗時・画像に対応していないモデルへの画像の送信・見つからない添付は 400、Ollama 接続・空応答時・ドキュメントを探す埋め込みを作れない（モデルが無い・Ollama に繋がらない）ときは 502、添付の読み込み・ドキュメントの検索の DB の失敗は 500 の JSON エラーレスポンス。Ollama の応答前に停止・切断された場合は本文なしの 499
  */
 export async function POST(request: NextRequest) {
@@ -156,7 +157,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { model, enableTools, systemPrompt, knowledgeEnabled } = parsed.value;
+  const {
+    model,
+    enableTools,
+    enableSubAgents,
+    systemPrompt,
+    knowledgeEnabled,
+  } = parsed.value;
 
   const built = await buildMessages(parsed.value);
   if (!built.ok) {
@@ -199,7 +206,7 @@ export async function POST(request: NextRequest) {
       prompt,
       request.signal,
       request.nextUrl.origin,
-      { knowledgeSources }
+      { knowledgeSources, enableSubAgents }
     );
     return new Response(agentStream, {
       headers: {

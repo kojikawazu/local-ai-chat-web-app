@@ -19,6 +19,7 @@ import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { approvalExpiresAt } from '@/lib/chat/approval-countdown';
 import {
   finishToolCall,
+  firstPendingToolCall,
   startToolCall,
   updateMessageToolCalls,
   updateToolCallStatus,
@@ -63,6 +64,8 @@ interface UseChatOptions {
   systemPrompt?: string;
   /** エージェントモードのプリセットの本文。役割の後ろに連結して送る。通常モードでは空にする。省略時は空。 */
   agentPrompt?: string;
+  /** 調べもの・読みものをサブエージェントに任せるか（#26。エージェントモードのときだけ効く）。省略時は任せない。 */
+  enableSubAgents?: boolean;
   /**
    * 登録したドキュメントを参照するか（#17 Phase B）。新規会話の作成時は会話に保存し、送信・再生成のたびに API へ送る。
    * 省略時は参照しない。
@@ -187,6 +190,7 @@ export function useChat({
   enableTools = false,
   systemPrompt = '',
   agentPrompt = '',
+  enableSubAgents = false,
   knowledgeEnabled = false,
   onConversationCreated,
   onTitleGenerated,
@@ -484,6 +488,7 @@ export function useChat({
             conversationHistory,
             model,
             enableTools,
+            enableSubAgents,
             // 役割は送信のたびに今の値を送る。途中で変えた役割は以降の送信から効く
             systemPrompt:
               buildSystemPrompt(systemPrompt, agentPrompt) || undefined,
@@ -566,12 +571,19 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_start') {
-                  patchChat(convId, {
-                    activeToolCall: {
-                      name: event.name,
-                      arguments: event.arguments,
-                    },
-                  });
+                  // 下の「実行中」の表示は、まだ結果の届いていない最初の呼び出しを出す（順に実行するツールで、順番待ちのものを
+                  // 実行中と見せないため。#26）。すでに出していれば替えない
+                  updateChatOf(convId, (chat) =>
+                    chat.activeToolCall
+                      ? chat
+                      : {
+                          ...chat,
+                          activeToolCall: {
+                            name: event.name,
+                            arguments: event.arguments,
+                          },
+                        }
+                  );
                   // arguments と本文の位置を pending キューに積む
                   const queue = pendingToolArgs.get(event.name) ?? [];
                   queue.push({
@@ -618,7 +630,6 @@ export function useChat({
                     )
                   );
                 } else if (event.type === 'tool_call_result') {
-                  patchChat(convId, { activeToolCall: null });
                   if (event.name === SAVE_MEMORY_TOOL_NAME && !event.isError) {
                     onMemorySaved?.();
                   }
@@ -659,6 +670,8 @@ export function useChat({
                     ...(event.screenshots && {
                       screenshots: event.screenshots,
                     }),
+                    // サブエージェントに任せた記録（#26）。結果のパネルで中の手順を見せる
+                    ...(event.subAgent && { subAgent: event.subAgent }),
                   };
                   for (const shot of event.screenshots ?? []) {
                     if (shot.data) screenshotData.set(shot.id, shot.data);
@@ -675,8 +688,17 @@ export function useChat({
                       ...(event.screenshots && {
                         screenshots: event.screenshots,
                       }),
+                      ...(event.subAgent && { subAgent: event.subAgent }),
                     })
                   );
+                  // 下の「実行中」の表示を、次のまだ結果の届いていない呼び出しへ移す（無ければ消す。#26）
+                  updateChatOf(convId, (chat) => ({
+                    ...chat,
+                    activeToolCall: firstPendingToolCall(
+                      chat.messages,
+                      aiMessageId
+                    ),
+                  }));
                 } else if (event.type === 'done') {
                   // done イベントで metadata（toolCalls・統計）を最終確定
                   if (event.metadata?.toolCalls) {
@@ -785,6 +807,7 @@ export function useChat({
     [
       model,
       enableTools,
+      enableSubAgents,
       systemPrompt,
       agentPrompt,
       knowledgeEnabled,

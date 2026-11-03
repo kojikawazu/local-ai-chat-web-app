@@ -24,6 +24,7 @@ import AttachButton from '@/components/features/chat/atoms/AttachButton';
 import AttachmentPreview from '@/components/features/chat/molecules/AttachmentPreview';
 import PromptTemplateSuggestions from '@/components/features/chat/molecules/PromptTemplateSuggestions';
 import KnowledgeToggle from '@/components/features/chat/atoms/KnowledgeToggle';
+import SubAgentToggle from '@/components/features/chat/atoms/SubAgentToggle';
 
 /** 親コンポーネントから {@link ChatBar} を操作するための命令的ハンドル。 */
 export interface ChatBarHandle {
@@ -78,6 +79,14 @@ interface ChatBarProps {
     noDocuments: boolean;
     onChange: (enabled: boolean) => void;
   };
+  /**
+   * 「サブエージェントに任せる」（#26。設定と同じ値）。エージェントモードのときだけ渡す。省略時は切り替えを出さない。
+   * `enabled` は今の値、`onChange` は切り替えた後の値を受け取る
+   */
+  subAgents?: {
+    enabled: boolean;
+    onChange: (enabled: boolean) => void;
+  };
 }
 
 /**
@@ -93,6 +102,7 @@ interface ChatBarProps {
  * `/…` を本文に置き換える。候補が出ている間の Escape は候補を閉じるだけで、生成は止めない。
  * 一致する候補が無いときの Enter はいつもどおり送信する。
  * 添付のボタンの隣に、会話ごとの「ドキュメントを参照」の切り替え（#17 Phase B）を置く。
+ * エージェントモードなら、その隣に「サブエージェントに任せる」の切り替え（#26。設定と同じ値）を置く。
  * `ref` から {@link ChatBarHandle} を通じて入力欄へフォーカスできる。
  *
  * @param props - 送信・停止のコールバックと、無効化・生成中のフラグを持つ props
@@ -114,6 +124,7 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
     onManageTemplates,
     onAddExampleTemplates,
     knowledge,
+    subAgents,
   },
   ref
 ) {
@@ -304,7 +315,7 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
               isDragging && 'ring-2 ring-nord-frost-1'
             )}
           >
-            {(onAddImages || knowledge) && (
+            {(onAddImages || knowledge || subAgents) && (
               <div className="flex gap-1 pb-1">
                 {onAddImages && <AttachButton onSelectFiles={onAddImages} />}
                 {knowledge && (
@@ -312,6 +323,12 @@ const ChatBar = forwardRef<ChatBarHandle, ChatBarProps>(function ChatBar(
                     pressed={knowledge.enabled}
                     noDocuments={knowledge.noDocuments}
                     onChange={knowledge.onChange}
+                  />
+                )}
+                {subAgents && (
+                  <SubAgentToggle
+                    pressed={subAgents.enabled}
+                    onChange={subAgents.onChange}
                   />
                 )}
               </div>

@@ -76,6 +76,7 @@
   }[];
   model?: string;          // 使用するモデル名（省略時はOLLAMA_MODEL環境変数のデフォルト値）
   enableTools?: boolean;   // true でエージェントモード（ツール呼び出し有効）。デフォルト false
+  enableSubAgents?: boolean; // true で調べもの・読みものをサブエージェントに任せる委譲のツール（delegate_to_agent）を渡す（#26。enableTools が true のときだけ効く）。デフォルト false
   systemPrompt?: string;   // システムプロンプト。通常・エージェントとも先頭の system メッセージにする（後ろに現在の日時を足す）。最大 10,000 文字
   knowledgeEnabled?: boolean; // true で登録したドキュメントから今回のメッセージに近い部分を探して渡す（#17 Phase B）。デフォルト false
 }
@@ -100,7 +101,7 @@
 **レスポンス**
 
 - 通常モード（`enableTools: false`）: Content-Type `application/x-ndjson`。本文を `text_delta` で逐次返し、終わりに `done` を送る。`done` の `metadata.metrics` は Ollama の終わりのチャンクのトークン数・所要時間（#31。`docs/19-token-metrics.md`。Ollama が返さなければ `metadata` を持たない）。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。#31 より前は本文の文字列を `text/event-stream` で返していた。
-- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31）。
+- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31。サブエージェントに任せた分も足す。#26）。委譲のツールの `tool_call_result` と `done` の `toolCalls[]` は、サブエージェントに任せた記録 `subAgent`（任せた相手 `agent`・仕事 `task`・中のツールの呼び出し `toolCalls`・問い合わせの回数 `rounds`・トークン数 `metrics`）を持つ（#26。`docs/29-multi-agent.md`「記録と画面」）。モデルへ渡していないツール（設定で有効にしていない委譲のツール・サブエージェントだけの `search_documents`）を呼ばれても実行せず、失敗の結果を返す。
 
 **停止・切断**: ブラウザが停止・切断すると（応答ストリームの cancel・`request.signal` の abort）、Ollama への接続を切って生成を止める（#8）。エージェントモードでは実行中のツールも中断し、次のラウンドへ進まず、イベントを送らずにストリームを閉じる（`error` は送らない）。停止はエラーとして記録しない。
 
@@ -448,9 +449,13 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も、KNOWLEDGE_MEMORY_VAULT が保管庫の名前なら save_memory（#236）も）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も、KNOWLEDGE_MEMORY_VAULT が保管庫の名前なら save_memory（#236）も、使えるサブエージェントがあれば delegate_to_agent（#26）も。サブエージェントだけの search_documents は含めない）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
+  }[];
+  subAgents: {            // 使えるサブエージェント（#26。中で使うツールが登録されているもの）
+    name: 'researcher' | 'reader';
+    label: string;        // 表示名（リサーチャー・手元の読み手）
   }[];
 }
 ```

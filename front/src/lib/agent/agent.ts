@@ -10,6 +10,7 @@ import {
 import { waitForApproval } from './approvals';
 import { addMetrics, metricsFromDoneChunk } from '@/lib/llm/metrics';
 import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
+import { DELEGATE_TOOL_NAME } from '@/constants/agent/sub-agent';
 import type {
   ToolApproval,
   ToolCallInfo,
@@ -105,6 +106,24 @@ export function visionRequiredOutput(name: string): ToolOutput {
   const reason = `選択中のモデルは画像を読めないため、${name} は使えません`;
   return {
     result: `エラー: ${reason}。ページの内容は browser_snapshot で文字として読んでください。`,
+    isError: true,
+    summary: reason,
+  };
+}
+
+/**
+ * モデルへ渡していないツールを呼ばれたときの結果（#26）。
+ *
+ * 設定で有効にしていない委譲のツール・サブエージェントだけのツールを、モデルが名前を覚えていて呼ぶことがある。
+ * 渡したツールだけを実行する（渡していないものは、それぞれの条件を満たしていない）。
+ *
+ * @param name - 呼ばれたツール名
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+export function notOfferedToolOutput(name: string): ToolOutput {
+  const reason = `${name} はこの応答では使えません`;
+  return {
+    result: `エラー: ${reason}。渡したツールだけを使ってください。`,
     isError: true,
     summary: reason,
   };
@@ -231,7 +250,9 @@ async function runTool(
   const timed = await withToolTimeout(
     name,
     (signal) => executeTool(name, args, signal, context),
-    loopSignal
+    loopSignal,
+    // ツールが持つ上限（委譲のツール。#26）。無ければ withToolTimeout の既定（ツール全般の上限）
+    getTool(name)?.timeoutMs
   );
   return timed.ok
     ? { ...timed.value, durationMs: timed.durationMs }
@@ -391,13 +412,134 @@ async function runWithApproval(
       };
 }
 
-// Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
-// Ollama は tool_calls がある場合、done=true のチャンクに tool_calls を含めて返す。
-// テキスト応答の場合は各チャンクを逐次ストリームに流してリアルタイム表示を維持する。
-// 思考過程は 2 通りの返し方に対応する: 本文中の <think> タグ（qwen3 等）と、
-// 本文とは別の message.thinking フィールド（qwen3.8 等。#116）。
-// 終わりのチャンクのトークン数・所要時間も返す（#31。届かなければ undefined）。
-async function readOllamaResponse(
+/**
+ * 承認の要求を送る相手がいないループ（サブエージェント。#26）で、承認が要るツールを呼ばれたときの結果。
+ *
+ * サブエージェントには読むツールだけを渡すため、ふつうは通らない。通っても承認を経ずに実行しない。
+ *
+ * @param name - 呼ばれたツール名
+ * @returns モデルへ返す文章と、画面に出す失敗の要約
+ */
+function approvalUnavailableOutput(name: string): ToolOutput {
+  const reason = `${name} は利用者の承認が要るため、ここでは実行できません`;
+  return { result: `エラー: ${reason}`, isError: true, summary: reason };
+}
+
+/** {@link executeToolCall} に渡す、ループ（メイン・サブエージェント）の状態。 */
+export type ToolCallState = {
+  /** この応答でモデルへ渡したツールの名前。渡していないツールは実行しない（#26） */
+  offered: ReadonlySet<string>;
+  /** モデルが画像を読めるか（#149） */
+  vision: boolean;
+  /** 接続先ごと使えないとわかったツール名 → 理由（#157）。以降の呼び出しは実行しない。実行した結果で足す */
+  unavailableTools: Map<string, string>;
+  /**
+   * この応答で手元の情報を読むツールが成功したか（#148）
+   *
+   * @returns 読んでいれば true
+   */
+  hasReadLocal: () => boolean;
+  /** 手元の情報を読んだことを記録する（以降は外部と通信するツールを止める） */
+  markReadLocal: () => void;
+  /** ループ全体の中断の signal */
+  signal: AbortSignal;
+  /** 応答ごとの文脈（{@link ToolContext}） */
+  context: ToolContext;
+  /**
+   * イベントを送る（承認の要求）。無いループ（サブエージェント）では、承認が要るツールを実行しない
+   *
+   * @param event - 送るイベント
+   */
+  send?: (event: AgentStreamEvent) => void;
+};
+
+/** {@link executeToolCall} の結果。ループだけが読む印は外し、画面・DB へ送るものとループが使うものに分けてある。 */
+export type ToolCallOutcome = {
+  /** 画面・DB へ送る結果（承認の結果・サブエージェントの記録を含む） */
+  output: ToolOutput & Pick<ToolCallInfo, 'approval'>;
+  /** 所要時間（承認を待つ時間は含めない） */
+  durationMs: number;
+  /** モデルへ画像として渡すもの（#149） */
+  images?: string[];
+  /** 利用者へ見せる画面（中身付き。#200） */
+  screenshots?: ToolScreenshot[];
+  /** ツールの中で使ったトークン数・所要時間（サブエージェント。#26） */
+  metrics?: ResponseMetrics;
+};
+
+/**
+ * 1 回のツールの呼び出しを、止める規則を当ててから実行する（メインとサブエージェントで共通。#26 で runAgentLoop から切り出した）。
+ *
+ * 判定の順: 同じ応答で使えないとわかった → 画像を読めないモデルの画像のツール → モデルへ渡していない →
+ * 手元を読んだ後の外部と通信するツール（#148）→ 承認が要るツール（承認の後に実行）→ 実行。
+ * 実行の後、接続先ごと使えない失敗（`unavailable`）と、手元の情報を読んだこと（`access: 'local'` の成功・`readLocal`）を `state` に記録する。
+ *
+ * @param name - 呼ばれたツール名
+ * @param args - LLM から渡された引数
+ * @param state - ループの状態（{@link ToolCallState}）
+ * @returns 結果（{@link ToolCallOutcome}）。失敗も例外にせず `isError` で返す
+ */
+export async function executeToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  state: ToolCallState
+): Promise<ToolCallOutcome> {
+  const tool = getTool(name);
+  const skipReason = state.unavailableTools.get(name);
+  const access = resolveAccess(tool, args);
+  const {
+    durationMs,
+    unavailable,
+    images,
+    readLocal,
+    screenshots,
+    metrics,
+    ...output
+  } =
+    skipReason !== undefined
+      ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
+      : tool?.requiresVision && !state.vision
+        ? { ...visionRequiredOutput(name), durationMs: 0 }
+        : tool && !state.offered.has(name)
+          ? { ...notOfferedToolOutput(name), durationMs: 0 }
+          : shouldBlockTool(access, state.hasReadLocal())
+            ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
+            : tool?.prepare
+              ? state.send
+                ? await runWithApproval(
+                    { ...tool, prepare: tool.prepare },
+                    args,
+                    state.send,
+                    state.signal,
+                    state.context
+                  )
+                : { ...approvalUnavailableOutput(name), durationMs: 0 }
+              : await runTool(name, args, state.signal, state.context);
+  if (unavailable) {
+    state.unavailableTools.set(name, output.summary ?? output.result);
+  }
+  if ((access === 'local' && !output.isError) || readLocal) {
+    state.markReadLocal();
+  }
+  return { output, durationMs, images, screenshots, metrics };
+}
+
+/**
+ * Ollama のストリーミングレスポンスを読み取り、tool_calls かテキストかを判定する。
+ *
+ * Ollama は tool_calls がある場合、done=true のチャンクに tool_calls を含めて返す。
+ * テキスト応答の場合は各チャンクを逐次 `onTextChunk` に渡す（メインはストリームに流してリアルタイム表示を維持し、
+ * サブエージェント（#26）は集める）。
+ * 思考過程は 2 通りの返し方に対応する: 本文中の <think> タグ（qwen3 等）と、
+ * 本文とは別の message.thinking フィールド（qwen3.8 等。#116）。
+ *
+ * @param response - Ollama の `/api/chat` のストリーミングの応答
+ * @param onTextChunk - 本文の断片を受け取る
+ * @param onThinking - 思考過程のまとまりを受け取る
+ * @returns 呼ばれたツールと、終わりのチャンクのトークン数・所要時間（#31。届かなければ `undefined`）
+ * @throws {Error} 応答のボディが無い場合、または読み取り中に中断された場合
+ */
+export async function readOllamaResponse(
   response: Response,
   onTextChunk: (text: string) => void,
   onThinking: (text: string) => void
@@ -555,6 +697,11 @@ type AgentLoopOptions = {
    * 探したが見つからなかった応答は空の配列
    */
   knowledgeSources?: KnowledgeSource[];
+  /**
+   * 委譲のツール（`delegate_to_agent`。#26）をモデルへ渡すか。設定の「サブエージェントに任せる」。
+   * 偽・省略なら渡さない（呼ばれても実行しない）
+   */
+  enableSubAgents?: boolean;
 };
 
 /**
@@ -568,6 +715,8 @@ type AgentLoopOptions = {
  * ツールが接続先ごと使えない失敗（`unavailable`）を返したら、同じ応答の中ではそのツールを
  * 再び実行せず、実行しなかったことを結果として返す（#157）。
  * ローカルのファイルを読むツールが成功した後は、外部と通信するツールを実行しない（#148。{@link shouldBlockTool}）。
+ * モデルへ渡していないツール（設定で有効にしていない委譲のツール・サブエージェントだけのツール。#26）は実行しない。
+ * 1 回のツールの呼び出しの判定と実行は {@link executeToolCall} で行う（サブエージェントのループと共有）。
  * 承認が要るツール（`prepare` を持つ。ファイルの書き込み等）は、`tool_approval_request` を送って利用者の許可を待ってから実行する
  * （#148 Phase A2。{@link runWithApproval}）。
  * ツールには応答ごとの文脈（{@link ToolContext}。#149）を渡し、応答の終わりに、ツールが登録した後始末（ブラウザのページを閉じる等）を行う。
@@ -583,7 +732,8 @@ type AgentLoopOptions = {
  * @param signal - 中断の信号（Route Handler の `request.signal`）。未指定ならストリームの cancel でのみ止まる
  * @param appOrigin - このアプリ自身のオリジン（ブラウザのツールで開かせない。#149）。未指定なら判定しない
  * @param options - 応答ごとの指定。`knowledgeSources`（#17 Phase B）があれば、ストリームの最初に `knowledge_sources` を送る。
- *   1 件以上なら、抜き出しをシステムプロンプトで渡した応答として、最初から手元の情報を読んだ扱いにする（外部と通信するツールを止める）
+ *   1 件以上なら、抜き出しをシステムプロンプトで渡した応答として、最初から手元の情報を読んだ扱いにする（外部と通信するツールを止める）。
+ *   `enableSubAgents`（#26）が真なら、委譲のツールをモデルへ渡す（サブエージェントのトークン数も応答の合計に足す）
  * @returns NDJSON イベント（knowledge_sources / text_delta / thinking / tool_call_start / tool_call_result / done / error）を流すストリーム
  */
 export function runAgentLoop(
@@ -594,7 +744,7 @@ export function runAgentLoop(
   appOrigin?: string,
   options: AgentLoopOptions = {}
 ): ReadableStream<Uint8Array> {
-  const { knowledgeSources } = options;
+  const { knowledgeSources, enableSubAgents = false } = options;
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
@@ -605,6 +755,7 @@ export function runAgentLoop(
   const disposers: (() => Promise<void>)[] = [];
   const toolContext: ToolContext = {
     appOrigin,
+    model,
     scope: new Map(),
     onDispose: (dispose) => {
       disposers.push(dispose);
@@ -689,7 +840,23 @@ export function runAgentLoop(
       const vision = hasVisionTools()
         ? await supportsVision(model).catch(() => false)
         : false;
-      const tools = getAllToolDefinitions({ excludeVision: !vision });
+      const tools = getAllToolDefinitions({
+        excludeVision: !vision,
+        // 設定で有効にしていなければ、委譲のツールを渡さない（#26）
+        excludeNames: enableSubAgents ? [] : [DELEGATE_TOOL_NAME],
+      });
+      const toolState: ToolCallState = {
+        offered: new Set(tools.map((tool) => tool.function.name)),
+        vision,
+        unavailableTools,
+        hasReadLocal: () => hasReadLocalFiles,
+        markReadLocal: () => {
+          hasReadLocalFiles = true;
+        },
+        signal: loopSignal,
+        context: toolContext,
+        send,
+      };
 
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -750,39 +917,15 @@ export function runAgentLoop(
                 if (loopSignal.aborted) {
                   return { name, result: '', images: undefined };
                 }
-                const skipReason = unavailableTools.get(name);
-                const access = resolveAccess(tool, args);
-                // unavailable・images・readLocal はループだけが読む印。画面・DB へは送らない。
-                // screenshots（#200）は中身付きでイベントに載せ、記録には中身を外して入れる
                 const {
+                  output,
                   durationMs,
-                  unavailable,
                   images,
-                  readLocal,
                   screenshots,
-                  ...output
-                } =
-                  skipReason !== undefined
-                    ? { ...skippedToolOutput(name, skipReason), durationMs: 0 }
-                    : tool?.requiresVision && !vision
-                      ? { ...visionRequiredOutput(name), durationMs: 0 }
-                      : shouldBlockTool(access, hasReadLocalFiles)
-                        ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
-                        : tool?.prepare
-                          ? await runWithApproval(
-                              { ...tool, prepare: tool.prepare },
-                              args,
-                              send,
-                              loopSignal,
-                              toolContext
-                            )
-                          : await runTool(name, args, loopSignal, toolContext);
-                if (unavailable) {
-                  unavailableTools.set(name, output.summary ?? output.result);
-                }
-                if ((access === 'local' && !output.isError) || readLocal) {
-                  hasReadLocalFiles = true;
-                }
+                  metrics: toolMetrics,
+                } = await executeToolCall(name, args, toolState);
+                // サブエージェントのトークン数・所要時間も、応答のために使ったため合計に足す（#26）
+                metrics = addMetrics(metrics, toolMetrics);
 
                 // 実行結果イベント
                 send({

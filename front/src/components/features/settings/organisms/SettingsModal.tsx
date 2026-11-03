@@ -7,6 +7,7 @@ import {
   BrainCircuit,
   FileText,
   Keyboard,
+  Network,
 } from 'lucide-react';
 import type { ThemeId } from '@/types/theme/theme';
 import { THEMES } from '@/types/theme/theme';
@@ -43,6 +44,10 @@ interface SettingsModalProps {
   agentPromptPresetId: string;
   /** プロンプトプリセット選択が変わったときに呼ばれる。引数はプリセット ID */
   onAgentPromptPresetChange: (id: string) => void;
+  /** 調べもの・読みものをサブエージェントに任せるか（#26。エージェントモードのときだけ効く） */
+  enableSubAgents: boolean;
+  /** サブエージェントに任せるかが切り替わったときに呼ばれる */
+  onEnableSubAgentsChange: (enabled: boolean) => void;
   /** プロンプトテンプレートの「管理」で呼ばれる（#28。設定モーダルを閉じてから管理画面を開く） */
   onOpenPromptTemplates: () => void;
   /** 「キーボードショートカット」の「一覧」で呼ばれる（#33。設定モーダルを閉じてからショートカットの一覧を開く） */
@@ -53,7 +58,7 @@ interface SettingsModalProps {
  * モデル・ツール使用・エージェントプロンプト・テーマを設定し、プロンプトテンプレートの管理画面（#28）・ショートカットの一覧（#33）を開くモーダル。
  *
  * `isOpen` が false の間は何も描画しない。ツール使用が有効なときのみ
- * エージェントプロンプトの選択欄を表示する。外枠は共通の {@link Modal}（ネイティブの `<dialog>`）で、
+ * エージェントプロンプトの選択欄と、サブエージェントに任せるかの切り替え（#26）を表示する。外枠は共通の {@link Modal}（ネイティブの `<dialog>`）で、
  * 入力を失う心配が無いため背景のクリックでも閉じる。
  *
  * @param props - 設定値の現在状態と各設定の変更ハンドラー
@@ -70,6 +75,8 @@ export default function SettingsModal({
   onEnableToolsChange,
   agentPromptPresetId,
   onAgentPromptPresetChange,
+  enableSubAgents,
+  onEnableSubAgentsChange,
   onOpenPromptTemplates,
   onOpenShortcuts,
 }: SettingsModalProps) {
@@ -167,6 +174,35 @@ export default function SettingsModal({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {enableTools && (
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-nord-6">
+              <Network size={16} className="text-nord-frost-1" />
+              Sub-agents
+            </label>
+            <button
+              onClick={() => onEnableSubAgentsChange(!enableSubAgents)}
+              aria-pressed={enableSubAgents}
+              className={`flex items-center justify-between w-full px-4 py-3 rounded-lg border transition-all ${
+                enableSubAgents
+                  ? 'bg-nord-frost-1/20 border-nord-frost-1'
+                  : 'bg-nord-2 border-nord-3 hover:bg-nord-3'
+              }`}
+            >
+              <div className="text-left">
+                <p className="text-sm font-semibold text-nord-6">
+                  サブエージェントに任せる
+                </p>
+                <p className="text-xs text-nord-4/60">
+                  Web
+                  の調べもの・手元の読みものを専用のエージェントに任せ、まとめた結果で答えます（応答は遅くなります）
+                </p>
+              </div>
+              <Switch checked={enableSubAgents} className="ml-4" />
+            </button>
           </div>
         )}
 

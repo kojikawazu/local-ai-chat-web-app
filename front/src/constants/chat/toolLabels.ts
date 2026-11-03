@@ -25,4 +25,6 @@ export const TOOL_LABELS: Record<string, string> = {
   browser_type: '入力',
   browser_select: '選択',
   save_memory: 'メモを保存',
+  delegate_to_agent: 'サブエージェントに任せる',
+  search_documents: 'ドキュメントを探す',
 };

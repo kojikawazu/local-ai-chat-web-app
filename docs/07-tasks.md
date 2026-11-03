@@ -1321,3 +1321,16 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 一時フォルダに複製したメモの保管庫で、大きいモデルに自然な言い方で覚えさせて確かめた（ツールの説明で文章の確認をさせない・保存の後に「ドキュメントを参照」を入れられるよう読み直す（`useChat` の `onMemorySaved`）を直した）
 - [x] UT（`knowledge-memory.test.ts` 50 件）・IT（`knowledge-memory.test.ts` 16 件。一時フォルダの本物の git のリポジトリ・`/api/chat` の許可と拒否・フックでのコミットの失敗）・E2E（`knowledge-memory.spec.ts` 6 件。ツール呼び出しの 3 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`15`・`28`、`CLAUDE.md`、README（日本語・英語）、`manuals/setup-guide-macos.md`、`front/.env.example`、`.claude/rules/{api,security,testing}.md`）
+
+## フェーズ65: マルチエージェント — 調べもの・読みものをサブエージェントに任せる（#26 Phase A）
+
+エージェントモードのモデルが、Web の調べもの（`researcher`）・手元の読みもの（`reader`）をサブエージェントに任せ、まとめた結果だけを受け取って答える（委譲のツール `delegate_to_agent`。設定で有効にしたときだけ）。設計は [29-multi-agent.md](./29-multi-agent.md)。 — #26・サブ issue #239（2026-11-03 着手）
+
+- [x] 設計（`docs/29-multi-agent.md`。`qwen3.8:27b` が委譲のツールを使い分け、会話を見ない相手に分かる仕事の文を書けることを確かめた）・レビュー（有効にする方法は設定の切り替え・顔ぶれは Web と手元の読むだけ・進捗は終わってから手順を出す・`search_documents` は手元の読み手だけ。ほかも推奨どおり）
+- [x] ループの共通化（`agent.ts` の `executeToolCall`。「モデルへ渡していないツールは実行しない」を足した）とサブエージェントのループ（`sub-agent-loop.ts` の `runSubAgent`。ラウンド 6・150 秒で途中の問い合わせも止めてまとめる・300 秒で止めて記録を返す）・サブエージェントの定義（`sub-agents.ts`）
+- [x] 委譲のツール（`delegate_to_agent`。1 つずつ・1 応答 4 回・保険の 330 秒・`Tool.timeoutMs`）と登録したドキュメントを探すツール（`search_documents`。`subAgentOnly`）
+- [x] 設定の切り替え（「サブエージェントに任せる」・`enableSubAgents`）と委譲の記録の表示（`SubAgentRunDetails`・見出しの「サブエージェント: Web の調べもの」）。保存した記録を読み直すと `subAgent` が消えていたのを直した（`message-metadata.ts` の `parseSubAgentRun`）
+- [x] 大きいモデル・本物の SearXNG で確かめた（委譲は 6 回中 3 回。2 つの委譲が時間切れになり調べた分が失われたため、150 秒で途中の問い合わせも止めてまとめ、300 秒で止めても記録を返すようにし、リサーチャーに読み直さない指示を足した）
+- [x] 画面を触って、サブエージェントを使っているかが分からなかったため、入力欄の横に切り替え（`SubAgentToggle`）を出し、委譲の見出し・実行中の表示をサブエージェントのアイコンと色にした（実行中は任せた相手・仕事・経過時間）。下の「実行中」が順番待ちの委譲を出していたのを、まだ結果の届いていない最初の呼び出しにした。見出しをサブエージェントだと分かる仕事の名前（「サブエージェント: Web の調べもの」）にした（役割の名前はプリセットの「リサーチャー」とぶつかった）
+- [x] UT（`sub-agent.test.ts` 27 件・`tool-call-progress.test.ts` に `firstPendingToolCall`・`request-body.test.ts` に `enableSubAgents`）・IT（`chat-agent-sub-agent.test.ts` 16 件・`chat-agent-sub-agent-time.test.ts` 3 件）・E2E（`multi-agent.spec.ts` 6 件。実際に任せる 1 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`12`・`28`・`29`・`models/qwen3.8-27b.md`、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,documentation}.md`）

@@ -442,6 +442,8 @@ export default function ChatWindow({
             activeToolCall && (
               <div className="mr-auto max-w-[85%] md:max-w-[70%]">
                 <ToolCallIndicator
+                  // 別の呼び出しに替わったら作り直す（サブエージェントに任せている間の経過時間を数え直す。#26）
+                  key={`${activeToolCall.name}:${JSON.stringify(activeToolCall.arguments)}`}
                   name={activeToolCall.name}
                   arguments={activeToolCall.arguments}
                 />

@@ -141,6 +141,7 @@ describe('parseChatBody', () => {
           ],
           model: 'qwen2.5:0.5b',
           enableTools: true,
+          enableSubAgents: true,
           systemPrompt: 'あなたはリサーチャーです',
           knowledgeEnabled: true,
         })
@@ -155,13 +156,14 @@ describe('parseChatBody', () => {
           ],
           model: 'qwen2.5:0.5b',
           enableTools: true,
+          enableSubAgents: true,
           systemPrompt: 'あなたはリサーチャーです',
           knowledgeEnabled: true,
         },
       });
     });
 
-    it('message だけなら履歴は空・enableTools と knowledgeEnabled は false になる', () => {
+    it('message だけなら履歴は空・enableTools・enableSubAgents・knowledgeEnabled は false になる', () => {
       expect(parseChatBody({ message: 'やあ' })).toEqual({
         ok: true,
         value: {
@@ -170,6 +172,7 @@ describe('parseChatBody', () => {
           conversationHistory: [],
           model: undefined,
           enableTools: false,
+          enableSubAgents: false,
           systemPrompt: undefined,
           knowledgeEnabled: false,
         },
@@ -184,6 +187,7 @@ describe('parseChatBody', () => {
         conversationHistory: null,
         model: null,
         enableTools: null,
+        enableSubAgents: null,
         systemPrompt: null,
         knowledgeEnabled: null,
       });
@@ -195,6 +199,7 @@ describe('parseChatBody', () => {
           conversationHistory: [],
           model: undefined,
           enableTools: false,
+          enableSubAgents: false,
           systemPrompt: undefined,
           knowledgeEnabled: false,
         },
@@ -291,6 +296,11 @@ describe('parseChatBody', () => {
         'enableTools',
         { enableTools: 'true' },
         'enableToolsは真偽値で指定してください',
+      ],
+      [
+        'enableSubAgents',
+        { enableSubAgents: 'yes' },
+        'enableSubAgentsは真偽値で指定してください',
       ],
       [
         'knowledgeEnabled',
