@@ -8,6 +8,13 @@ import {
   hasVisionTools,
 } from './tools/index';
 import { waitForApproval } from './approvals';
+import {
+  hasInstructions,
+  onInstruction,
+  registerResponse,
+  takeInstructions,
+  unregisterResponse,
+} from './instructions';
 import { addMetrics, metricsFromDoneChunk } from '@/lib/llm/metrics';
 import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
 import { DELEGATE_TOOL_NAME } from '@/constants/agent/sub-agent';
@@ -56,6 +63,10 @@ const MAX_ROUNDS_NOTICE = `> ⚠️ ツール呼び出しの上限（${MAX_TOOL_
 // モデルのテンプレートによって無視・破損されるため、user の発言として渡す
 const FINAL_ANSWER_INSTRUCTION =
   'ツール呼び出しの上限に達したため、新しいツールは呼び出せません。これまでのツール実行結果だけを使って、元の質問に回答してください。情報が足りない点は、その旨を明記してください。';
+
+// 利用者の途中の指示（#241）を履歴に入れるときの前置き。最初の質問と区別させ、方針を直す指示だと分からせる
+const INSTRUCTION_PREFIX =
+  '（応答の途中で利用者から届いた追加の指示。ここまでの作業を活かし、この指示に沿って方針を直して続けること）';
 
 /**
  * 同じ応答の中で接続先ごと使えないとわかったツールを、再び呼ばれたときに実行せず返す結果（#157）。
@@ -787,6 +798,13 @@ export function runAgentLoop(
   let hasReadLocalFiles = (knowledgeSources?.length ?? 0) > 0;
   // 応答の終わりに行う後始末（ブラウザのページを閉じる等。#149）
   const disposers: (() => Promise<void>)[] = [];
+  // 応答の途中の指示（#241）の受け箱。届いたら今の signal を abort し（サブエージェントがまとめ始める）、読んだら新しい signal に替える
+  const responseId = crypto.randomUUID();
+  registerResponse(responseId);
+  let instructionController = new AbortController();
+  const stopListening = onInstruction(responseId, () =>
+    instructionController.abort()
+  );
   const toolContext: ToolContext = {
     appOrigin,
     model,
@@ -795,6 +813,7 @@ export function runAgentLoop(
       disposers.push(dispose);
     },
     hasReadLocal: () => hasReadLocalFiles,
+    instructionSignal: () => instructionController.signal,
   };
   // 同じ組（exclusive）のツールを、呼ばれた順に 1 つずつ実行する（#149 Phase C）
   const inOrder = createInOrderQueue();
@@ -824,10 +843,13 @@ export function runAgentLoop(
       let sentTail = '';
       // ツールを呼んだ後で、次に届く本文の前に区切りを入れるか
       let pendingSeparator = false;
+      // このラウンドで送った本文（本文を書き終えた後に指示が届いたとき、書いた本文を履歴に足す。#241）
+      let roundText = '';
       const emitText = (text: string) => {
         send({ type: 'text_delta', content: text });
         sentLength += text.length;
         sentTail = (sentTail + text).slice(-2);
+        roundText += text;
       };
       // 本文の中継・上限の注記は、区切りと文字数の勘定を通して送る
       const sendEvent = (event: AgentStreamEvent) => {
@@ -843,10 +865,32 @@ export function runAgentLoop(
         emitText(event.content);
       };
 
+      // 利用者の途中の指示（#241）を区切りで読む。user の発言として履歴に足し、読んだ位置を画面へ知らせる。
+      // 読んだら signal を替える（次に任せる仕事を、もう読んだ指示でまとめさせない）
+      const applyInstructions = () => {
+        const items = takeInstructions(responseId);
+        if (items.length === 0) return;
+        instructionController = new AbortController();
+        for (const item of items) {
+          history.push({
+            role: 'user',
+            content: `${INSTRUCTION_PREFIX}\n${item.content}`,
+          });
+          send({
+            type: 'instruction_applied',
+            instructionId: item.id,
+            contentOffset: sentLength,
+          });
+        }
+        if (sentLength > 0) pendingSeparator = true;
+      };
+
       // 探したドキュメントの出典は、本文より先に 1 回だけ送る（#17 Phase B）
       if (knowledgeSources) {
         send({ type: 'knowledge_sources', sources: knowledgeSources });
       }
+      // 途中の指示（#241）を送る先の応答の ID
+      send({ type: 'response_started', responseId });
 
       // システムプロンプトがあれば先頭に追加
       const history = withSystemPrompt(messages, systemPrompt);
@@ -894,6 +938,8 @@ export function runAgentLoop(
 
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          roundText = '';
+          applyInstructions();
           let ollamaResponse: Response;
           try {
             ollamaResponse = await streamChat(history, model, tools, {
@@ -917,6 +963,12 @@ export function runAgentLoop(
 
           // ツール呼び出しなし → テキスト応答のストリーミングは中継時に完了済み
           if (toolCalls.length === 0) {
+            // 本文を書き終えた後に指示が届いていれば、書いた本文を残して続ける（次のラウンドの前に指示を読む。#241）
+            if (hasInstructions(responseId) && round + 1 < MAX_TOOL_ROUNDS) {
+              history.push({ role: 'assistant', content: roundText });
+              pendingSeparator = true;
+              continue;
+            }
             finish(round + 1);
             return;
           }
@@ -1023,6 +1075,7 @@ export function runAgentLoop(
         // 取得済みの結果を捨てないよう、ツールを渡さずにもう 1 回問い合わせて最終回答を作らせる。
         // ツール定義が無ければモデルはツールを呼べず、テキストで答えるしかない
         sendEvent({ type: 'text_delta', content: MAX_ROUNDS_NOTICE });
+        applyInstructions();
         history.push({ role: 'user', content: FINAL_ANSWER_INSTRUCTION });
         try {
           const finalResponse = await streamChat(history, model, undefined, {
@@ -1051,6 +1104,9 @@ export function runAgentLoop(
         send({ type: 'error', message: msg });
         close();
       } finally {
+        // 途中の指示の受け箱を消す（終わった応答への指示の API は 404 になる。#241）
+        stopListening();
+        unregisterResponse(responseId);
         // ツールが登録した後始末（ブラウザのページを閉じる等）。失敗してもほかの後始末は続ける
         const disposed = await Promise.allSettled(
           disposers.map((dispose) => dispose())

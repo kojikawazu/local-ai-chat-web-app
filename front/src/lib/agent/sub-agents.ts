@@ -212,14 +212,18 @@ export type SubAgentResult = Omit<SubAgentRun, 'agent' | 'task'> & {
   answer: string;
   /** Ollama に問い合わせられなかった・応答を読めなかった理由。成功なら持たない */
   error?: string;
-  /** ラウンドの上限（`rounds`）・時間（`time`）に達して、ツールを渡さずに最終回答を作らせたなら、その理由 */
-  limit?: 'rounds' | 'time';
+  /**
+   * ラウンドの上限（`rounds`）・時間（`time`）に達した、または利用者の途中の指示（`instruction`。#241）が届いて、
+   * ツールを渡さずに最終回答を作らせたなら、その理由
+   */
+  limit?: 'rounds' | 'time' | 'instruction';
 };
 
 /** 上限に達してまとめた理由の、要約に出す名前 */
 const LIMIT_LABELS: Record<NonNullable<SubAgentResult['limit']>, string> = {
   rounds: '問い合わせの上限',
   time: '時間の上限',
+  instruction: '追加の指示',
 };
 
 /**

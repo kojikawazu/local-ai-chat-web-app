@@ -29,6 +29,12 @@ export type ChatState = {
   activeToolCall: ActiveToolCall | null;
   /** 承認を待っているツールの実行（届いた順。#148 Phase A2）。無ければ空配列 */
   pendingApprovals: ToolApprovalRequest[];
+  /** 生成中のエージェントの応答の ID（#241。途中の指示を送る先）。届く前・生成していなければ `null` */
+  responseId: string | null;
+  /**
+   * 入力欄に戻す文（#241。読まれずに応答が終わった途中の指示）。`id` が替わるたびに入力欄へ足す。無ければ `null`
+   */
+  restoredDraft: { id: number; text: string } | null;
 };
 
 /** 会話ごとのチャット状態。キーは会話 ID か {@link NEW_CONVERSATION_KEY}。 */
@@ -41,6 +47,8 @@ export const EMPTY_CHAT: ChatState = {
   error: null,
   activeToolCall: null,
   pendingApprovals: [],
+  responseId: null,
+  restoredDraft: null,
 };
 
 /**

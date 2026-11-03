@@ -100,6 +100,7 @@ front/tests/
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
+    ├── agent-interrupt.spec.ts    # 応答の途中の指示（エージェントモードの生成中だけ「割り込む」・応答の ID が届くまで押せない・保存した応答の指示の位置・読まれなかった指示・大きいモデルで割り込んで読まれる・指示の API の失敗で入力欄に戻る（軽量モデルでスキップ）。#241）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     ├── agent-timeline.spec.ts     # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）

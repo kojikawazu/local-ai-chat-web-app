@@ -19,6 +19,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_LONG_EDGE,
   MAX_IMAGES_PER_MESSAGE,
+  MAX_INSTRUCTION_LENGTH,
   MAX_MESSAGE_LENGTH,
   MAX_PROMPT_TEMPLATE_NAME_LENGTH,
   MAX_PROMPT_TEMPLATE_SHORTCUT_LENGTH,
@@ -653,6 +654,36 @@ export function parseApprovalBody(body: unknown): ParseResult<ApprovalBody> {
     };
   }
   return { ok: true, value: { approved: body.approved } };
+}
+
+/** `POST /api/agent/responses/[id]/instructions` の検証済みボディ。 */
+export type InstructionBody = {
+  /** 前後の空白を除いた指示の本文 */
+  content: string;
+};
+
+/**
+ * `POST /api/agent/responses/[id]/instructions` のボディを検証する（応答の途中の指示。#241）。
+ *
+ * @param body - {@link readJsonBody} で読み取った値
+ * @returns 検証済みのボディ。オブジェクトでない・`content` が文字列でない・空・{@link MAX_INSTRUCTION_LENGTH} 文字を超えるなら失敗
+ */
+export function parseInstructionBody(
+  body: unknown
+): ParseResult<InstructionBody> {
+  if (!isJsonObject(body)) return { ok: false, error: NOT_OBJECT_ERROR };
+  if (typeof body.content !== 'string') {
+    return { ok: false, error: 'contentは文字列で指定してください' };
+  }
+  const content = body.content.trim();
+  if (!content) return { ok: false, error: '指示を入力してください' };
+  if (content.length > MAX_INSTRUCTION_LENGTH) {
+    return {
+      ok: false,
+      error: `指示は${formatCount(MAX_INSTRUCTION_LENGTH)}文字以内で入力してください`,
+    };
+  }
+  return { ok: true, value: { content } };
 }
 
 /**

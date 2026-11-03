@@ -142,6 +142,18 @@ export const MAX_PROMPT_TEMPLATES = 100;
  */
 export const MAX_BOOKMARK_NOTE_LENGTH = 500;
 /**
+ * 応答の途中の指示（割り込み。#241）1 件の最大文字数。
+ *
+ * 方針を直す一言〜数行の長さ。メッセージの上限（{@link MAX_MESSAGE_LENGTH}）より小さくし、受け箱を膨らませない。
+ */
+export const MAX_INSTRUCTION_LENGTH = 2_000;
+/**
+ * 1 回の応答で送れる途中の指示（#241）の最大件数。
+ *
+ * 区切りごとに 1 件ずつ読ませても、ラウンドの上限（既定 10）に収まる数。
+ */
+export const MAX_INSTRUCTIONS_PER_RESPONSE = 5;
+/**
  * 取り込むドキュメント 1 つの最大バイト数（UTF-8。#17）。
  *
  * 取り込みは応答の中で埋め込みまで作るため、約 20 秒で終わる大きさにする（docs の 890 KB で 18 秒。`docs/28-rag.md`）。

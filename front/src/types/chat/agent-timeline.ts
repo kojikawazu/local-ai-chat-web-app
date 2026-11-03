@@ -13,6 +13,12 @@ export type AgentTimelineStep =
       kind: 'tools';
       /** 呼んだ順のツール呼び出し */
       toolCalls: ToolCallInfo[];
+    }
+  | {
+      /** 応答の途中で利用者が送り、エージェントが読んだ指示（#241） */
+      kind: 'instruction';
+      /** 指示の本文 */
+      content: string;
     };
 
 /** エージェントの応答を、本文とツールの結果の時系列に並べ直したもの（#186）。 */

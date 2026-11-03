@@ -48,6 +48,7 @@ Next.js Route Handlers (API層)
 - 会話履歴はPostgreSQLに永続化し、Prisma ORMで操作する。添付画像もメッセージに紐づけて PostgreSQL（`bytea`）に置き、`/api/chat` は画像を ID で受けて DB から読み、Ollama へ渡す（#6。`docs/13-image-attachment.md`）。
 - RAG の保管庫（#235）は `KNOWLEDGE_VAULTS` の手元のノートのリポジトリ・フォルダ。画面の「同期」で差分を求め、1 ファイルずつ取り込む。git のリポジトリは既定のブランチのコミット済みの中身だけを読み（`git ls-tree`・`git cat-file`。通信しない）、名前を `保管庫の名前/パス` にしたドキュメントとして同じ索引に置く。
 - 会話から覚えさせたメモ（#236）は、エージェントの `save_memory`（実行前に承認）が `KNOWLEDGE_MEMORY_VAULT` の保管庫の `memories/<名前>.md` に書き、git のリポジトリなら main にそのファイルだけをコミットし（`git add`・`git commit --only`。push しない）、保管庫の 1 ファイルの同期と同じ処理で索引に入れる。正本は保管庫のファイル。
+- 応答の途中の指示（#241。`docs/30-agent-interrupt.md`）は、エージェントモードの応答の最初に応答の ID（`response_started`）を送り、画面が `POST /api/agent/responses/[id]/instructions` で送った指示を応答ごとの受け箱（`globalThis`）にためる。エージェントループは次の問い合わせの前（区切り）に受け箱を読み、user の発言として履歴に入れて方針を直す。本文を書き終えた後に届いていればもう 1 ラウンド回し、サブエージェントに任せている間に届いたら、サブエージェントはここまでの情報でまとめて戻る。
 - マルチエージェント（#26。`docs/29-multi-agent.md`）は、設定の「サブエージェントに任せる」を入れたエージェントモードの応答で、委譲のツール `delegate_to_agent` をモデルへ渡す。モデルが委譲すると、サブエージェント（Web の調べものの `researcher`・手元の読みものの `reader`）が自分のシステムプロンプトと任された仕事だけで同じモデルのループを回し（読むツールだけ・1 段だけ・1 つずつ）、まとめた回答だけをメインへ返す。中のツールの呼び出しは委譲の記録（`subAgent`）としてメッセージの metadata に残す。
 - RAG のドキュメント（#17）は、取り込むときに Ollama の埋め込み（`/api/embed`）でチャンクごとの埋め込みを作り、PostgreSQL の pgvector の `vector` の列に置く（`docs/28-rag.md`）。「ドキュメントを参照」を入れた会話（`Conversation.knowledgeEnabled`。Phase B）では、`/api/chat` が送るたびに今回のメッセージの埋め込みを作って近いチャンクを探し、システムプロンプトに入れ、出典をストリームの最初の `knowledge_sources` で返す。
 - Ollama接続先はローカルのみ想定（`localhost:11434`）。
@@ -106,6 +107,8 @@ front/src/
 │   └── api/                   #   Route Handlers
 │       ├── agent/approvals/[id]/
 │       │   └── route.ts       #     ツールの実行前の承認に許可・拒否を渡す（#148 Phase A2）
+│       ├── agent/responses/[id]/instructions/
+│       │   └── route.ts       #     応答の途中の指示を受け箱に入れる（#241）
 │       ├── attachments/[id]/
 │       │   └── route.ts       #     添付画像の取得（#6）
 │       ├── bookmarks/
@@ -172,6 +175,7 @@ front/src/
 │       │   │   ├── ImageZoomDialog.tsx   # 添付画像・スクリーンショットの拡大のダイアログ（要素の枠も重ねる。#6・#200）
 │       │   │   ├── ToolScreenshots.tsx   # ブラウザのツールが撮った画面を並べる（操作の前は要素の枠付き・押すと拡大。#200）
 │       │   │   ├── SubAgentRunDetails.tsx # サブエージェントに任せた仕事と中の手順（1 行ずつ・開くとそのツールの結果。#26）
+│       │   │   ├── InstructionNote.tsx   # 応答の途中の指示（読んだ・次の区切りで読む・読まれなかった。#241）
 │       │   │   ├── ResponseMetrics.tsx   # 応答のトークン数・生成の速さの要約と、押して開く内訳（#31）
 │       │   │   ├── KnowledgeSources.tsx  # 応答の出典（参照したドキュメント）の要約と、押して開く一覧・見つからなかったときの文（#17 Phase B）
 │       │   │   ├── PromptTemplateSuggestions.tsx # 入力欄の上に重ねるプロンプトテンプレートの候補（例を追加・管理の入口。#28）
@@ -287,6 +291,7 @@ front/src/
 │   │   ├── agent-config.ts    #     エージェント設定の環境変数の検証（範囲外は既定値へ戻す）
 │   │   ├── agent-prompts.ts   #     エージェントモードのシステムプロンプトプリセット定義
 │   │   ├── approvals.ts       #     ツールの実行前の承認待ち（globalThis の Map・5 分で時間切れ・停止で取り消し。#148 Phase A2）
+│   │   ├── instructions.ts    #     応答の途中の指示の受け箱（globalThis の Map・応答ごと・届いたら知らせる。#241）
 │   │   └── tools/             #     ツール実装
 │   │       ├── types.ts       #       ツール関連型定義
 │   │       ├── index.ts       #       ツールレジストリ（register/get/execute）
@@ -478,6 +483,7 @@ front/tests/
     ├── agent.spec.ts              # エージェント基盤テスト（Phase A）
     ├── agent-phase-b.spec.ts      # 調査系ツールテスト（Phase B）
     ├── agent-phase-c.spec.ts      # 自律エージェントテスト（Phase C）
+    ├── agent-interrupt.spec.ts    # 応答の途中の指示（エージェントモードの生成中だけ「割り込む」・応答の ID が届くまで押せない・保存した応答の指示の位置・読まれなかった指示・大きいモデルで割り込んで読まれる・指示の API の失敗で入力欄に戻る（軽量モデルでスキップ）。#241）
     ├── agent-metadata.spec.ts     # エージェント応答の付随情報（思考過程・統計）の復元
     ├── agent-timeline.spec.ts     # エージェントの応答を説明 → ツールの結果 → 回答の順に並べる表示（古いデータ・回答前の停止）
     ├── tool-result-summary.spec.ts # ツールの結果パネルの見出し（件数・0 件・失敗の理由）

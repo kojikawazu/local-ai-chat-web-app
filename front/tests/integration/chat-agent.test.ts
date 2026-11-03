@@ -691,6 +691,8 @@ describe('POST /api/chat（エージェント・思考過程）', () => {
         { type: 'thinking', content: 'The user says hi.' },
       ]);
       expect(events.map((e) => e.type)).toEqual([
+        // 途中の指示（#241）を送る先の応答の ID を最初に送る
+        'response_started',
         'thinking',
         'text_delta',
         'done',
@@ -715,6 +717,7 @@ describe('POST /api/chat（エージェント・思考過程）', () => {
       const events = await runAgent();
 
       expect(events.map((e) => e.type)).toEqual([
+        'response_started',
         'thinking',
         'tool_call_start',
         'tool_call_result',
@@ -748,6 +751,7 @@ describe('POST /api/chat（エージェント・思考過程）', () => {
       const events = await runAgent();
 
       expect(events).toEqual([
+        expect.objectContaining({ type: 'response_started' }),
         { type: 'thinking', content: '考えた' },
         expect.objectContaining({ type: 'done' }),
       ]);
@@ -777,7 +781,11 @@ describe('POST /api/chat（エージェント・思考過程）', () => {
 
       const events = await runAgent();
 
-      expect(events.map((e) => e.type)).toEqual(['text_delta', 'done']);
+      expect(events.map((e) => e.type)).toEqual([
+        'response_started',
+        'text_delta',
+        'done',
+      ]);
     });
   });
 });

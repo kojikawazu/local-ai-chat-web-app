@@ -21,6 +21,7 @@
   - [POST /api/diagrams/plantuml](#post-apidiagramsplantuml)
   - [GET /api/attachments/[id]](#get-apiattachmentsid)
   - [POST /api/agent/approvals/[id]](#post-apiagentapprovalsid)
+  - [POST /api/agent/responses/[id]/instructions](#post-apiagentresponsesidinstructions)
   - [GET /api/prompt-templates](#get-apiprompt-templates)
   - [POST /api/prompt-templates](#post-apiprompt-templates)
   - [PUT /api/prompt-templates/[id]](#put-apiprompt-templatesid)
@@ -101,7 +102,7 @@
 **レスポンス**
 
 - 通常モード（`enableTools: false`）: Content-Type `application/x-ndjson`。本文を `text_delta` で逐次返し、終わりに `done` を送る。`done` の `metadata.metrics` は Ollama の終わりのチャンクのトークン数・所要時間（#31。`docs/19-token-metrics.md`。Ollama が返さなければ `metadata` を持たない）。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。#31 より前は本文の文字列を `text/event-stream` で返していた。
-- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31。サブエージェントに任せた分も足す。#26）。ツールの呼び出しのイベント（`tool_call_start`・`tool_call_result`・`tool_approval_request`）は、サーバーが呼び出しごとに採番した `callId` を持つ（#26 Phase B。画面は ID で結果・承認を当てる）。同じ組（`exclusive`。委譲・ブラウザの操作）の前の呼び出しが動いていれば `tool_call_start` に `queued: true` が付き、動き始めたら `tool_call_begin`（`callId`）が届く。委譲の途中では、サブエージェントの中のツールの開始・結果が `sub_agent_step_start`・`sub_agent_step_result`（委譲の `callId` と中の手順の `stepId` 付き）で届く。委譲のツールの `tool_call_result` と `done` の `toolCalls[]` は、サブエージェントに任せた記録 `subAgent`（任せた相手 `agent`・仕事 `task`・中のツールの呼び出し `toolCalls`・問い合わせの回数 `rounds`・トークン数 `metrics`）を持つ（#26。`docs/29-multi-agent.md`「記録と画面」）。モデルへ渡していないツール（設定で有効にしていない委譲のツール・サブエージェントだけの `search_documents`）を呼ばれても実行せず、失敗の結果を返す。
+- エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31。サブエージェントに任せた分も足す。#26）。エージェントモードの最初に `response_started`（`responseId`。途中の指示の送り先。#241）が届き、指示を読んだら `instruction_applied`（`instructionId`・`contentOffset`）が届く。ツールの呼び出しのイベント（`tool_call_start`・`tool_call_result`・`tool_approval_request`）は、サーバーが呼び出しごとに採番した `callId` を持つ（#26 Phase B。画面は ID で結果・承認を当てる）。同じ組（`exclusive`。委譲・ブラウザの操作）の前の呼び出しが動いていれば `tool_call_start` に `queued: true` が付き、動き始めたら `tool_call_begin`（`callId`）が届く。委譲の途中では、サブエージェントの中のツールの開始・結果が `sub_agent_step_start`・`sub_agent_step_result`（委譲の `callId` と中の手順の `stepId` 付き）で届く。委譲のツールの `tool_call_result` と `done` の `toolCalls[]` は、サブエージェントに任せた記録 `subAgent`（任せた相手 `agent`・仕事 `task`・中のツールの呼び出し `toolCalls`・問い合わせの回数 `rounds`・トークン数 `metrics`）を持つ（#26。`docs/29-multi-agent.md`「記録と画面」）。モデルへ渡していないツール（設定で有効にしていない委譲のツール・サブエージェントだけの `search_documents`）を呼ばれても実行せず、失敗の結果を返す。
 
 **停止・切断**: ブラウザが停止・切断すると（応答ストリームの cancel・`request.signal` の abort）、Ollama への接続を切って生成を止める（#8）。エージェントモードでは実行中のツールも中断し、次のラウンドへ進まず、イベントを送らずにストリームを閉じる（`error` は送らない）。停止はエラーとして記録しない。
 
@@ -566,6 +567,27 @@ Ollamaで利用可能なモデル一覧を取得する。
 | 404 | 待っている承認が無い（知らない ID・決着済み・5 分の時間切れ・停止済み） |
 
 **備考**: 承認待ちはサーバーのメモリ（`lib/agent/approvals.ts`。`globalThis`）に持つ。ストリームを開いたまま待つため、サーバーのプロセスが 1 つであることが前提（localhost の個人利用）。
+
+---
+
+### POST /api/agent/responses/[id]/instructions
+
+エージェントの応答の途中に、利用者の追加の指示を入れる（割り込み。#241。`docs/30-agent-interrupt.md`）。`[id]` は `/api/chat` のストリームの最初の `response_started` の `responseId`。エージェントは次の区切り（次の問い合わせの前）で指示を user の発言として履歴に入れ、`instruction_applied`（`instructionId`・`contentOffset`）を送る。本文を書き終えた後に届いていれば、もう 1 ラウンド回して答え直す。サブエージェントに任せている間に届いたら、サブエージェントはここまでの情報でまとめて戻る。
+
+**リクエスト**
+
+```json
+{ "content": "日本語の出典だけを使って、3 行でまとめて" }
+```
+
+| ステータス | 説明 |
+|-----------|------|
+| 202 | 受け箱に入れた（`{ "instructionId": "…" }`。読んだら `/api/chat` のストリームの `instruction_applied` で届く） |
+| 400 | 無効な UUID・`content` が文字列でない・空・2,000 文字を超える |
+| 404 | 指示を待っている応答が無い（知らない ID・終わった応答・停止した応答） |
+| 409 | 1 回の応答で送れる指示（5 件）を超えた |
+
+**備考**: 受け箱はサーバーのメモリ（`lib/agent/instructions.ts`。`globalThis`）に応答ごとに持ち、応答の終わり（完了・エラー・停止）で消す。承認の待ち合わせと同じく、サーバーのプロセスが 1 つであることが前提。
 
 ---
 
