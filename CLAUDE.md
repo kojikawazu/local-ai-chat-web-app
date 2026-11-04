@@ -317,6 +317,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/29-multi-agent.md` | マルチエージェント（サブエージェントに任せる） 設計書 |
 | `docs/30-agent-interrupt.md` | 応答の途中の指示（割り込み） 設計書 |
 | `docs/31-mcp-client.md` | MCP サーバーへの接続 設計書 |
+| `docs/lessons-learned.md` | 教訓ログ（誤り・失敗・ハマりから得た教訓。運用は `.claude/rules/lessons-learned.md`） |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
@@ -369,4 +370,5 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `database.md` | `front/prisma/**` 等 | Prisma 命名規約・スキーマ・マイグレーション・クエリルール |
 | `documentation.md` | 全体 | ドキュメント乖離防止・影響マップ（変更種別→更新必須ドキュメント）・opt-out 完了条件 |
 | `github-issue.md` | 全体 | GitHub issue 運用・ブランチと対で起票・`Closes #N` で自動クローズ・サブ issue |
+| `lessons-learned.md` | 全体 | 誤り・失敗・ハマりから得た教訓を `docs/lessons-learned.md` に追記する・記録の条件と書式 |
 | `github-actions.md` | `.github/workflows/**` | ワークフロー規約・最小権限・concurrency・4 本の `on:` の同期（Workflow Lint で検査）・actionlint・常時実行の検査（Secret scan）・Dependabot によるアクション更新 |

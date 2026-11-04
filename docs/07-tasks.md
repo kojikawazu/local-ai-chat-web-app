@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-11-04
+> 最終更新: 2026-11-05
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1370,3 +1370,10 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 画面（承認カード・ツールの見出し・設定のサーバーの状態）
 - [x] UT（`mcp.test.ts`）・IT（`chat-agent-mcp.test.ts` 25 件。本物の stdio のサーバー）・E2E（`mcp.spec.ts` 7 件。ツールを呼ばせる 3 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`31`・`README.md`（索引）、`CLAUDE.md`、README（日本語・英語）、`front/.env.example`、`manuals/setup-guide-macos.md`、`.claude/rules/{api,security,testing,documentation}.md`）
+
+## フェーズ69: 教訓ログの導入（#247）
+
+誤り・失敗・ハマりから得た教訓を `docs/lessons-learned.md` に蓄積する。運用は `.claude/rules/lessons-learned.md`。 — #247（2026-11-05 着手）
+
+- [x] 教訓の本体（`docs/lessons-learned.md`）と運用ルール（`.claude/rules/lessons-learned.md`）
+- [x] ドキュメント（`CLAUDE.md`・`docs/README.md`・`docs/04`・`docs/07`）

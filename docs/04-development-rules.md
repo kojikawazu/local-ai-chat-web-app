@@ -1,6 +1,6 @@
 # 開発ルール
 
-> 最終更新: 2026-11-04
+> 最終更新: 2026-11-05
 
 ## 目次
 
@@ -54,6 +54,7 @@
 - **コミットメッセージは日本語**で記述する
 - PRはGitHub Actionsの自動テスト通過後にマージ
 - **GitHub issue 運用**: 作業ブランチを切るのと対で issue を起票し、open/close で進捗を管理する。PR 本文に `Closes #<issue番号>` を記載して自動クローズする。詳細は `.claude/rules/github-issue.md` を参照
+- **教訓の記録**: 事故・自分の誤り・長時間のハマりから得た教訓を `docs/lessons-learned.md` に追記する。記録の条件・書式・ルールへの昇格は `.claude/rules/lessons-learned.md` を参照
 
 ## テスト方針
 
