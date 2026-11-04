@@ -1377,3 +1377,15 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 
 - [x] 教訓の本体（`docs/lessons-learned.md`）と運用ルール（`.claude/rules/lessons-learned.md`）
 - [x] ドキュメント（`CLAUDE.md`・`docs/README.md`・`docs/04`・`docs/07`）
+
+## フェーズ70: リモートの MCP サーバーへの接続（#208 Phase C）
+
+リモートの MCP サーバー（Streamable HTTP）につなぎ、OAuth 2.1 で認証するサーバーも使えるようにする。設計は [32-mcp-remote.md](./32-mcp-remote.md)。 — #208・サブ issue #249（2026-11-05 着手。同日に保留。つなぐ相手が決まってから再開する）
+
+- [x] 調査（Atlassian の公式サーバーの公開のメタデータ・MCP の認可の仕様・SDK の OAuth の挙動）
+- [ ] 設計（`docs/32-mcp-remote.md`）・レビュー
+- [ ] HTTP の接続と固定のヘッダーの認証
+- [ ] OAuth（認証の開始・コールバック・トークンの保存・更新・取り消し）
+- [ ] リモートのサーバーの承認の扱い
+- [ ] UT・IT・E2E
+- [ ] ドキュメント
