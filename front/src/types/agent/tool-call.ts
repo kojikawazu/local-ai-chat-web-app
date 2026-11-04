@@ -203,13 +203,30 @@ export type MemoryApprovalPreview = {
 /**
  * 実行前に承認を求めるときに、利用者へ見せる内容。何をするか（`action`）で形が決まる。
  */
+/**
+ * MCP のツールの実行前に、利用者へ見せる内容（#208。`docs/31-mcp-client.md`）。
+ */
+export type McpApprovalPreview = {
+  /** 何をするか。常に `mcp-call` */
+  action: 'mcp-call';
+  /** サーバーの名前 */
+  server: string;
+  /** サーバーでのツールの名前 */
+  tool: string;
+  /** 送る引数（整形した JSON。文字のまま見せる） */
+  arguments: string;
+  /** この応答で読んだもののうち、このサーバーとは別の出どころ（`手元の情報`・サーバーの名前） */
+  readSources: string[];
+};
+
 export type ApprovalPreview =
   | FileApprovalPreview
   | CommandApprovalPreview
   | GitHubCommentApprovalPreview
   | GitHubCreatePrApprovalPreview
   | BrowserActionApprovalPreview
-  | MemoryApprovalPreview;
+  | MemoryApprovalPreview
+  | McpApprovalPreview;
 
 /**
  * 画面で承認を待っているツールの実行（#148 Phase A2。`tool_approval_request` のイベントから作る）。

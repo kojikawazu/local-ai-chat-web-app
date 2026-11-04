@@ -1,6 +1,6 @@
 # Nordic Chat セットアップガイド（macOS）
 
-> 最終更新: 2026-11-03
+> 最終更新: 2026-11-04
 
 ローカルLLM（Ollama）と対話するチャットWebアプリケーション「Nordic Chat」を、macOS上でゼロから構築する手順です。
 
@@ -306,6 +306,8 @@ EOF
 > **任意**: GitHub の PR・issue を読ませ、コメント・PR の作成もさせる場合は、GitHub CLI を入れてログインし（`brew install gh` → `gh auth login`）、扱ってよいリポジトリを `GITHUB_REPOS` に `owner/name` のカンマ区切りで足します（例: `GITHUB_REPOS=your-name/your-repo`）。読むときは承認なしで、コメント・PR の作成のたびに画面に本文が出て、許可するまで送られません。トークンを `.env.local` に書く必要はありません。`gh` を `LOCAL_COMMANDS` に書く必要もなく、書くと `gh api` などまで承認 1 回で使えるため、書かないでください（`docs/17-github-tools.md`）。
 >
 > **任意**: ブラウザでページを開いて読ませる（JavaScript で描くページ・開発中のアプリの画面）場合は、`front` で `pnpm exec playwright install chromium` を実行して Chromium を入れ、`BROWSER_ENABLED=true` を足します。手元の開発サーバーを開かせるなら、そのオリジンを `BROWSER_LOCAL_ORIGINS` に足します（例: `BROWSER_LOCAL_ORIGINS=http://localhost:5173`）。ほかの手元のサービス（PostgreSQL・Ollama 等）とこのアプリ自身は開けません。読み取りだけで、クリック・入力はしません（`docs/18-browser-tools.md`）。
+>
+> **任意**: MCP サーバーのツールを使わせる場合は、リポジトリの外に JSON の設定ファイルを置き、その絶対パスを `MCP_CONFIG_PATH` に足します（形は `front/.env.example`・`docs/31-mcp-client.md`）。トークンは設定ファイルに直接書かず、`env` の値に `${NAME}` と書いて `.env.local` に置きます。`npx` で起動するサーバーは `@1.2.3` のように版を固定してください（変えたらアプリを再起動します）。
 
 ### データベースのマイグレーション
 

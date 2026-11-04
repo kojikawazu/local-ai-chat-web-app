@@ -11,6 +11,7 @@ import type {
   GitHubCommentApprovalPreview,
   GitHubCreatePrApprovalPreview,
   GitHubVisibility,
+  McpApprovalPreview,
   MemoryApprovalPreview,
   ToolApprovalRequest,
 } from '@/types/agent/tool-call';
@@ -34,6 +35,7 @@ const ACTION_TITLES: Record<
   run: 'コマンドを実行します',
   'github-comment': 'GitHub にコメントします',
   'github-create-pr': 'GitHub に PR を作成します',
+  'mcp-call': 'MCP のツールを実行します',
 };
 
 /** ブラウザの操作の見出し（操作の種類ごと。#149 Phase C） */
@@ -213,6 +215,38 @@ function CommandPreview({ preview }: { preview: CommandApprovalPreview }) {
           {Number((preview.timeoutMs / 1000).toFixed(1))} 秒
         </dd>
       </dl>
+    </>
+  );
+}
+
+/**
+ * MCP のツールのサーバー・ツールと、送る引数（#208）。引数はサーバーの先へ出ることがあるため、Markdown として描かず文字のまま出す。
+ * サーバーの書いた説明は出さない。この応答で別の出どころを読んでいれば、読んだ内容を送っていないか確かめられるように出す。
+ *
+ * @param props - 承認で見せる内容を持つ props
+ * @param props.preview - 承認で見せる内容
+ */
+function McpPreview({ preview }: { preview: McpApprovalPreview }) {
+  return (
+    <>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-nord-4/60">サーバー</dt>
+        <dd className="text-nord-4/80 break-all font-mono">{preview.server}</dd>
+        <dt className="text-nord-4/60">ツール</dt>
+        <dd className="text-nord-4/80 break-all font-mono">{preview.tool}</dd>
+      </dl>
+      {preview.readSources.length > 0 && (
+        <p role="note" className="text-xs text-nord-aurora-yellow">
+          この応答で読んだもの: {preview.readSources.join('、')}
+          （読んだ内容が送られていないか確かめてください）
+        </p>
+      )}
+      <pre
+        aria-label="送る引数"
+        className="max-h-96 overflow-auto rounded-lg bg-nord-0 border border-nord-3 p-3 text-xs leading-relaxed font-mono text-nord-6 whitespace-pre-wrap break-all"
+      >
+        {preview.arguments}
+      </pre>
     </>
   );
 }
@@ -412,6 +446,8 @@ function PreviewBody({ preview }: { preview: ApprovalPreview }) {
       return <BrowserActionPreview preview={preview} />;
     case 'save-memory':
       return <MemoryPreview preview={preview} />;
+    case 'mcp-call':
+      return <McpPreview preview={preview} />;
     default:
       return <FilePreview preview={preview} />;
   }

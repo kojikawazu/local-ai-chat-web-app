@@ -1,6 +1,6 @@
 # タスク一覧
 
-> 最終更新: 2026-11-03
+> 最終更新: 2026-11-04
 >
 > フェーズ番号は **ID（追加順）** であり、実装の優先順位ではありません。未着手フェーズ（12 以降）の **実装順は [10-roadmap.md](./10-roadmap.md) を正準** とします。
 
@@ -1357,3 +1357,16 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [x] 実際のモデル（`qwen3.8:27b`）で、調べものの途中に「日本語の出典だけ・3 行で」と割り込み、次の区切りで読まれて指示どおりに答えることを確かめた
 - [x] UT（`agent-interrupt.test.ts` 17 件）・IT（`chat-agent-instruction.test.ts` 7 件。`chat-agent.test.ts` のイベントの並びに `response_started`）・E2E（`agent-interrupt.spec.ts` 6 件。実際に割り込む 2 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
 - [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`30`・`README.md`（索引）、`CLAUDE.md`、README（日本語・英語）、`.claude/rules/{api,security,error-handling,documentation}.md`）
+
+## フェーズ68: MCP サーバーへの接続（#208）
+
+エージェントを MCP のクライアントにして、利用者が選んだ MCP サーバーのツールをエージェントのツールとして使えるようにする。まず手元のサーバー（stdio）を入れ、リモートのサーバー（HTTP）と OAuth は後の Phase にする。設計は [31-mcp-client.md](./31-mcp-client.md)。 — #208・サブ issue #245（2026-11-04 着手）
+
+- [x] 調査（SDK の挙動・Next.js の Route Handler からの接続・`qwen3.8:27b` のツールの数ごとの選択）
+- [x] 設計（`docs/31-mcp-client.md`）・レビュー（M7 は承認が要るツールを通し、読んだものを承認カードに出す。ほかも推奨どおり）
+- [x] 設定の読み込みと検証（`MCP_CONFIG_PATH`）
+- [x] 接続の管理とツールの登録（`syncMcpTools()`）
+- [x] ツールの実行・承認・読んだ出どころごとの持ち出しの抑止
+- [x] 画面（承認カード・ツールの見出し・設定のサーバーの状態）
+- [x] UT（`mcp.test.ts`）・IT（`chat-agent-mcp.test.ts` 25 件。本物の stdio のサーバー）・E2E（`mcp.spec.ts` 7 件。ツールを呼ばせる 3 件は軽量モデルでスキップし、`qwen3.8:27b` で全件通した）
+- [x] ドキュメント（`docs/01`・`02`・`03`・`04`・`05`・`06`・`07`・`09`・`10`・`12`・`31`・`README.md`（索引）、`CLAUDE.md`、README（日本語・英語）、`front/.env.example`、`manuals/setup-guide-macos.md`、`.claude/rules/{api,security,testing,documentation}.md`）

@@ -1,3 +1,4 @@
+import { LOCAL_READ_ORIGIN } from '@/constants/agent/mcp';
 import type { OllamaChatMessage } from '@/lib/llm/ollama';
 import { streamChat } from '@/lib/llm/ollama';
 import { addMetrics } from '@/lib/llm/metrics';
@@ -80,13 +81,18 @@ export async function runSubAgent({
   let metrics: ResponseMetrics | undefined;
   let rounds = 0;
   // 手元を読んだかはメインの値から始める（researcher はメインが手元を読む前にしか動かない。docs/29「外部への持ち出し」）
-  let hasReadLocal = context.hasReadLocal();
+  // メインが読んだ出どころを引き継ぐ（サブエージェントの中でも外部と通信するツールを止める）
+  const readOrigins = new Set<string>(
+    context.readOrigins?.() ??
+      (context.hasReadLocal() ? [LOCAL_READ_ORIGIN] : [])
+  );
   const innerContext: ToolContext = {
     appOrigin: context.appOrigin,
     model,
     scope: new Map(),
     onDispose: context.onDispose,
-    hasReadLocal: () => hasReadLocal,
+    hasReadLocal: () => readOrigins.size > 0,
+    readOrigins: () => readOrigins,
   };
   // まとめ始める時間（ラウンドの問い合わせと中のツールを止める）と、サブエージェント全体の時間の上限（最終回答も止める）。
   // 委譲のツールの時間の上限（withToolTimeout）より先に自分で止め、調べた分の記録を返す
@@ -113,10 +119,7 @@ export async function runSubAgent({
     // 画像のツールは渡さない（subAgentToolNames）
     vision: false,
     unavailableTools: new Map(),
-    hasReadLocal: () => hasReadLocal,
-    markReadLocal: () => {
-      hasReadLocal = true;
-    },
+    readOrigins,
     // ツールも、まとめ始める時間で止める（読みかけのページを待たずに答えさせる）
     signal: answerBy,
     context: innerContext,
