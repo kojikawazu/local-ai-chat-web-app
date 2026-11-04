@@ -317,11 +317,12 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
 | `docs/29-multi-agent.md` | マルチエージェント（サブエージェントに任せる） 設計書 |
 | `docs/30-agent-interrupt.md` | 応答の途中の指示（割り込み） 設計書 |
 | `docs/31-mcp-client.md` | MCP サーバーへの接続 設計書 |
+| `docs/32-mcp-remote.md` | リモートの MCP サーバーへの接続 設計書 |
 | `docs/lessons-learned.md` | 教訓ログ（誤り・失敗・ハマりから得た教訓。運用は `.claude/rules/lessons-learned.md`） |
 | `docs/models/` | LLM モデル評価（`README.md` に比較、モデルごとに 1 ファイル） |
 | `manuals/setup-guide-macos.md` | macOS向けセットアップガイド |
 
-新規ドキュメント追加時は次の連番（`32-`〜）を付与する。
+新規ドキュメント追加時は次の連番（`33-`〜）を付与する。
 
 ## Instruction Shortcuts
 
