@@ -17,6 +17,22 @@ export function registerTool(tool: Tool): void {
 }
 
 /**
+ * 名前の先頭が同じツールを、すべて置き換える（#208。MCP のツールは接続の状態で増減する）。
+ *
+ * @param prefix - 名前の先頭
+ * @param tools - 新しいツール
+ */
+export function replaceToolsByPrefix(
+  prefix: string,
+  tools: readonly Tool[]
+): void {
+  for (const name of toolRegistry.keys()) {
+    if (name.startsWith(prefix)) toolRegistry.delete(name);
+  }
+  tools.forEach(registerTool);
+}
+
+/**
  * 名前からレジストリ内のツールを取得する。
  *
  * @param name - 取得するツール名

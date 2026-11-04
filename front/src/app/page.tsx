@@ -22,6 +22,7 @@ import ChatLayout from '@/components/common/templates/ChatLayout';
 import { useModels } from '@/hooks/chat/useModels';
 import { useImageAttachments } from '@/hooks/chat/useImageAttachments';
 import { useAgentSettings } from '@/hooks/settings/useAgentSettings';
+import { useMcpServers } from '@/hooks/settings/useMcpServers';
 import { usePromptTemplates } from '@/hooks/prompt-template/usePromptTemplates';
 import { useMessageBookmark } from '@/hooks/bookmark/useMessageBookmark';
 import { useConversationFork } from '@/hooks/chat/useConversationFork';
@@ -68,6 +69,7 @@ export default function Home() {
       ? selectedModel
       : null;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const mcpStatus = useMcpServers(isSettingsOpen);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -571,6 +573,7 @@ export default function Home() {
             onAgentPromptPresetChange={changeAgentPromptPresetId}
             enableSubAgents={enableSubAgents}
             onEnableSubAgentsChange={changeEnableSubAgents}
+            mcpStatus={mcpStatus}
             onOpenPromptTemplates={handleOpenTemplateDialog}
             onOpenShortcuts={handleOpenShortcuts}
           />

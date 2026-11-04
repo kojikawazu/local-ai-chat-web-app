@@ -7,6 +7,35 @@ import type { ResponseMetrics } from '@/types/chat/metrics';
 import type { KnowledgeSource } from '@/types/knowledge/document';
 
 /**
+ * ツールの引数 1 つの JSON Schema。アプリのツールは `type`・`description`・`enum` だけを書き、
+ * MCP のサーバーのツール（#208）は入れ子（`properties`・`items`）・`anyOf` 等も持つため、ほかの項目もそのまま通す。
+ */
+export type ToolPropertySchema = {
+  /** 引数の型（`'string'` / `'number'` 等の JSON Schema 型名）。`anyOf` 等で書くスキーマには無い */
+  type?: string | string[];
+  /** 引数の説明。LLM が値を組み立てる際の指針になる */
+  description?: string;
+  /** 取りうる値を限定する場合の列挙リスト（任意） */
+  enum?: unknown[];
+  /** そのほかの JSON Schema の項目 */
+  [key: string]: unknown;
+};
+
+/**
+ * ツールの引数全体の JSON Schema。MCP のサーバーのツール（#208）の `$defs` 等の項目もそのまま通す。
+ */
+export type ToolParametersSchema = {
+  /** 常に `'object'`。引数はオブジェクト形式で受け取る */
+  type: 'object';
+  /** 引数プロパティ名 → スキーマのマップ */
+  properties: Record<string, ToolPropertySchema>;
+  /** 必須引数名のリスト */
+  required: string[];
+  /** そのほかの JSON Schema の項目 */
+  [key: string]: unknown;
+};
+
+/**
  * Ollama API の function calling へ渡すツール定義。
  *
  * Ollama の chat API が要求する JSON Schema 準拠の形式で、各ツールの
@@ -22,24 +51,7 @@ export interface OllamaToolDefinition {
     /** ツールの用途説明。LLM が呼び出し可否を判断する材料になる */
     description: string;
     /** 引数の JSON Schema */
-    parameters: {
-      /** 常に `'object'`。引数はオブジェクト形式で受け取る */
-      type: 'object';
-      /** 引数プロパティ名 → スキーマ（型・説明・列挙値）のマップ */
-      properties: Record<
-        string,
-        {
-          /** 引数の型（`'string'` / `'number'` 等の JSON Schema 型名） */
-          type: string;
-          /** 引数の説明。LLM が値を組み立てる際の指針になる */
-          description: string;
-          /** 取りうる値を限定する場合の列挙リスト（任意） */
-          enum?: string[];
-        }
-      >;
-      /** 必須引数名のリスト */
-      required: string[];
-    };
+    parameters: ToolParametersSchema;
   };
 }
 
@@ -128,6 +140,13 @@ export type ToolContext = {
    * @returns 読んでいれば true
    */
   hasReadLocal: () => boolean;
+  /**
+   * この応答で読んだ出どころ（#208。`local`・`mcp:<サーバー>`）。承認カードに読んだものを出すのに使う。
+   * ループの外（テスト）では無い
+   *
+   * @returns 読んだ出どころ
+   */
+  readOrigins?: () => ReadonlySet<string>;
   /**
    * ツールの途中の経過を画面へ送る（#26 Phase B。委譲のツールがサブエージェントの中の手順を送る）。
    * ループが呼び出しごとに、その呼び出しの ID（`callId`）を付けて送る。経過を送れない場所（サブエージェントの中のツール・
@@ -243,24 +262,7 @@ export interface ToolDefinition {
   /** ツールの用途説明。LLM が呼び出し可否を判断する材料になる */
   description: string;
   /** 引数の JSON Schema */
-  parameters: {
-    /** 常に `'object'`。引数はオブジェクト形式で受け取る */
-    type: 'object';
-    /** 引数プロパティ名 → スキーマ（型・説明・列挙値）のマップ */
-    properties: Record<
-      string,
-      {
-        /** 引数の型（`'string'` / `'number'` 等の JSON Schema 型名） */
-        type: string;
-        /** 引数の説明。LLM が値を組み立てる際の指針になる */
-        description: string;
-        /** 取りうる値を限定する場合の列挙リスト（任意） */
-        enum?: string[];
-      }
-    >;
-    /** 必須引数名のリスト */
-    required: string[];
-  };
+  parameters: ToolParametersSchema;
 }
 
 /**
@@ -271,6 +273,7 @@ export interface ToolDefinition {
  *
  * ループは、同じ応答の中で `local` のツールが成功した後は `network` のツールを実行しない
  * （読んだ内容を外へ送らせないため。`docs/14-local-file-tools.md`「外部への持ち出しを止める」）。
+ * MCP のツール（#208）は `network` で `origin` を持ち、同じ出どころの続きの操作は止めない（{@link Tool} の `origin`）。
  */
 export type ToolAccess = 'local' | 'network';
 
@@ -315,6 +318,11 @@ export type Tool = {
    */
   access?:
     ToolAccess | ((args: Record<string, unknown>) => ToolAccess | undefined);
+  /**
+   * 読んだ情報の出どころ（#208。MCP のツールは `mcp:<サーバー>`）。持つツールは、成功すると読んだ扱いになり、
+   * 自分と違う出どころを読んだ後は止まる（承認が要るツールは止めない）。`docs/31-mcp-client.md`「外部への持ち出し」
+   */
+  origin?: string;
   /**
    * 結果をモデルへ画像で渡すツールなら true（#149）。画像を読めないモデルには渡さない
    * （画像の無い結果に対して、モデルは見たふりをして答えるため）

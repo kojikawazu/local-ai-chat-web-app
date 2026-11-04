@@ -4,6 +4,7 @@ import {
   SUB_AGENT_LABELS,
   SUB_AGENT_RUNNING_LABELS,
 } from '@/constants/agent/sub-agent';
+import { MCP_TOOL_PREFIX, MCP_TOOL_SEPARATOR } from '@/constants/agent/mcp';
 import type { SubAgentName } from '@/types/agent/sub-agent';
 import { SUB_AGENT_NAMES } from '@/types/agent/sub-agent';
 
@@ -34,7 +35,7 @@ export function isSubAgentName(value: unknown): value is SubAgentName {
  * ツールの呼び出しの見出しに出す名前を決める。
  *
  * 委譲のツール（#26）は、任せた仕事の名前から「サブエージェント: Web の調べもの」にする（サブエージェントだと分かるように）。そのほかは {@link TOOL_LABELS} の
- * 日本語の名前（無ければツール名のまま）。
+ * 日本語の名前、MCP のツール（#208）は「サーバー: ツール」（どちらでもなければツール名のまま）。
  *
  * @param name - ツール名
  * @param args - ツールに渡された引数
@@ -47,7 +48,23 @@ export function toolCallLabel(
   if (name === DELEGATE_TOOL_NAME && isSubAgentName(args.agent)) {
     return `サブエージェント: ${SUB_AGENT_LABELS[args.agent]}`;
   }
-  return TOOL_LABELS[name] ?? name;
+  return TOOL_LABELS[name] ?? mcpToolLabel(name) ?? name;
+}
+
+/**
+ * MCP のツールの見出しに出す名前を決める（#208。`mcp__jira__search_issues` → `jira: search_issues`）。
+ * サーバーの名前は `__` を含まないため、最初の区切りで分けられる。
+ *
+ * @param name - ツール名
+ * @returns 見出しに出す名前。MCP のツールでなければ `undefined`
+ */
+function mcpToolLabel(name: string): string | undefined {
+  if (!name.startsWith(MCP_TOOL_PREFIX)) return undefined;
+  const rest = name.slice(MCP_TOOL_PREFIX.length);
+  const index = rest.indexOf(MCP_TOOL_SEPARATOR);
+  return index > 0
+    ? `${rest.slice(0, index)}: ${rest.slice(index + MCP_TOOL_SEPARATOR.length)}`
+    : undefined;
 }
 
 /**

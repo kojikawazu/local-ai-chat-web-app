@@ -406,7 +406,7 @@ describe('POST /api/chat（GitHub のツール）', () => {
       expect(resultOf(events, 'url_fetch')).toMatchObject({
         isError: true,
         summary: expect.stringContaining(
-          'GitHub の内容・登録したドキュメントを読んだ後のため'
+          'GitHub の内容・登録したドキュメント・別の MCP のサーバーの内容を読んだ後のため'
         ),
       });
     });

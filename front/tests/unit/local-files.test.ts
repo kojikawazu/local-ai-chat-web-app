@@ -336,15 +336,15 @@ describe('parseLineArg', () => {
 describe('shouldBlockTool', () => {
   describe('正常系', () => {
     it('ローカルのファイルを読んだ後は、外部と通信するツールを止める', () => {
-      expect(shouldBlockTool('network', true)).toBe(true);
+      expect(shouldBlockTool('network', new Set(['local']))).toBe(true);
     });
   });
 
   describe('準正常系', () => {
     it('読む前の外部のツール・読んだ後のローカルや計算のツールは止めない', () => {
-      expect(shouldBlockTool('network', false)).toBe(false);
-      expect(shouldBlockTool('local', true)).toBe(false);
-      expect(shouldBlockTool(undefined, true)).toBe(false);
+      expect(shouldBlockTool('network', new Set())).toBe(false);
+      expect(shouldBlockTool('local', new Set(['local']))).toBe(false);
+      expect(shouldBlockTool(undefined, new Set(['local']))).toBe(false);
     });
   });
 

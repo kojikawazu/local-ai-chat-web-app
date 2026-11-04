@@ -16,6 +16,7 @@ import {
   E2E_MEMORY_VAULT_NAME,
   E2E_VAULT_DIR,
 } from './tests/e2e/helpers/knowledge-vault';
+import { E2E_MCP_CONFIG } from './tests/e2e/helpers/mcp';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -64,6 +65,8 @@ export default defineConfig({
         // メモを書く保管庫（#236）も、一時フォルダの E2E 用のフォルダ（git でない）だけ
         KNOWLEDGE_VAULTS: `${E2E_VAULT_DIR},${E2E_MEMORY_DIR}`,
         KNOWLEDGE_MEMORY_VAULT: E2E_MEMORY_VAULT_NAME,
+        // MCP のサーバーは確認用のものだけ（#208）。.env.local の設定（開発者のサーバー）につながせない
+        MCP_CONFIG_PATH: E2E_MCP_CONFIG,
       },
     },
     {

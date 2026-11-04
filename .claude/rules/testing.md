@@ -76,6 +76,7 @@ globs: "front/tests/**"
 - **隔離**: 各テスト `beforeEach` で会話を全削除（Message は cascade）。`fileParallelism: false` で DB 競合を回避。
 - **実行**: `pnpm test:integration`（CI では専用 `integration-test` ジョブ。Docker と Chromium（ブラウザのツールの IT。#149。`pnpm exec playwright install chromium`）が必要、Ollama 不要）。
 - **保管庫（#235）**: 保管庫の IT は、テストの中で一時フォルダに本物の git のリポジトリ（`git init`・コミット・別のブランチ）とふつうのフォルダを作り、`KNOWLEDGE_VAULTS` に渡す。git は手元で動かす実依存で、差し替えない（main だけを読むことを確かめるため）。会話から覚えさせるメモ（#236）の IT も同じく一時フォルダの本物の git のリポジトリに書いてコミットさせる。作者・署名・フックの場所はリポジトリの設定で決める（ツールの git は `HOME` を引き継ぎ、手元の `~/.gitconfig` も読むため）。
+- **MCP（#208）**: MCP のツールの IT は、実際の SDK と、テストの中で起動する本物の stdio のサーバー（`helpers/fake-mcp-server.mjs`。IT と E2E で共通）を使う。SDK・接続は差し替えない。各テストの設定は一時フォルダの設定ファイルに書き、`closeMcpConnections()` で読み直す。
 - **ブラウザ（#149）**: ブラウザのツールの IT は、実際の Chromium で、テストの中で起こした HTTP サーバー（`127.0.0.1` の空きポート）を開く。ブラウザは手元で動かす実依存で、差し替えない。公開の Web には触れない。
 - **設定**: `front/vitest.integration.config.ts`・`front/tests/integration/helpers/`（global-setup でコンテナ起動、setup-env で接続 URL を注入）。
 - **前提**: 生成クライアント（`src/generated/prisma/`）は gitignore のため、実行前に `pnpm prisma generate` が必要。
@@ -92,6 +93,8 @@ globs: "front/tests/**"
   - `globalSetup`（`tests/e2e/helpers/global-setup.ts`）が、再利用した dev サーバーのモデルの不一致・モデル未取得を検出して開始前に止める（`/api/models` が 502 なら検証を省略）。
   - 同じく、PlantUML サーバーに繋がらなければ開始前に止める（PlantUML の図の E2E は実際の PlantUML サーバーで描くため。ローカルは `docker compose up -d`、CI は `e2e-test.yml` の `services:`）。
 - **ローカルのファイル**: `webServer.env` で dev サーバーの `LOCAL_FILE_ROOTS` に E2E 用のフォルダ（`tests/e2e/fixtures/local-files/`。定義は `tests/e2e/helpers/local-files.ts`）を渡す。開発者の `.env.local` のフォルダを E2E に読ませないため（#148）。再利用した dev サーバーがこれ無しで起動していると `local-files.spec.ts` が落ちる。GitHub のツール（#148 Phase C）は `GITHUB_REPOS` に架空のリポジトリを、`PATH` の先頭に偽の `gh`（`tests/integration/helpers/fake-gh.ts`。IT と共通。置き場所と応答は `tests/e2e/helpers/github.ts`）のフォルダを渡し、本物の GitHub には触れない。書き込み（#148 Phase A2）は `LOCAL_FILE_WRITE_ROOTS` に OS の一時フォルダの E2E 用のフォルダ（`E2E_WRITE_DIR`）を渡し、リポジトリの中は書き換えない。コマンドの実行（#148 Phase B）は `LOCAL_COMMANDS` に `node` だけを渡す（作業フォルダは同じ `E2E_WRITE_DIR`）。ブラウザのツール（#149）は `BROWSER_ENABLED` と、確認用のページを配るサーバー（2 つ目の `webServer`。`tests/e2e/helpers/browser-fixture-server.mjs`・`127.0.0.1:3101`。定義は `tests/e2e/helpers/browser.ts`）のオリジンを `BROWSER_LOCAL_ORIGINS` に渡す
+- **MCP のサーバー（#208）**: `webServer.env` の `MCP_CONFIG_PATH` に OS の一時フォルダの設定ファイル（`E2E_MCP_CONFIG`。定義は `tests/e2e/helpers/mcp.ts`）を渡し、開発者の設定につながせない。確認用のサーバーのツールは、ほかの E2E のモデルへ渡す数を増やさないよう 2 つに絞る。`mcp.spec.ts` はこのファイルで増えた会話だけを消す。
+- **エージェントモードの応答の終わり**: `waitForResponseComplete` は送信ボタンが押せるのを待つが、生成中でも「割り込む」（#241）で押せるため、エージェントモードではすぐ通過する。応答の終わりを待つなら「生成を停止」が消えるのを待つ（`mcp.spec.ts` の `waitForAgentDone`）。
 - **修飾キー（#33）**: `devices['Desktop Chrome']` は User-Agent を Windows の Chrome にするため、Mac で動かすとアプリは「Mac ではない（Ctrl）」と判定する。Playwright の `ControlOrMeta` は実際の OS（Mac なら ⌘）で決まり食い違うので、⌘ と Ctrl はアプリと同じ判定でページから選ぶ（`keyboard-shortcuts.spec.ts` の `modKey`）
 - 失敗時: スクリーンショット + トレースを保存
 - テストファイル配置: `front/tests/e2e/`

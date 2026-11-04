@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-11-03
+> 最終更新: 2026-11-04
 
 ## 目次
 
@@ -450,7 +450,7 @@ Ollamaで利用可能なモデル一覧を取得する。
 ```typescript
 {
   tools: {
-    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も、KNOWLEDGE_MEMORY_VAULT が保管庫の名前なら save_memory（#236）も、使えるサブエージェントがあれば delegate_to_agent（#26）も。サブエージェントだけの search_documents は含めない）
+    name: string;         // ツール名（get_current_datetime, calculate, web_search, url_fetch。LOCAL_FILE_ROOTS があれば list_directory, search_files, read_file、LOCAL_FILE_WRITE_ROOTS があれば write_file, edit_file、LOCAL_COMMANDS もあれば run_command、GITHUB_REPOS があれば github_* の 5 つ（#148）、BROWSER_ENABLED=true なら browser_navigate, browser_snapshot, browser_screenshot（#149）と browser_click, browser_type, browser_select（#149 Phase C）も、KNOWLEDGE_MEMORY_VAULT が保管庫の名前なら save_memory（#236）も、使えるサブエージェントがあれば delegate_to_agent（#26）も、接続した MCP のサーバーのツール（mcp__<サーバー>__<ツール>。#208）も。サブエージェントだけの search_documents は含めない）
     description: string;  // ツールの説明
     enabled: boolean;     // 有効フラグ（現状は常に true）
   }[];
@@ -458,12 +458,22 @@ Ollamaで利用可能なモデル一覧を取得する。
     name: 'researcher' | 'reader';
     label: string;        // 表示名（リサーチャー・手元の読み手）
   }[];
+  mcp: {                  // MCP の接続の状態（#208。読むたびに切れたサーバーへ接続し直す）
+    configError?: string; // 設定ファイルを読めないときの理由
+    servers: {            // MCP_CONFIG_PATH が未設定なら空
+      name: string;
+      state: 'connected' | 'failed' | 'invalid'; // 接続中・失敗・設定の誤り
+      toolCount: number;         // モデルへ渡しているツールの数
+      omittedToolCount: number;  // 上限・名前のぶつかりで渡していないツールの数
+      error?: string;            // 失敗・設定の誤りの理由
+    }[];
+  };
 }
 ```
 
 | ステータス | 説明 |
 |-----------|------|
-| 200 | 成功 |
+| 200 | 成功（MCP の接続の失敗も 200 で、`mcp` に理由を返す） |
 
 ---
 

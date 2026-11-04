@@ -1,6 +1,6 @@
 # エージェント機能 設計書
 
-> 最終更新: 2026-11-03
+> 最終更新: 2026-11-04
 
 ## 目次
 
@@ -581,6 +581,7 @@ Node.js の `fetch()` はデフォルトでリダイレクトに自動追従す�
   - **画像のツール**: `requiresVision` のツール（`browser_screenshot`）は、ループの最初にモデルの対応機能（`supportsVision`）を確かめ、画像を読めなければツールの一覧から外す（呼ばれても実行しない）。結果の `images` は `role: 'tool'` のメッセージの `images` に入れ、画面・DB へは送らない。画像を渡せないのに「撮った」とだけ返すと、モデルは見たふりをして答えるため（`docs/18-browser-tools.md`「前提の調査」）。
   - **利用者へ見せる画面（#200）**: 結果の `screenshots`（`images` とは別。モデルへは渡さない）は、ループが `tool_call_result` に中身付きで載せ、記録（`done`・DB の `toolCalls`）には中身を外して入れる。`prepare` の結果の `screenshots`（操作の前の画面）は、承認の結果にかかわらず結果に入れる。画面（`useChat`）は中身を ID ごとに持ち、応答の保存で assistant の添付画像として送る。撮るのは操作の前（要素の位置付き）・操作の後・`browser_navigate` の後・`browser_screenshot`（モデルへ渡した PNG）で、1 回の応答で 20 枚まで（`browser/capture.ts`。`docs/18-browser-tools.md`「画面をチャットに出す」）。
 
+- MCP のサーバーのツール（`mcp__<サーバー>__<ツール>`）は #208（[31-mcp-client.md](./31-mcp-client.md)）。`runAgentLoop` の始めの `syncMcpTools()` が接続し、レジストリへ反映する（`MCP_CONFIG_PATH` が未設定なら何もしない）。`access` は `network` で、`Tool.origin`（`mcp:<サーバー>`）を持つ。「外部への持ち出しの抑止」は、読んだ出どころの集合（`ToolCallState.readOrigins`）で判定する。自分以外の出どころを読んだ後は承認の無い `network` のツールを止め、承認が要るツールは承認カードに読んだものを出して通す。`readOnlyHint: true` だけ承認なしで、ほかは `prepare` を持つ
 - 会話から覚えさせたことを書く `save_memory` は RAG の Phase D（#236。[28-rag.md](./28-rag.md)「会話から覚えさせる（Phase D）」）。`KNOWLEDGE_MEMORY_VAULT` が `KNOWLEDGE_VAULTS` の保管庫の名前のときだけ登録する（`lib/agent/tools/memory/`）。`prepare` で名前・種類・長さ・鍵らしい文字列を確かめ、置き場所と差分を承認カードに出す。`run` は `memories/<名前>.md` に書き、git なら main にコミットし、そのファイルだけを索引へ入れる（埋め込みのモデルの読み込みに備えて `runTimeoutMs` は 120 秒）。`access` は `local`（外部と通信しない）。利用者が頼んだときだけ使うようツールの説明で指示する
 
 - 調べもの・読みものをサブエージェントに任せる `delegate_to_agent` はマルチエージェントの Phase A（#26。[29-multi-agent.md](./29-multi-agent.md)）。使えるサブエージェント（`researcher`: `web_search`・`url_fetch`、`reader`: 登録したドキュメント・ファイル・GitHub を読むツール）が 1 つ以上あれば最後に登録し、モデルへ渡すのは `/api/chat` の `enableSubAgents`（設定の「サブエージェントに任せる」）が真の応答だけ（`lib/agent/tools/sub-agent/`）。

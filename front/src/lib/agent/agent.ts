@@ -7,6 +7,7 @@ import {
   getTool,
   hasVisionTools,
 } from './tools/index';
+import { syncMcpTools } from './tools/mcp/sync';
 import { waitForApproval } from './approvals';
 import {
   hasInstructions,
@@ -17,6 +18,7 @@ import {
 } from './instructions';
 import { addMetrics, metricsFromDoneChunk } from '@/lib/llm/metrics';
 import { APPROVAL_TIMEOUT_MS } from '@/constants/agent/approval';
+import { LOCAL_READ_ORIGIN } from '@/constants/agent/mcp';
 import { DELEGATE_TOOL_NAME } from '@/constants/agent/sub-agent';
 import type {
   ToolApproval,
@@ -97,10 +99,10 @@ function skippedToolOutput(name: string, reason: string): ToolOutput {
  */
 function blockedNetworkToolOutput(name: string): ToolOutput {
   return {
-    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメントを読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
+    result: `エラー: ${name} は実行しませんでした。この応答ではローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメント・別の MCP のサーバーの内容を読んだため、読んだ内容が外部へ送られないよう、外部と通信するツールを止めています。ここまでの情報で回答し、Web で調べる必要があれば、別の質問として改めて頼むよう利用者に伝えてください。`,
     isError: true,
     summary:
-      '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメントを読んだ後のため）',
+      '実行しませんでした（ローカルのファイル・コマンドの出力・GitHub の内容・登録したドキュメント・別の MCP のサーバーの内容を読んだ後のため）',
   };
 }
 
@@ -160,17 +162,22 @@ export function resolveAccess(
 /**
  * ツールを実行せずに止めるかを判定する（#148）。
  *
- * 同じ応答の中でローカルのファイルを読むツールが成功した後は、外部と通信するツールを止める。
+ * 同じ応答の中で手元の情報・MCP のサーバーの情報を読んだ後は、外部と通信するツールを止める。
+ * ただし、読んだのが自分の出どころだけなら止めない（情報はもともとそのサーバーのもの。#208）。
+ * 承認が要るツールも止めない（送る内容を利用者が見て決める。`github_comment` と同じ考え方。`docs/31-mcp-client.md` の M7）。
  *
  * @param access - 実行しようとしているツールが触れるもの（{@link ToolAccess}）
- * @param hasReadLocalFiles - この応答でローカルのファイルを読むツールが成功したか
+ * @param readOrigins - この応答で読んだ出どころ
+ * @param tool - 実行しようとしているツール（出どころ・承認の有無を見る）
  * @returns 止めるなら true
  */
 export function shouldBlockTool(
   access: ToolAccess | undefined,
-  hasReadLocalFiles: boolean
+  readOrigins: ReadonlySet<string>,
+  tool?: Pick<Tool, 'origin' | 'prepare'>
 ): boolean {
-  return hasReadLocalFiles && access === 'network';
+  if (access !== 'network' || tool?.prepare) return false;
+  return Array.from(readOrigins).some((origin) => origin !== tool?.origin);
 }
 
 /**
@@ -469,14 +476,8 @@ export type ToolCallState = {
   vision: boolean;
   /** 接続先ごと使えないとわかったツール名 → 理由（#157）。以降の呼び出しは実行しない。実行した結果で足す */
   unavailableTools: Map<string, string>;
-  /**
-   * この応答で手元の情報を読むツールが成功したか（#148）
-   *
-   * @returns 読んでいれば true
-   */
-  hasReadLocal: () => boolean;
-  /** 手元の情報を読んだことを記録する（以降は外部と通信するツールを止める） */
-  markReadLocal: () => void;
+  /** この応答で読んだ出どころ（#148・#208）。読むツールが成功すると足す。以降は外部と通信するツールを止める */
+  readOrigins: Set<string>;
   /** ループ全体の中断の signal */
   signal: AbortSignal;
   /** 応答ごとの文脈（{@link ToolContext}） */
@@ -508,7 +509,7 @@ export type ToolCallOutcome = {
  *
  * 判定の順: 同じ応答で使えないとわかった → 画像を読めないモデルの画像のツール → モデルへ渡していない →
  * 手元を読んだ後の外部と通信するツール（#148）→ 承認が要るツール（承認の後に実行）→ 実行。
- * 実行の後、接続先ごと使えない失敗（`unavailable`）と、手元の情報を読んだこと（`access: 'local'` の成功・`readLocal`）を `state` に記録する。
+ * 実行の後、接続先ごと使えない失敗（`unavailable`）と、読んだ出どころ（`access: 'local'` の成功・`readLocal`・`origin` を持つツールの成功）を `state` に記録する。
  *
  * イベントを送れるループ（メイン）では、ツールへ渡す文脈に、途中の経過を `callId` 付きで送る `emit` を足す（#26 Phase B）。
  *
@@ -546,7 +547,7 @@ export async function executeToolCall(
         ? { ...visionRequiredOutput(name), durationMs: 0 }
         : tool && !state.offered.has(name)
           ? { ...notOfferedToolOutput(name), durationMs: 0 }
-          : shouldBlockTool(access, state.hasReadLocal())
+          : shouldBlockTool(access, state.readOrigins, tool)
             ? { ...blockedNetworkToolOutput(name), durationMs: 0 }
             : tool?.prepare
               ? send
@@ -564,8 +565,10 @@ export async function executeToolCall(
     state.unavailableTools.set(name, output.summary ?? output.result);
   }
   if ((access === 'local' && !output.isError) || readLocal) {
-    state.markReadLocal();
+    state.readOrigins.add(LOCAL_READ_ORIGIN);
   }
+  // 書くツールの成功も足す（結果に何が返るかアプリから分からないため。#208）
+  if (tool?.origin && !output.isError) state.readOrigins.add(tool.origin);
   return { output, durationMs, images, screenshots, metrics };
 }
 
@@ -793,9 +796,11 @@ export function runAgentLoop(
   const toolCallRecords: ToolCallInfo[] = [];
   // ツール名 → 接続先ごと使えないとわかったときの理由。以降の呼び出しは実行しない
   const unavailableTools = new Map<string, string>();
-  // この応答で手元の情報を読むツール（access: local。ファイル・コマンド・GitHub）が成功したか。以降は外部と通信するツールを止める。
+  // この応答で読んだ出どころ（手元の情報・MCP のサーバー。#208）。以降は外部と通信するツールを止める。
   // 登録したドキュメントの抜き出しを渡した応答（#17 Phase B）は、最初から読んだ扱いにする
-  let hasReadLocalFiles = (knowledgeSources?.length ?? 0) > 0;
+  const readOrigins = new Set<string>(
+    (knowledgeSources?.length ?? 0) > 0 ? [LOCAL_READ_ORIGIN] : []
+  );
   // 応答の終わりに行う後始末（ブラウザのページを閉じる等。#149）
   const disposers: (() => Promise<void>)[] = [];
   // 応答の途中の指示（#241）の受け箱。届いたら今の signal を abort し（サブエージェントがまとめ始める）、読んだら新しい signal に替える
@@ -812,7 +817,8 @@ export function runAgentLoop(
     onDispose: (dispose) => {
       disposers.push(dispose);
     },
-    hasReadLocal: () => hasReadLocalFiles,
+    hasReadLocal: () => readOrigins.size > 0,
+    readOrigins: () => readOrigins,
     instructionSignal: () => instructionController.signal,
   };
   // 同じ組（exclusive）のツールを、呼ばれた順に 1 つずつ実行する（#149 Phase C）
@@ -913,6 +919,9 @@ export function runAgentLoop(
         close();
       };
 
+      // MCP のサーバーのツールを反映する（#208）。失敗しても応答は止めない
+      await syncMcpTools();
+
       // 画像を読めるモデルか。画像のツールが無ければ問い合わせない。問い合わせに失敗したら読めないものとする
       // （画像のツールを渡さないだけで、応答は続けられる）
       const vision = hasVisionTools()
@@ -927,10 +936,7 @@ export function runAgentLoop(
         offered: new Set(tools.map((tool) => tool.function.name)),
         vision,
         unavailableTools,
-        hasReadLocal: () => hasReadLocalFiles,
-        markReadLocal: () => {
-          hasReadLocalFiles = true;
-        },
+        readOrigins,
         signal: loopSignal,
         context: toolContext,
         send,

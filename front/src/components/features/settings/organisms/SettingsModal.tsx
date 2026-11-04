@@ -9,6 +9,7 @@ import {
   Keyboard,
   Network,
 } from 'lucide-react';
+import type { McpStatus } from '@/types/agent/mcp';
 import type { ThemeId } from '@/types/theme/theme';
 import { THEMES } from '@/types/theme/theme';
 import { AGENT_PROMPT_PRESETS } from '@/lib/agent/agent-prompts';
@@ -17,6 +18,7 @@ import Select from '@/components/common/atoms/Select';
 import StatusDot from '@/components/common/atoms/StatusDot';
 import Switch from '@/components/common/atoms/Switch';
 import Modal from '@/components/common/molecules/Modal';
+import McpServerList from '../molecules/McpServerList';
 
 /**
  * SettingsModal コンポーネントの props。
@@ -48,6 +50,8 @@ interface SettingsModalProps {
   enableSubAgents: boolean;
   /** サブエージェントに任せるかが切り替わったときに呼ばれる */
   onEnableSubAgentsChange: (enabled: boolean) => void;
+  /** MCP のサーバーの状態（#208）。読めていなければ `null` */
+  mcpStatus: McpStatus | null;
   /** プロンプトテンプレートの「管理」で呼ばれる（#28。設定モーダルを閉じてから管理画面を開く） */
   onOpenPromptTemplates: () => void;
   /** 「キーボードショートカット」の「一覧」で呼ばれる（#33。設定モーダルを閉じてからショートカットの一覧を開く） */
@@ -77,6 +81,7 @@ export default function SettingsModal({
   onAgentPromptPresetChange,
   enableSubAgents,
   onEnableSubAgentsChange,
+  mcpStatus,
   onOpenPromptTemplates,
   onOpenShortcuts,
 }: SettingsModalProps) {
@@ -205,6 +210,11 @@ export default function SettingsModal({
             </button>
           </div>
         )}
+
+        {mcpStatus &&
+          (mcpStatus.configError || mcpStatus.servers.length > 0) && (
+            <McpServerList status={mcpStatus} />
+          )}
 
         <div className="space-y-3">
           <p className="flex items-center gap-2 text-sm font-semibold text-nord-6">

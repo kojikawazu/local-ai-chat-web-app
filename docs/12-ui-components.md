@@ -1,6 +1,6 @@
 # UI コンポーネント 設計書（Atomic Design）
 
-> 最終更新: 2026-11-03
+> 最終更新: 2026-11-04
 
 フロントの UI コンポーネントを Atomic Design（atoms / molecules / organisms / templates / pages）で整理する設計（#163）。置き場所・依存の向き・各部品の props の方針と、移行の段階を定める。移行は段階 4 で完了した（`src/features/` は無い）。
 
@@ -85,7 +85,7 @@ src/
 ```
 
 - `components/features/<機能>/` の中に置ける階層は `atoms`・`molecules`・`organisms`。templates は画面全体の枠なので共通（`components/common/templates/`）にだけ置く。
-- `settings` は organisms（`SettingsModal`）だけを持つ。選択カードなどの小さな部品は、今は `SettingsModal` の中にしか無いため切り出していない。
+- `settings` の選択カードなどの小さな部品は、今は `SettingsModal` の中にしか無いため切り出していない。MCP のサーバーの一覧（`McpServerList`。#208）は molecules に置く。
 - **空の階層のディレクトリは作らない。** 部品ができたときに作る（今の各機能に機能専用の atoms は無い）。
 - `components/` の直下は `common/` と `features/` だけにする。部品は各階層のディレクトリの直下に置く。re-export だけの `index.ts`（barrel）は作らない。
 
@@ -189,7 +189,8 @@ src/
 | `chat` | atoms | `AttachButton`（#6 で追加。画像を添付するクリップのボタン）・`ElementBoxOverlay`（#200 で追加。スクリーンショットに操作する要素の枠を SVG で重ねる）・`KnowledgeToggle`（#17 Phase B で追加。会話ごとの「ドキュメントを参照」の本のボタン）・`SubAgentToggle`（#26 で追加。入力欄の横の「サブエージェントに任せる」。設定と同じ値・`aria-pressed`・エージェントモードのときだけ出す） | — |
 | `sidebar` | organisms | `Sidebar`（#24 で `id`・`isOpen`・`animate` を追加。隠すと幅 0・`inert`）・`SidebarDrawer`・`SidebarContent`（#30 でブックマークのボタン `onOpenBookmarks` を足した。#33 で一覧の ↑↓・Home・End の移動と、検索欄へのフォーカスの要求 `searchFocusRequest`・`onSearchFocused` を足した。#17 でドキュメントのボタン `onOpenKnowledge` を足した）・`ConversationSearch`（#33 で結果の一覧の ↑↓ の移動と、見えている検索欄だけがフォーカスの要求に応える動きを足した） | `features/sidebar/components/` |
 | `sidebar` | molecules | `ConversationListItem`（履歴の 1 行。生成中の印・削除ボタン。#29 で分岐した会話の先頭のアイコンを分岐の印にした）・`SearchResultItem`（検索結果の 1 件。タイトル・抜粋の強調） | `SidebarContent`・`ConversationSearch` の中 |
-| `settings` | organisms | `SettingsModal`（#28 でプロンプトテンプレートの「管理」ボタンを足した。#33 でショートカットの「一覧」ボタン `onOpenShortcuts` を足した。#26 でエージェントモードのときだけ出す「サブエージェントに任せる」の切り替え（`enableSubAgents`・`onEnableSubAgentsChange`。`aria-pressed`）を足した） | `components/settings/` |
+| `settings` | molecules | `McpServerList`（#208。つないだ MCP のサーバーの名前・状態・ツールの数・失敗の理由。`status`） | — |
+| `settings` | organisms | `SettingsModal`（#208 で `mcpStatus` を足し、サーバーか設定の誤りがあるときだけ `McpServerList` を出す。#28 でプロンプトテンプレートの「管理」ボタンを足した。#33 でショートカットの「一覧」ボタン `onOpenShortcuts` を足した。#26 でエージェントモードのときだけ出す「サブエージェントに任せる」の切り替え（`enableSubAgents`・`onEnableSubAgentsChange`。`aria-pressed`）を足した） | `components/settings/` |
 | `prompt-template` | organisms | `PromptTemplateDialog`（#28 で追加。テンプレートの一覧・作成・編集・2 段階の削除・例の追加） | — |
 | `bookmark` | organisms | `BookmarkDialog`（#30 で追加。ブックマークの一覧・検索・さらに表示。一覧のフック `useBookmarks` を呼ぶ。行を押すと `onOpenBookmark`、外すと `onRemoved` で page に伝える） | — |
 | `bookmark` | molecules | `BookmarkListItem`（#30 で追加。1 件の表示・メモの編集・2 段階の外す） | — |
