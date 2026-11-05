@@ -27,6 +27,19 @@ export interface OllamaChatMessage {
 }
 
 /**
+ * Ollama がストリームの途中で返したエラー。応答の始めの失敗（HTTP の状態）とは別に、生成の途中で届く。
+ */
+export class OllamaStreamError extends Error {
+  /**
+   * @param detail - Ollama の返したエラーの本文
+   */
+  constructor(detail: string) {
+    super(`Ollama の応答の途中でエラーになりました: ${detail}`);
+    this.name = 'OllamaStreamError';
+  }
+}
+
+/**
  * Ollama ストリーミング応答（NDJSON）の 1 チャンク。
  */
 export interface OllamaStreamChunk {
@@ -48,6 +61,11 @@ export interface OllamaStreamChunk {
   };
   /** ストリームの終端チャンクなら true */
   done: boolean;
+  /**
+   * ストリームの途中で起きたエラー。HTTP の状態は 200 のまま、この項目だけの行が最後に届く
+   * （モデルの書いたツール呼び出しを解釈できなかった等）
+   */
+  error?: string;
   /** 入力のトークン数（終端チャンクだけ。キャッシュの分を含む。#31） */
   prompt_eval_count?: number;
   /** 入力のうちキャッシュから読んだトークン数（終端チャンクだけ。#31） */

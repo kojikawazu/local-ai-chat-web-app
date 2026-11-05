@@ -154,6 +154,29 @@ test.describe('メッセージ再生成', () => {
       ]);
     });
 
+    test('再生成の応答が本文なしで終わるとエラーを表示し、旧応答に戻す', async ({
+      page,
+      request,
+    }) => {
+      const { conversationId } = await seedExchange(request);
+      await page.route('**/api/chat', (route) =>
+        route.fulfill({
+          contentType: 'application/x-ndjson',
+          body: JSON.stringify({ type: 'done' }) + '\n',
+        })
+      );
+      await openConversation(page);
+
+      await regenerateButton(page).click();
+
+      await expect(
+        page.getByText('応答の本文が届きませんでした')
+      ).toBeVisible();
+      await expect(page.getByText(OLD_ANSWER)).toBeVisible();
+      const messages = await fetchMessages(request, conversationId);
+      expect(messages.map((m) => m.content)).toEqual([PROMPT, OLD_ANSWER]);
+    });
+
     test('生成中は再生成ボタンを押せず、停止して中断した応答は再生成できる', async ({
       page,
     }) => {

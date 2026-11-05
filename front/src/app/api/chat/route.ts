@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
 import {
   getDefaultModel,
+  OllamaStreamError,
   streamChat,
   supportsVision,
   withSystemPrompt,
@@ -287,6 +288,13 @@ export async function POST(request: NextRequest) {
 
             try {
               const chunk: OllamaStreamChunk = JSON.parse(line);
+              if (chunk.error) {
+                const { message } = new OllamaStreamError(chunk.error);
+                console.error('Ollama stream error:', message);
+                send({ type: 'error', message });
+                controller.close();
+                return;
+              }
               if (chunk.message?.content) {
                 send({ type: 'text_delta', content: chunk.message.content });
               }

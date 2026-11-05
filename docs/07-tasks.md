@@ -1389,3 +1389,16 @@ Dependabot の high の警告 2 件（`image-size` の ICNS・JXL・HEIF の解�
 - [ ] リモートのサーバーの承認の扱い
 - [ ] UT・IT・E2E
 - [ ] ドキュメント
+
+## フェーズ71: 応答が空で終わる不具合の修正（#251）
+
+Ollama がストリームの途中で返すエラーを読まず、応答が空のまま終わっていた。空の応答の再生成は保存が 404 になり、届いた回答が失われた。 — #251（2026-11-05 着手）
+
+- [x] 原因の調査（Ollama との間に記録の中継を挟み、`{"error":"XML syntax error..."}` の行を確かめた）
+- [x] `error` の行を読む（エージェント・サブエージェント・通常のチャット）
+- [x] 本文が出る前のやり直しと、ツールの結果を残す失敗の伝え方
+- [x] 本文の無い応答を画面に残さず、エラーを出す
+- [x] 実際のモデル（`qwen3.8:27b`）で 10 回送り、Ollama のエラー 2 回がやり直しで通ることを確かめた
+- [x] UT（`ollama-stream-error.test.ts` 4 件）・IT（`chat-agent-stream-error.test.ts` 9 件）
+- [x] E2E（`chat-streaming.spec.ts`・`regenerate.spec.ts` に 1 件ずつ足した。2 ファイル 13 件が通過）
+- [x] ドキュメント（`docs/03`・`07`・`09`・`docs/models/qwen3.8-27b.md`・`docs/lessons-learned.md`、`CLAUDE.md`、`.claude/rules/api.md`）

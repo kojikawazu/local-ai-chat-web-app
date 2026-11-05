@@ -117,6 +117,37 @@ export function ollamaChunksResponse(
 }
 
 /**
+ * 生成の途中でエラーになる Ollama の応答を組み立てる。HTTP の状態は 200 のまま、`error` だけの行で終わる
+ * （モデルの書いたツール呼び出しを解釈できないときの、実際の Ollama の形）。
+ *
+ * @param detail - エラーの本文
+ * @param chunks - エラーの前に届く断片（省略時は無し）
+ * @returns `.ok` が true でボディが NDJSON ストリームの `Response`
+ */
+export function ollamaStreamErrorResponse(
+  detail: string,
+  chunks: StubChunkMessage[] = []
+): Response {
+  const lines = [
+    ...chunks.map((message) =>
+      JSON.stringify({
+        model: 'test',
+        message: { role: 'assistant', content: '', ...message },
+        done: false,
+      })
+    ),
+    JSON.stringify({ error: detail }),
+  ]
+    .map((l) => l + '\n')
+    .join('');
+
+  return new Response(lines, {
+    status: 200,
+    headers: { 'content-type': 'application/x-ndjson' },
+  });
+}
+
+/**
  * global `fetch` を任意のハンドラでスタブする。呼び出し記録を返すので引数検証にも使える。
  *
  * @param handler - fetch の代替実装（URL・init を受け取り Response を返す）

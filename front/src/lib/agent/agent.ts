@@ -1,5 +1,11 @@
 import type { OllamaChatMessage, OllamaStreamChunk } from '@/lib/llm/ollama';
-import { streamChat, supportsVision, withSystemPrompt } from '@/lib/llm/ollama';
+import { MAX_OLLAMA_STREAM_RETRIES } from '@/constants/agent/ollama-stream';
+import {
+  OllamaStreamError,
+  streamChat,
+  supportsVision,
+  withSystemPrompt,
+} from '@/lib/llm/ollama';
 import { parsePositiveIntEnv } from './agent-config';
 import {
   getAllToolDefinitions,
@@ -60,6 +66,10 @@ const TOOL_TIMEOUT_MS = parsePositiveIntEnv(
 // 最大ラウンド到達後の最終回答の前に流す注記。本文の一部として表示・保存され、
 // 回答が上限で打ち切られた調査に基づくことをユーザーに示す
 const MAX_ROUNDS_NOTICE = `> ⚠️ ツール呼び出しの上限（${MAX_TOOL_ROUNDS} 回）に達したため、ここまでに得た情報で回答します。\n\n`;
+
+// ツールを実行した後、モデルが本文を返さずに終わったときに流す注記
+const EMPTY_ANSWER_NOTICE =
+  'ツールは実行しましたが、回答の本文が返りませんでした。結果はツールの記録を確認してください。';
 
 // 最大ラウンド到達後の最終回答で、履歴の末尾に足す指示。会話の途中に置いた system は
 // モデルのテンプレートによって無視・破損されるため、user の発言として渡す
@@ -586,6 +596,7 @@ export async function executeToolCall(
  * @param onThinking - 思考過程のまとまりを受け取る
  * @returns 呼ばれたツールと、終わりのチャンクのトークン数・所要時間（#31。届かなければ `undefined`）
  * @throws {Error} 応答のボディが無い場合、または読み取り中に中断された場合
+ * @throws {OllamaStreamError} Ollama がストリームの途中でエラーを返した場合（届いていた本文・思考は渡した後）
  */
 export async function readOllamaResponse(
   response: Response,
@@ -601,6 +612,8 @@ export async function readOllamaResponse(
   let lineBuffer = '';
   const toolCalls: OllamaToolCall[] = [];
   let metrics: ResponseMetrics | undefined;
+  // ストリームの途中で届いたエラー。下の JSON の失敗を無視する catch に飲まれないよう、読み終えてから投げる
+  let streamError: string | undefined;
 
   // <think>...</think> をストリーム全体にわたって検出するためのバッファ
   let contentBuffer = '';
@@ -627,6 +640,10 @@ export async function readOllamaResponse(
       if (!line.trim()) continue;
       try {
         const chunk: OllamaStreamChunk = JSON.parse(line);
+        if (chunk.error) {
+          streamError = chunk.error;
+          continue;
+        }
         if (chunk.done) metrics = metricsFromDoneChunk(chunk);
 
         if (chunk.message?.thinking) {
@@ -704,6 +721,7 @@ export async function readOllamaResponse(
       onTextChunk(contentBuffer);
     }
   }
+  if (streamError) throw new OllamaStreamError(streamError);
 
   return { toolCalls, metrics };
 }
@@ -942,6 +960,9 @@ export function runAgentLoop(
         send,
       };
 
+      // ストリームの途中のエラーでやり直した回数（応答全体で数える）
+      let streamRetries = 0;
+
       try {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           roundText = '';
@@ -963,7 +984,27 @@ export function runAgentLoop(
             return;
           }
 
-          const relayed = await relayOllamaResponse(sendEvent, ollamaResponse);
+          let relayed: Awaited<ReturnType<typeof relayOllamaResponse>>;
+          try {
+            relayed = await relayOllamaResponse(sendEvent, ollamaResponse);
+          } catch (e) {
+            if (loopSignal.aborted || !(e instanceof OllamaStreamError)) {
+              throw e;
+            }
+            console.warn('Ollama stream error:', e.message);
+            // 本文が出る前なら同じラウンドをやり直す（本文が出た後は、同じ文を 2 度送ることになる）
+            if (!roundText && streamRetries < MAX_OLLAMA_STREAM_RETRIES) {
+              streamRetries++;
+              round--;
+              continue;
+            }
+            // 何も渡せていなければ error で返す。本文かツールの結果があれば、error を受けたクライアントは
+            // 作成中のメッセージごと捨てるため、失敗を本文で伝えて結果を残す（最終回答の失敗と同じ）
+            if (sentLength === 0 && toolCallRecords.length === 0) throw e;
+            sendEvent({ type: 'text_delta', content: `\n\n${e.message}` });
+            finish(round + 1);
+            return;
+          }
           const { toolCalls } = relayed;
           metrics = addMetrics(metrics, relayed.metrics);
 
@@ -974,6 +1015,10 @@ export function runAgentLoop(
               history.push({ role: 'assistant', content: roundText });
               pendingSeparator = true;
               continue;
+            }
+            // 本文の無い応答はクライアントが残さないため、ツールの結果を残すには本文が要る
+            if (sentLength === 0 && toolCallRecords.length > 0) {
+              sendEvent({ type: 'text_delta', content: EMPTY_ANSWER_NOTICE });
             }
             finish(round + 1);
             return;

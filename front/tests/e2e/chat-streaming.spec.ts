@@ -119,6 +119,30 @@ test.describe('ストリーミング表示', () => {
     });
   });
 
+  test.describe('準正常系（本文なしの応答）', () => {
+    test('応答が本文なしで終わるとエラーを表示し、空の応答を残さない', async ({
+      page,
+    }) => {
+      await page.route('**/api/chat', (route) =>
+        route.fulfill({
+          contentType: 'application/x-ndjson',
+          body: JSON.stringify({ type: 'done' }) + '\n',
+        })
+      );
+
+      await page.goto('/');
+      await sendMessage(page, 'テストメッセージ');
+
+      await expect(
+        page.getByText('応答の本文が届きませんでした')
+      ).toBeVisible();
+      // DB に無い応答を残すと、再生成の置き換えが 404 になる
+      await expect(
+        page.getByRole('button', { name: '再生成', exact: true })
+      ).toHaveCount(0);
+    });
+  });
+
   test.describe('異常系', () => {
     test('Ollama接続エラー時にエラーメッセージが表示される', async ({
       page,
