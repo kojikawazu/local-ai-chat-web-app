@@ -52,6 +52,10 @@ import {
 } from '@/lib/chat/chat-state';
 import { SAVE_MEMORY_TOOL_NAME } from '@/constants/knowledge/memory';
 
+/** 応答が本文なしで終わったときに出すエラー */
+const EMPTY_RESPONSE_ERROR =
+  '応答の本文が届きませんでした。もう一度送ってください。';
+
 /** 生成中のエージェントの応答 1 つの、途中の指示（#241）の状態。 */
 type ResponseInstructionsState = {
   /** 応答のメッセージ ID */
@@ -510,8 +514,10 @@ export function useChat({
         // 生成中に削除された会話には保存しない（保存先が無く、行き場のない保存失敗が残る）
         if (deletedIdsRef.current.has(convId)) return;
         if (!fullAiContent) {
-          // 本文の無い応答は保存しない。再生成なら空の応答で置き換えず、旧応答に戻す
-          if (replacing) discardResponse();
+          // 本文の無い応答は保存しない。画面にも残さない（DB に無い応答を再生成すると置き換えが 404 になる）。
+          // 再生成なら旧応答に戻す
+          discardResponse();
+          patchChat(convId, { error: EMPTY_RESPONSE_ERROR });
           return;
         }
         const generateTitle = isFirstExchange

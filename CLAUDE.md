@@ -234,7 +234,7 @@ DBスキーマ詳細は `.claude/rules/database.md` を参照。
   - `features/bookmark/` — 応答のブックマーク（molecules: BookmarkListItem / organisms: BookmarkDialog）
   - `features/shortcut/` — ショートカットキー（organisms: ShortcutHelpDialog）
   - `features/knowledge/` — RAG のドキュメント（molecules: KnowledgeDocumentItem, KnowledgeVaultItem / organisms: KnowledgeDialog。#17・#235）
-- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`agent/sub-agent.ts`・`agent/mcp.ts`・`knowledge/file.ts`・`knowledge/memory.ts`・`knowledge/search-documents.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
+- **`constants/`** — 定数（`chat/toolLabels.ts`・`chat/imageAttachment.ts`・`chat/diagram.ts`・`chat/pptx.ts`・`agent/github.ts`・`agent/browser.ts`・`agent/approval.ts`・`agent/sub-agent.ts`・`agent/mcp.ts`・`agent/ollama-stream.ts`・`knowledge/file.ts`・`knowledge/memory.ts`・`knowledge/search-documents.ts`・`prompt-template/errors.ts`・`conversation/title.ts`・`shortcut/shortcuts.ts`・`sidebar/{list,layout}.ts`）
 - **`generated/prisma/`** — Prisma自動生成クライアント
 - **`hooks/`** — カスタムフック（`chat/{useChat,useModels,useImageAttachments,useMermaidDiagram,usePlantUmlDiagram,useApprovalCountdown,useConversationFork,useReportExport,useElapsedSeconds}`・`sidebar/{useConversations,useConversationSearch,useDrawerDialog,useSidebarVisibility,useListNavigation}`・`settings/{useAgentSettings,useMcpServers}`・`shortcut/{useKeyboardShortcuts,useIsMac}`・`prompt-template/usePromptTemplates`・`bookmark/{useBookmarks,useMessageBookmark}`・`knowledge/{useKnowledgeDocuments,useKnowledgeAvailability,useKnowledgeVaults}`・`theme/useTheme`・`clipboard/useCopyFeedback`）
 - **`lib/`** — ユーティリティ・外部連携

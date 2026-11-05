@@ -1,8 +1,9 @@
 import { LOCAL_READ_ORIGIN } from '@/constants/agent/mcp';
 import type { OllamaChatMessage } from '@/lib/llm/ollama';
-import { streamChat } from '@/lib/llm/ollama';
+import { OllamaStreamError, streamChat } from '@/lib/llm/ollama';
 import { addMetrics } from '@/lib/llm/metrics';
 import { getLocalTimeZone, withCurrentDate } from '@/lib/llm/current-date';
+import { MAX_OLLAMA_STREAM_RETRIES } from '@/constants/agent/ollama-stream';
 import {
   SUB_AGENT_ANSWER_BY_MS,
   SUB_AGENT_MAX_ROUNDS,
@@ -135,22 +136,35 @@ export async function runSubAgent({
    */
   const ask = async (withTools: boolean, roundSignal: AbortSignal) => {
     rounds++;
-    const response = await streamChat(
-      history,
-      model,
-      withTools ? tools : undefined,
-      { signal: roundSignal, ...(!withTools && { think: false }) }
-    );
-    let text = '';
-    const read = await readOllamaResponse(
-      response,
-      (chunk) => {
-        text += chunk;
-      },
-      () => {}
-    );
-    metrics = addMetrics(metrics, read.metrics);
-    return { text: text.trim(), toolCalls: read.toolCalls };
+    for (let retries = 0; ; retries++) {
+      const response = await streamChat(
+        history,
+        model,
+        withTools ? tools : undefined,
+        { signal: roundSignal, ...(!withTools && { think: false }) }
+      );
+      let text = '';
+      try {
+        const read = await readOllamaResponse(
+          response,
+          (chunk) => {
+            text += chunk;
+          },
+          () => {}
+        );
+        metrics = addMetrics(metrics, read.metrics);
+        return { text: text.trim(), toolCalls: read.toolCalls };
+      } catch (error) {
+        // ストリームの途中のエラーは、本文が出る前ならやり直す（メインのループと同じ）
+        const canRetry =
+          error instanceof OllamaStreamError &&
+          !text &&
+          retries < MAX_OLLAMA_STREAM_RETRIES &&
+          !roundSignal.aborted;
+        if (!canRetry) throw error;
+        console.warn('Ollama stream error in sub-agent:', error.message);
+      }
+    }
   };
 
   const result = (answer: string): SubAgentResult => ({

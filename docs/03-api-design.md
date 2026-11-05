@@ -1,6 +1,6 @@
 # API設計書
 
-> 最終更新: 2026-11-04
+> 最終更新: 2026-11-05
 
 ## 目次
 
@@ -103,6 +103,8 @@
 
 - 通常モード（`enableTools: false`）: Content-Type `application/x-ndjson`。本文を `text_delta` で逐次返し、終わりに `done` を送る。`done` の `metadata.metrics` は Ollama の終わりのチャンクのトークン数・所要時間（#31。`docs/19-token-metrics.md`。Ollama が返さなければ `metadata` を持たない）。Ollama には `think: false` を送り、思考に対応したモデルにも思考させない（最初の文字までの時間を優先するため。思考過程は返さない）。#31 より前は本文の文字列を `text/event-stream` で返していた。
 - エージェントモード（`enableTools: true`）: Content-Type `application/x-ndjson`。`AgentStreamEvent`（knowledge_sources / text / tool_call / tool_result / thinking / done / error）を改行区切り JSON で返す。`done` の `metadata.metrics` はラウンドのトークン数・所要時間の合計（#31。サブエージェントに任せた分も足す。#26）。エージェントモードの最初に `response_started`（`responseId`。途中の指示の送り先。#241）が届き、指示を読んだら `instruction_applied`（`instructionId`・`contentOffset`）が届く。ツールの呼び出しのイベント（`tool_call_start`・`tool_call_result`・`tool_approval_request`）は、サーバーが呼び出しごとに採番した `callId` を持つ（#26 Phase B。画面は ID で結果・承認を当てる）。同じ組（`exclusive`。委譲・ブラウザの操作）の前の呼び出しが動いていれば `tool_call_start` に `queued: true` が付き、動き始めたら `tool_call_begin`（`callId`）が届く。委譲の途中では、サブエージェントの中のツールの開始・結果が `sub_agent_step_start`・`sub_agent_step_result`（委譲の `callId` と中の手順の `stepId` 付き）で届く。委譲のツールの `tool_call_result` と `done` の `toolCalls[]` は、サブエージェントに任せた記録 `subAgent`（任せた相手 `agent`・仕事 `task`・中のツールの呼び出し `toolCalls`・問い合わせの回数 `rounds`・トークン数 `metrics`）を持つ（#26。`docs/29-multi-agent.md`「記録と画面」）。モデルへ渡していないツール（設定で有効にしていない委譲のツール・サブエージェントだけの `search_documents`）を呼ばれても実行せず、失敗の結果を返す。
+
+**生成の途中の失敗**: Ollama がストリームの途中でエラーを返すと、通常モードは `error` イベントを送る。エージェントモードは本文が出る前なら 2 回までやり直し、失敗が続けば `error` イベント、本文かツールの結果があれば本文で失敗を伝えて `done` で終える（#251。`docs/09-agent-architecture.md`）。
 
 **停止・切断**: ブラウザが停止・切断すると（応答ストリームの cancel・`request.signal` の abort）、Ollama への接続を切って生成を止める（#8）。エージェントモードでは実行中のツールも中断し、次のラウンドへ進まず、イベントを送らずにストリームを閉じる（`error` は送らない）。停止はエラーとして記録しない。
 
